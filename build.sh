@@ -28,6 +28,9 @@ lunch twrp_shiba-ap2a-eng >/dev/null
 
 step() { printf '\n== %s\n' "$*"; }
 
+step "Generating root-menu shim zips"
+python3 "$DEVICE_DIR/mkrootzips.py"
+
 step "Pre-building modules TWRP copies without declaring dependencies"
 m servicemanager task_profiles.json mke2fs.conf -j10 2>&1 | tail -1
 
@@ -58,8 +61,10 @@ gate "vendor VINTF base manifest present"        "grep -q IBootControl $R/vendor
 gate "root script present"                        "test -x $R/system/bin/twrp_root.sh"
 gate "ksud present"                               "test -x $R/system/bin/ksud"
 gate "Magisk patcher present"                     "test -f $R/system/etc/twrp_root/magisk/boot_patch.sh -a -f $R/system/etc/twrp_root/magisk/magiskinit"
-gate "root menu in theme"                         "grep -q 'twrp_root.sh install-ksu' $R/twres/portrait.xml"
+gate "root menu in theme"                         "grep -q 'twrp_root/install-ksu.zip' $R/twres/portrait.xml"
+gate "root shim zips present"                     "test -f $R/system/etc/twrp_root/status.zip -a -f $R/system/etc/twrp_root/install-ksu.zip -a -f $R/system/etc/twrp_root/install-magisk.zip -a -f $R/system/etc/twrp_root/remove.zip"
 gate "boot-repack menu items hidden"              "grep -q tw_shiba_never $R/twres/portrait.xml"
+gate "CPU temp label in Fahrenheit"               "grep -q 'tw_cpu_temp% &#xB0;F' $R/twres/languages/en.xml"
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"
