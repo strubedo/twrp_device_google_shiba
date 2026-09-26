@@ -38,4 +38,13 @@ PRODUCT_PACKAGES += \
 # crash loop. The system servicemanager must be built before vendorbootimage
 # (same missing-dependency class as task_profiles.json), see build command.
 
+# Boot control HAL (slot switching in TWRP, fastboot set_active/current-slot).
+# TEMPORARY: the HAL binary, .rc and VINTF fragment in recovery/root are
+# Google's prebuilts from the AP2A factory recovery ramdisk. Before publishing,
+# build android.hardware.boot-service.default_recovery-pixel from
+# device/google/gs-common/bootctrl/aidl instead.
+# libtrusty (its only dependency missing from the ramdisk) is built from source.
+PRODUCT_PACKAGES += \
+    libtrusty.recovery
+
 PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)

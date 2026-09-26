@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Device VINTF manifest for the TWRP recovery ramdisk (shiba).
+
+    TWRP relinks the *system* servicemanager, whose libvintf reads the device
+    manifest from /vendor/etc/vintf/manifest.xml and only merges fragments from
+    /vendor/etc/vintf/manifest/ when this base file exists. Without it, every
+    AIDL HAL in recovery is "not declared", servicemanager refuses to register
+    it, and the HAL aborts (status -3).
+
+    Declare every AIDL HAL we ship in recovery here.
+-->
+<manifest version="8.0" type="device" target-level="8">
+    <!-- Pixel boot control HAL: slot switching, fastboot current-slot/set_active -->
+    <hal format="aidl">
+        <name>android.hardware.boot</name>
+        <fqname>IBootControl/default</fqname>
+    </hal>
+    <!-- AOSP example fastboot HAL used by fastbootd -->
+    <hal format="aidl">
+        <name>android.hardware.fastboot</name>
+        <fqname>IFastboot/default</fqname>
+    </hal>
+</manifest>

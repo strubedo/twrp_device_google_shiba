@@ -52,6 +52,9 @@ gate "bootstrap/linker64 symlink in fragment" \
 gate "fastbootd present"                          "test -x $R/system/bin/fastbootd"
 gate "bash present"                               "test -x $R/system/bin/bash"
 gate "touch modules present"                      "test -f $R/lib/modules/5.15/goodix_brl_touch.ko"
+gate "boot control HAL present"                   "test -x $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel"
+gate "libtrusty present"                          "test -f $R/system/lib64/libtrusty.so"
+gate "vendor VINTF base manifest present"        "grep -q IBootControl $R/vendor/etc/vintf/manifest.xml"
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"

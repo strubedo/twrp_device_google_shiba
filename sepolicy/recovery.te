@@ -15,4 +15,7 @@ recovery_only(`
 
   # AOSP example health HAL: fastbootd blocks on IHealth lookup without it.
   permissive hal_health_default;
+
+  # Pixel boot control HAL (reads/writes slot metadata via devinfo/Trusty).
+  permissive hal_bootctl_default;
 ')
