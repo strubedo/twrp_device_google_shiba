@@ -25,3 +25,7 @@
 /efs                   f2fs    /dev/block/platform/13200000.ufs/by-name/efs                    flags=display="EFS";backup=1
 /efs_backup            f2fs    /dev/block/platform/13200000.ufs/by-name/efs_backup             flags=display="EFS Backup";backup=1
 /modem_userdata        f2fs    /dev/block/platform/13200000.ufs/by-name/modem_userdata         flags=display="Modem Userdata";backup=1
+
+# Sensor/device calibration: raw image backup only (not A/B, never flashable).
+# emmc type = dd, so no assumption about its filesystem.
+/persist               emmc    /dev/block/platform/13200000.ufs/by-name/persist                flags=display="Persist";backup=1
