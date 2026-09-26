@@ -1,5 +1,18 @@
-# TWRP needs unrestricted access in recovery. Only loaded from the recovery
-# ramdisk /sepolicy; recovery_only() keeps it out of normal-boot vendor policy.
+# Only loaded from the recovery ramdisk /sepolicy; recovery_only() keeps these
+# out of the normal-boot vendor policy. Normal Android stays fully enforcing.
 recovery_only(`
+  # TWRP itself: mounting, properties, /proc, sysfs, rootfs mount points.
   permissive recovery;
+
+  # fastbootd: opens /dev/usb-ffs/fastboot/ep0 (functionfs) and talks to the
+  # fastboot HAL over binder. Enforcing -> "cannot open control endpoint ...
+  # Permission denied" and no USB device appears.
+  permissive fastbootd;
+
+  # AOSP example fastboot HAL: registers with servicemanager (running in the
+  # recovery domain). Enforcing -> binder call denied, HAL aborts (SIGABRT).
+  permissive hal_fastboot_default;
+
+  # AOSP example health HAL: fastbootd blocks on IHealth lookup without it.
+  permissive hal_health_default;
 ')

@@ -1,0 +1,6 @@
+# Label the bootloader control block device so init (enforcing even in
+# recovery; only the recovery domain is permissive) may write the BCB for
+# reboot,fastboot / reboot,recovery / sideload. Without this, init logs
+# "Failed to set bootloader message: ... misc: Permission denied" and refuses
+# to reboot into fastbootd.
+/dev/block/platform/13200000\.ufs/by-name/misc      u:object_r:misc_block_device:s0

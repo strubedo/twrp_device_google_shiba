@@ -1,4 +1,9 @@
 # Pixel 8 (shiba) recovery init. Loaded as init.recovery.${ro.hardware}.rc (zuma).
+#
+# Note: /system/bin/bootstrap/linker64 (needed by the relinked system
+# servicemanager, a bootstrap binary) ships as a symlink in the ramdisk
+# (recovery/root/system/bin/bootstrap/linker64 -> ../linker64). It can't be
+# created here: init runs enforcing and may not create dirs in system_file.
 
 on init
     # dwc3 must be bound before TWRP's init.recovery.usb.rc configures configfs
