@@ -92,6 +92,10 @@ TARGET_USES_MKE2FS := true
 RECOVERY_SDCARD_ON_DATA := true
 
 # Anti-rollback (irrelevant until decryption, kept so it's ready)
+# These build-time values are only fallbacks. TW_OVERRIDE_SYSTEM_PROPS below
+# replaces the SPL props with the INSTALLED system/vendor values at startup,
+# and runatboot.sh refuses to start KeyMint unless they match exactly
+# (a 2099 SPL at KeyMint start could upgrade /data keys past Android's SPL).
 PLATFORM_VERSION := 99.87.36
 PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
 PLATFORM_SECURITY_PATCH := 2099-12-31
@@ -118,6 +122,11 @@ TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_LPTOOLS := true
 TW_INCLUDE_BASH := true
 TW_INCLUDE_FASTBOOTD := true
+
+# Decryption prerequisite: take the security patch levels from the installed
+# system (/system_root) and vendor partitions before runatboot.sh runs.
+TW_OVERRIDE_SYSTEM_PROPS := "ro.build.version.security_patch;ro.vendor.build.security_patch"
+TW_OVERRIDE_PROPS_ADDITIONAL_PARTITIONS := vendor
 TW_EXCLUDE_APEX := true
 TW_NO_SCREEN_BLANK := true
 TW_NO_HAPTICS := true

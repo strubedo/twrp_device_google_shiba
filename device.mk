@@ -47,4 +47,10 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     libtrusty.recovery
 
+# Trusty secure-storage proxy for recovery, built from AOSP source with the
+# SystemSuspend wakelock compiled out (patches/system_core.patch). The vendor
+# storageproxyd blocks forever in acquire_wake_lock() in recovery.
+PRODUCT_PACKAGES += \
+    storageproxyd.recovery
+
 PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)

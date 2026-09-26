@@ -1,0 +1,79 @@
+diff --git a/trusty/storage/interface/Android.bp b/trusty/storage/interface/Android.bp
+index d031b0c1e9..9069d41225 100644
+--- a/trusty/storage/interface/Android.bp
++++ b/trusty/storage/interface/Android.bp
+@@ -21,5 +21,7 @@ package {
+ cc_library_static {
+     name: "libtrustystorageinterface",
+     vendor: true,
++    // shiba TWRP: also build for recovery (storageproxyd.recovery)
++    recovery_available: true,
+     export_include_dirs: ["include"],
+ }
+diff --git a/trusty/storage/proxy/Android.bp b/trusty/storage/proxy/Android.bp
+index e362b8b97e..a57541ffa6 100644
+--- a/trusty/storage/proxy/Android.bp
++++ b/trusty/storage/proxy/Android.bp
+@@ -21,6 +21,15 @@ package {
+ cc_binary {
+     name: "storageproxyd",
+     vendor: true,
++    // shiba TWRP: recovery variant (storageproxyd.recovery). In recovery there
++    // is no SystemSuspend service; the wakelock calls in rpmb.c are compiled
++    // out under __ANDROID_RECOVERY__, so libhardware_legacy isn't linked.
++    recovery_available: true,
++    target: {
++        recovery: {
++            exclude_shared_libs: ["libhardware_legacy"],
++        },
++    },
+ 
+     srcs: [
+         "checkpoint_handling.cpp",
+diff --git a/trusty/storage/proxy/rpmb.c b/trusty/storage/proxy/rpmb.c
+index 1f5d107969..fb8f526d20 100644
+--- a/trusty/storage/proxy/rpmb.c
++++ b/trusty/storage/proxy/rpmb.c
+@@ -32,7 +32,9 @@
+ #include <linux/major.h>
+ #include <linux/mmc/ioctl.h>
+ 
++#ifndef __ANDROID_RECOVERY__
+ #include <hardware_legacy/power.h>
++#endif
+ 
+ #include "ipc.h"
+ #include "log.h"
+@@ -407,11 +409,17 @@ static int send_ufs_rpmb_req(int sg_fd, const struct storage_rpmb_send_req* req,
+      * receive an async notification that the service is started to avoid
+      * blocking (see main).
+      */
++#ifndef __ANDROID_RECOVERY__
+     wl_rc = acquire_wake_lock(PARTIAL_WAKE_LOCK, UFS_WAKE_LOCK_NAME);
+     if (wl_rc < 0) {
+         ALOGE("%s: failed to acquire wakelock: %d, %s\n", __func__, wl_rc, strerror(errno));
+         return wl_rc;
+     }
++#else
++    /* shiba TWRP: no SystemSuspend in recovery; waiting for it deadlocks */
++    (void)UFS_WAKE_LOCK_NAME;
++    wl_rc = 0;
++#endif
+ 
+     if (req->reliable_write_size) {
+         /* Prepare SECURITY PROTOCOL OUT command. */
+@@ -476,10 +484,14 @@ static int send_ufs_rpmb_req(int sg_fd, const struct storage_rpmb_send_req* req,
+     }
+ 
+ err_op:
++#ifndef __ANDROID_RECOVERY__
+     wl_rc = release_wake_lock(UFS_WAKE_LOCK_NAME);
+     if (wl_rc < 0) {
+         ALOGE("%s: failed to release wakelock: %d, %s\n", __func__, wl_rc, strerror(errno));
+     }
++#else
++    (void)wl_rc;
++#endif
+ 
+     return rc;
+ }

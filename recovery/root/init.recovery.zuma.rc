@@ -10,3 +10,28 @@ on init
     wait /sys/devices/platform/11210000.usb/11210000.dwc3/driver 10
     setprop sys.usb.controller "11210000.dwc3"
     setprop sys.usb.configfs 1
+
+# ---------------------------------------------------------------------------
+# Decryption services. All `disabled`: started only by /system/bin/runatboot.sh
+# after it has verified the live security patch props match the installed
+# system (see the safety note there). Never start these by class.
+# ---------------------------------------------------------------------------
+
+# Trusty secure storage proxy, built from AOSP source for recovery with the
+# SystemSuspend wakelock compiled out (the vendor binary deadlocks on it).
+# Storage root in RAM, like LeeGar's OrangeFox; persist/0 -> trusty_persist.
+service twrp.storageproxyd /system/bin/storageproxyd -d /dev/trusty-ipc-dev0 -r /dev/sg1 -p /tmp/ss -t ufs
+    user root
+    group root system
+    disabled
+    seclabel u:r:recovery:s0
+
+# TEE KeyMint - the installed system's own vendor binary (from /vendor, which
+# runatboot.sh mounts read-only), so it always matches the Trusty TA version.
+# oneshot: KeyMint must never be restarted within a boot.
+service twrp.keymint /vendor/bin/hw/android.hardware.security.keymint-service.rust.trusty --dev /dev/trusty-ipc-dev0
+    user root
+    group root drmrpc
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0

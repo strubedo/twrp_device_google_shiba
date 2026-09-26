@@ -21,4 +21,26 @@
         <name>android.hardware.fastboot</name>
         <fqname>IFastboot/default</fqname>
     </hal>
+    <!-- TEE KeyMint (vendor binary, started by runatboot.sh only after the
+         security patch props match the installed system). Copied from
+         vendor/etc/vintf/manifest/android.hardware.security.keymint-service.rust.trusty.xml.
+         Only declare HALs we actually start: clients block on declared-but-absent HALs. -->
+    <hal format="aidl">
+        <name>android.hardware.security.keymint</name>
+        <version>3</version>
+        <fqname>IKeyMintDevice/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>android.hardware.security.keymint</name>
+        <version>3</version>
+        <fqname>IRemotelyProvisionedComponent/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>android.hardware.security.secureclock</name>
+        <fqname>ISecureClock/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>android.hardware.security.sharedsecret</name>
+        <fqname>ISharedSecret/default</fqname>
+    </hal>
 </manifest>

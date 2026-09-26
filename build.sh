@@ -65,6 +65,10 @@ gate "root menu in theme"                         "grep -q 'twrp_root/install-ks
 gate "root shim zips present"                     "test -f $R/system/etc/twrp_root/status.zip -a -f $R/system/etc/twrp_root/install-ksu.zip -a -f $R/system/etc/twrp_root/install-magisk.zip -a -f $R/system/etc/twrp_root/remove.zip"
 gate "boot-repack menu items hidden"              "grep -q tw_shiba_never $R/twres/portrait.xml"
 gate "CPU temp label in Fahrenheit"               "grep -q 'tw_cpu_temp% &#xB0;F' $R/twres/languages/en.xml"
+gate "recovery storageproxyd (no wakelock) present" "test -x $R/system/bin/storageproxyd && ! /bin/grep -a -q acquire_wake_lock $R/system/bin/storageproxyd"
+gate "runatboot.sh (SPL-gated KeyMint) present"   "test -x $R/system/bin/runatboot.sh && grep -q REFUSING $R/system/bin/runatboot.sh"
+gate "KeyMint declared in VINTF"                  "grep -q IKeyMintDevice $R/vendor/etc/vintf/manifest.xml"
+gate "decryption services defined, disabled"     "grep -q 'service twrp.keymint' $R/init.recovery.zuma.rc"
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"
