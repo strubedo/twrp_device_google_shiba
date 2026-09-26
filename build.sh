@@ -55,6 +55,11 @@ gate "touch modules present"                      "test -f $R/lib/modules/5.15/g
 gate "boot control HAL present"                   "test -x $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel"
 gate "libtrusty present"                          "test -f $R/system/lib64/libtrusty.so"
 gate "vendor VINTF base manifest present"        "grep -q IBootControl $R/vendor/etc/vintf/manifest.xml"
+gate "root script present"                        "test -x $R/system/bin/twrp_root.sh"
+gate "ksud present"                               "test -x $R/system/bin/ksud"
+gate "Magisk patcher present"                     "test -f $R/system/etc/twrp_root/magisk/boot_patch.sh -a -f $R/system/etc/twrp_root/magisk/magiskinit"
+gate "root menu in theme"                         "grep -q 'twrp_root.sh install-ksu' $R/twres/portrait.xml"
+gate "boot-repack menu items hidden"              "grep -q tw_shiba_never $R/twres/portrait.xml"
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"

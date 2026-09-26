@@ -1,0 +1,132 @@
+diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
+old mode 100755
+new mode 100644
+index 99eeef6c..81cceb45
+--- a/gui/theme/common/portrait.xml
++++ b/gui/theme/common/portrait.xml
+@@ -3878,6 +3878,54 @@
+ 						<action function="page">decrypt_users</action>
+ 					</actions>
+ 				</listitem>
++				<listitem name="Root: Show status">
++					<actions>
++						<action function="set">tw_back=advanced</action>
++						<action function="set">tw_action=cmd</action>
++						<action function="set">tw_action_param=/system/bin/twrp_root.sh status</action>
++						<action function="set">tw_text1=Check root status of init_boot?</action>
++						<action function="set">tw_action_text1=Checking init_boot...</action>
++						<action function="set">tw_complete_text1=Status shown in log</action>
++						<action function="set">tw_slider_text={@swipe_to_confirm=Swipe to Confirm}</action>
++						<action function="page">confirm_action</action>
++					</actions>
++				</listitem>
++				<listitem name="Root: Install KernelSU">
++					<actions>
++						<action function="set">tw_back=advanced</action>
++						<action function="set">tw_action=cmd</action>
++						<action function="set">tw_action_param=/system/bin/twrp_root.sh install-ksu</action>
++						<action function="set">tw_text1=Install KernelSU (LKM) to init_boot?</action>
++						<action function="set">tw_action_text1=Installing KernelSU...</action>
++						<action function="set">tw_complete_text1=KernelSU step finished - check log</action>
++						<action function="set">tw_slider_text={@swipe_to_confirm=Swipe to Confirm}</action>
++						<action function="page">confirm_action</action>
++					</actions>
++				</listitem>
++				<listitem name="Root: Install Magisk">
++					<actions>
++						<action function="set">tw_back=advanced</action>
++						<action function="set">tw_action=cmd</action>
++						<action function="set">tw_action_param=/system/bin/twrp_root.sh install-magisk</action>
++						<action function="set">tw_text1=Install Magisk to init_boot?</action>
++						<action function="set">tw_action_text1=Installing Magisk...</action>
++						<action function="set">tw_complete_text1=Magisk step finished - check log</action>
++						<action function="set">tw_slider_text={@swipe_to_confirm=Swipe to Confirm}</action>
++						<action function="page">confirm_action</action>
++					</actions>
++				</listitem>
++				<listitem name="Root: Remove root">
++					<actions>
++						<action function="set">tw_back=advanced</action>
++						<action function="set">tw_action=cmd</action>
++						<action function="set">tw_action_param=/system/bin/twrp_root.sh remove</action>
++						<action function="set">tw_text1=Restore stock init_boot (remove root)?</action>
++						<action function="set">tw_action_text1=Removing root...</action>
++						<action function="set">tw_complete_text1=Remove step finished - check log</action>
++						<action function="set">tw_slider_text={@swipe_to_confirm=Swipe to Confirm}</action>
++						<action function="page">confirm_action</action>
++					</actions>
++				</listitem>
+ 				<listitem name="{@reload_theme_btn=Reload Theme}">
+ 					<action function="reload"/>
+ 				</listitem>
+@@ -3906,6 +3954,8 @@
+ 				</listitem>
+ 				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
+ 					<conditions>
++						<!-- shiba: hidden; repacks the boot (GKI kernel) partition -->
++						<condition var1="tw_shiba_never" var2="1"/>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+ 						<condition var1="tw_has_repack_tools" var2="1"/>
+ 					</conditions>
+@@ -3916,6 +3966,8 @@
+ 				</listitem>
+ 				<listitem name="{@reflash_twrp=Flash Current TWRP}">
+ 					<conditions>
++						<!-- shiba: hidden; repacks the boot (GKI kernel) partition -->
++						<condition var1="tw_shiba_never" var2="1"/>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+ 						<condition var1="tw_has_repack_tools" var2="1"/>
+ 						<condition var1="tw_no_flash_current_twrp" var2="0"/>
+@@ -3933,6 +3985,8 @@
+ 				</listitem>
+ 				<listitem name="{@install_kernel=Install Kernel}">
+ 					<conditions>
++						<!-- shiba: hidden; repacks the boot (GKI kernel) partition -->
++						<condition var1="tw_shiba_never" var2="1"/>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+ 						<condition var1="tw_has_repack_tools" var2="1"/>
+ 					</conditions>
+@@ -3943,6 +3997,8 @@
+ 				</listitem>
+ 				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
+ 					<conditions>
++						<!-- shiba: hidden; repacks the boot (GKI kernel) partition -->
++						<condition var1="tw_shiba_never" var2="1"/>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+ 						<condition var1="tw_has_repack_tools" var2="1"/>
+ 						<condition var1="tw_uses_initramfs" var2="1"/>
+diff --git a/minuitwrp/graphics.cpp b/minuitwrp/graphics.cpp
+index 3e10eb34..b8b45420 100644
+--- a/minuitwrp/graphics.cpp
++++ b/minuitwrp/graphics.cpp
+@@ -203,7 +203,7 @@ void gr_color(unsigned char r, unsigned char g, unsigned char b, unsigned char a
+ {
+     GGLContext *gl = gr_context;
+     GGLint color[4];
+-#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA) || defined(RECOVERY_ABGR)
++#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA)
+     color[0] = ((b << 8) | r) + 1;
+     color[1] = ((g << 8) | g) + 1;
+     color[2] = ((r << 8) | b) + 1;
+diff --git a/minuitwrp/resources.cpp b/minuitwrp/resources.cpp
+index 0508eb5a..42e3131c 100644
+--- a/minuitwrp/resources.cpp
++++ b/minuitwrp/resources.cpp
+@@ -224,7 +224,7 @@ int res_create_surface_png(const char* name, gr_surface* pSurface) {
+         goto exit;
+     }
+ 
+-#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA) || defined(RECOVERY_ABGR)
++#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA)
+     png_set_bgr(png_ptr);
+ #endif
+ 
+@@ -320,7 +320,7 @@ int res_create_surface_jpg(const char* name, gr_surface* pSurface) {
+             unsigned char g = pRow[sx + 1];
+             unsigned char b = pRow[sx + 2];
+             unsigned char a = 0xff;
+-#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA) || defined(RECOVERY_ABGR)
++#if defined(RECOVERY_ARGB) || defined(RECOVERY_BGRA)
+             pRow[dx    ] = b; // r
+             pRow[dx + 1] = g; // g
+             pRow[dx + 2] = r; // b
