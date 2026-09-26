@@ -1,0 +1,7 @@
+# Pixel 8 (shiba) recovery init. Loaded as init.recovery.${ro.hardware}.rc (zuma).
+
+on init
+    # dwc3 must be bound before TWRP's init.recovery.usb.rc configures configfs
+    wait /sys/devices/platform/11210000.usb/11210000.dwc3/driver 10
+    setprop sys.usb.controller "11210000.dwc3"
+    setprop sys.usb.configfs 1

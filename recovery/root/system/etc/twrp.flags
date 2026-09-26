@@ -1,0 +1,27 @@
+# TWRP partition flags for Pixel 8 (shiba)
+# Deliberately conservative: no bootloader/firmware partitions (bl1, bl2, abl, pbl,
+# gsa, ...) are exposed for flashing. EFS partitions are backup-only.
+#
+# mount point          fstype  device                                                          flags
+/system                ext4    /dev/block/mapper/system                                        flags=display="System";logical;slotselect
+/system_ext            ext4    /dev/block/mapper/system_ext                                    flags=display="System_ext";logical;slotselect
+/system_dlkm           ext4    /dev/block/mapper/system_dlkm                                   flags=display="System_dlkm";logical;slotselect
+/product               ext4    /dev/block/mapper/product                                       flags=display="Product";logical;slotselect
+/vendor                ext4    /dev/block/mapper/vendor                                        flags=display="Vendor";logical;slotselect
+/vendor_dlkm           ext4    /dev/block/mapper/vendor_dlkm                                   flags=display="Vendor_dlkm";logical;slotselect
+/metadata              f2fs    /dev/block/platform/13200000.ufs/by-name/metadata               flags=display="Metadata";backup=1
+
+# Boot chain images
+/boot                  emmc    /dev/block/platform/13200000.ufs/by-name/boot                   flags=display="Boot";slotselect;backup=1;flashimg=1
+/init_boot             emmc    /dev/block/platform/13200000.ufs/by-name/init_boot              flags=display="Init Boot";slotselect;backup=1;flashimg=1
+/vendor_boot           emmc    /dev/block/platform/13200000.ufs/by-name/vendor_boot            flags=display="Vendor Boot (Recovery)";slotselect;backup=1;flashimg=1
+/vendor_kernel_boot    emmc    /dev/block/platform/13200000.ufs/by-name/vendor_kernel_boot     flags=display="Vendor Kernel Boot";slotselect;backup=1;flashimg=1
+/dtbo                  emmc    /dev/block/platform/13200000.ufs/by-name/dtbo                   flags=display="DTBO";slotselect;backup=1;flashimg=1
+/vbmeta                emmc    /dev/block/platform/13200000.ufs/by-name/vbmeta                 flags=display="VBMeta";slotselect;backup=1;flashimg=1
+/vbmeta_system         emmc    /dev/block/platform/13200000.ufs/by-name/vbmeta_system          flags=display="VBMeta System";slotselect;backup=1;flashimg=1
+/vbmeta_vendor         emmc    /dev/block/platform/13200000.ufs/by-name/vbmeta_vendor          flags=display="VBMeta Vendor";slotselect;backup=1;flashimg=1
+
+# Radio calibration / IMEI: backup only
+/efs                   f2fs    /dev/block/platform/13200000.ufs/by-name/efs                    flags=display="EFS";backup=1
+/efs_backup            f2fs    /dev/block/platform/13200000.ufs/by-name/efs_backup             flags=display="EFS Backup";backup=1
+/modem_userdata        f2fs    /dev/block/platform/13200000.ufs/by-name/modem_userdata         flags=display="Modem Userdata";backup=1

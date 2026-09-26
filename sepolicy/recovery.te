@@ -1,0 +1,5 @@
+# TWRP needs unrestricted access in recovery. Only loaded from the recovery
+# ramdisk /sepolicy; recovery_only() keeps it out of normal-boot vendor policy.
+recovery_only(`
+  permissive recovery;
+')
