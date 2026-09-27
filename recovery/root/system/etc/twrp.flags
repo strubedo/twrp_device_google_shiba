@@ -29,3 +29,10 @@
 # Sensor/device calibration: raw image backup only (not A/B, never flashable).
 # emmc type = dd, so no assumption about its filesystem.
 /persist               emmc    /dev/block/platform/13200000.ufs/by-name/persist                flags=display="Persist";backup=1
+
+# USB OTG storage. Needs otg_host_ready.ko (loaded at startup, see
+# device/google/shiba/otg_host_ready): Pixel only enables USB host once AoC
+# calls dwc3_otg_host_ready(true), and recovery never starts AoC.
+# UFS LUNs are sda..sdd, so the first USB mass-storage disk is sde. TWRP probes
+# the real filesystem at mount time (vfat, exfat, ext4, f2fs are built in).
+/usb-otg               vfat    /dev/block/sde1  /dev/block/sde                                 flags=display="USB-OTG";storage;wipeingui;removable

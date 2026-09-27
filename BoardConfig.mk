@@ -187,5 +187,5 @@ TW_EXCLUDE_MTP := true
 # Primary source: ramdisk copies in /lib/modules/5.15 (checked because of
 # TW_LOAD_VENDOR_BOOT_MODULES). Fallback: the mounted vendor_dlkm, which always
 # matches the installed kernel.
-TW_LOAD_VENDOR_MODULES := "heatmap.ko goog_touch_interface.ko goodix_brl_touch.ko"
+TW_LOAD_VENDOR_MODULES := "heatmap.ko goog_touch_interface.ko goodix_brl_touch.ko otg_host_ready.ko"
 TW_LOAD_VENDOR_BOOT_MODULES := true
