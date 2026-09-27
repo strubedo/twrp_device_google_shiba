@@ -167,6 +167,14 @@ TARGET_RECOVERY_DEVICE_MODULES += service
 TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
     $(TARGET_OUT_EXECUTABLES)/service
 TW_EXCLUDE_APEX := true
+# The official TWRP app can't be installed here (it installs to /system, which
+# is read-only with dm-verity on Pixel 8), only knows official devices, and its
+# "flash TWRP" assumes boot/recovery partitions. Our "TWRP: Install to other
+# slot" (twrp_install_slot.sh) covers that job. Also removes the reboot prompt.
+TW_EXCLUDE_TWRPAPP := true
+# Timezone data comes from device.mk (PRODUCT_COPY_FILES) instead of TWRP's
+# tzdata_twrp, whose post-install copy is lost when build.sh wipes staging.
+TW_EXCLUDE_TZDATA := true
 TW_NO_SCREEN_BLANK := true
 TW_NO_HAPTICS := true
 # MTP: TWRP's init.rc has no configfs trigger for mtp,adb, so enabling it

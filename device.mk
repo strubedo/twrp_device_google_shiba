@@ -59,4 +59,12 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     vbgraft.recovery
 
+# Timezone database for recovery (TWRP's clock, and `date` in scripts: without
+# it every TZ-aware call prints tzdata/posixrules errors). TWRP's tzdata_twrp
+# copies it into recovery as a post-install side effect, which build.sh's wipe
+# of the recovery staging dir erases and Make never redoes - so copy it from
+# source here instead (TW_EXCLUDE_TZDATA in BoardConfig.mk).
+PRODUCT_COPY_FILES += \
+    system/timezone/output_data/iana/tzdata:$(TARGET_COPY_OUT_RECOVERY)/root/system/usr/share/zoneinfo/tzdata
+
 PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)

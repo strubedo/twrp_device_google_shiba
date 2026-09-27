@@ -1,7 +1,7 @@
 diff --git a/Android.mk b/Android.mk
 old mode 100755
 new mode 100644
-index 78b94308..512ce32c
+index 78b94308..fb23b48b
 --- a/Android.mk
 +++ b/Android.mk
 @@ -334,22 +334,30 @@ ifeq ($(TW_INCLUDE_CRYPTO), true)
@@ -40,6 +40,29 @@ index 78b94308..512ce32c
      LOCAL_CFLAGS += -DTW_INCLUDE_FBE_METADATA_DECRYPT
  
      ifeq ($(TARGET_HW_DISK_ENCRYPTION),true)
+@@ -494,8 +502,6 @@ TWRP_REQUIRED_MODULES += \
+     minadbd \
+     twrpbu \
+     adbd_system_api_recovery \
+-    me.twrp.twrpapp.apk \
+-    privapp-permissions-twrpapp.xml \
+     adbd_system_api_recovery \
+     libsync.recovery \
+     libandroidicu.recovery \
+@@ -509,6 +515,13 @@ TWRP_REQUIRED_MODULES += \
+     libadbd.recovery \
+     libadbd_services.recovery
+ 
++# shiba: honor TW_EXCLUDE_TWRPAPP (other TWRP branches do; this one had the
++# app hard-coded into the list above).
++ifneq ($(TW_EXCLUDE_TWRPAPP), true)
++    TWRP_REQUIRED_MODULES += \
++        me.twrp.twrpapp.apk \
++        privapp-permissions-twrpapp.xml
++endif
+ ifneq ($(TW_EXCLUDE_TZDATA), true)
+ TWRP_REQUIRED_MODULES += \
+     tzdata_twrp
 diff --git a/data.cpp b/data.cpp
 index c19fe4c2..33ffd60a 100644
 --- a/data.cpp
@@ -99,7 +122,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..3b65348a
+index 99eeef6c..d07d4305
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -117,7 +140,17 @@ index 99eeef6c..3b65348a
  			</button>
  
  			<button style="main_button">
-@@ -1714,6 +1720,7 @@
+@@ -415,7 +421,8 @@
+ 				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
+ 					<conditions>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+-						<condition var1="tw_has_repack_tools" var2="1"/>
++						<!-- shiba: no magiskboot repack tools here; Flash_Current_Twrp
++						     runs twrp_install_slot.sh (vendor_boot) instead -->
+ 						<condition var1="tw_no_flash_current_twrp" var2="0"/>
+ 					</conditions>
+ 					<data variable="tw_auto_reflashtwrp"/>
+@@ -1714,6 +1721,7 @@
  				<placement x="%center_x%" y="%row18a_y%"/>
  				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
  				<actions>
@@ -125,7 +158,16 @@ index 99eeef6c..3b65348a
  					<action function="refreshsizes"/>
  					<action function="page">backup</action>
  				</actions>
-@@ -3878,6 +3885,40 @@
+@@ -3473,7 +3481,7 @@
+ 				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
+ 					<conditions>
+ 						<condition var1="tw_has_boot_slots" var2="1"/>
+-						<condition var1="tw_has_repack_tools" var2="1"/>
++						<!-- shiba: see the flash_confirm instance -->
+ 						<condition var1="tw_no_flash_current_twrp" var2="0"/>
+ 					</conditions>
+ 					<data variable="tw_auto_reflashtwrp"/>
+@@ -3878,6 +3886,58 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -163,10 +205,28 @@ index 99eeef6c..3b65348a
 +						<action function="page">flash_confirm</action>
 +					</actions>
 +				</listitem>
++				<!-- shiba: keep TWRP after an OTA - rebuild a slot's vendor_boot with
++				     the running TWRP (twrp_install_slot.sh / vbgraft) -->
++				<listitem name="TWRP: Install to other slot">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-other.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="TWRP: Install to both slots">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-both.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +3947,8 @@
+@@ -3906,6 +3966,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -175,7 +235,7 @@ index 99eeef6c..3b65348a
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +3959,8 @@
+@@ -3916,6 +3978,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -184,7 +244,7 @@ index 99eeef6c..3b65348a
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +3978,8 @@
+@@ -3933,6 +3997,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -193,7 +253,7 @@ index 99eeef6c..3b65348a
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +3990,8 @@
+@@ -3943,6 +4009,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
@@ -670,3 +730,72 @@ index b257780d..5d6eff50 100644
  	signal(SIGPIPE, SIG_IGN);
  
  	// Handle ADB sideload
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+old mode 100755
+new mode 100644
+index 1da19e26..b29d1543
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -17,6 +17,9 @@
+ */
+ 
+ #include <string>
++#include <cstdio>
++#include <cstring>
++#include <sys/wait.h>
+ 
+ #include "data.hpp"
+ #include "partitions.hpp"
+@@ -266,6 +269,31 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ }
+ 
+ bool twrpRepacker::Flash_Current_Twrp() {
++	// shiba: devices that keep recovery in vendor_boot (header v4 fragments)
++	// ship a device script instead; the boot-image repack below doesn't apply
++	// to them. Used by "Automatically Reflash TWRP after flashing a ROM"
++	// (twinstall.cpp, after an A/B OTA - the update went to the other slot).
++	// Output streams to the console; the script backs up, verifies, restores.
++	if (TWFunc::Path_Exists("/system/bin/twrp_install_slot.sh")) {
++		gui_print("- Installing TWRP to the updated slot's vendor_boot\n");
++		FILE* fp = popen("/system/bin/twrp_install_slot.sh other 2>&1", "r");
++		if (!fp) {
++			LOGERR("Failed to run twrp_install_slot.sh\n");
++			return false;
++		}
++		char line[512];
++		while (fgets(line, sizeof(line), fp)) {
++			size_t len = strlen(line);
++			if (len > 0 && line[len - 1] == '\n') line[len - 1] = '\0';
++			gui_print("%s\n", line);
++		}
++		int status = pclose(fp);
++		if (status != 0) {
++			LOGERR("twrp_install_slot.sh failed (status %d) - TWRP NOT installed to the updated slot\n", status);
++			return false;
++		}
++		return true;
++	}
+ if (!TWFunc::Path_Exists("/ramdisk-files.txt")) {
+ 			LOGERR("can not find ramdisk-files.txt");
+ 			return false;
+diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
+old mode 100755
+new mode 100644
+index 6abccea7..0dcecc28
+--- a/twrpinstall/twinstall.cpp
++++ b/twrpinstall/twinstall.cpp
+@@ -348,9 +348,13 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+ 			}
+ 			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
+ 			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
+-			if (reflashtwrp) {
++			// shiba: only after a successful OTA - upstream reflashed even when
++			// the install failed, i.e. into a slot the OTA left half-written.
++			if (reflashtwrp && ret_val == INSTALL_SUCCESS) {
+ 			twrpRepacker repacker;
+ 			repacker.Flash_Current_Twrp();
++			} else if (reflashtwrp) {
++				gui_warn("auto_reflash_skipped=OTA did not install - TWRP not reflashed.");
+ 			}
+ 		} else {
+ 			std::string binary_name("ui.xml");
