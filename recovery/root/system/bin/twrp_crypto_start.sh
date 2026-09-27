@@ -97,4 +97,23 @@ start keystore2
 wait_running keystore2 50 || { log "keystore2 did not start"; exit 0; }
 sleep 0.5   # let it register IKeystoreService
 log "keystore2 running (pid $(pidof keystore2)) - ready for metadata unlock"
+
+# --- 7-9. PIN unlock services (stage 5). Non-fatal: the metadata unlock above
+# doesn't need them; without them only the PIN (CE) unlock is unavailable. ---
+start twrp.gatekeeper
+wait_running twrp.gatekeeper 30 && log "gatekeeper running" || log "gatekeeper did not start"
+
+if [ -e /dev/gsc0 ]; then
+    start twrp.citadeld
+    if wait_running twrp.citadeld 30; then
+        log "citadeld running"
+        sleep 0.5   # citadeld must be serving before Weaver connects to it
+        start twrp.weaver
+        wait_running twrp.weaver 30 && log "weaver running" || log "weaver did not start"
+    else
+        log "citadeld did not start - no Weaver"
+    fi
+else
+    log "/dev/gsc0 missing - no Titan, no Weaver"
+fi
 exit 0

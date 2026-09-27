@@ -36,3 +36,27 @@ service twrp.keymint /vendor/bin/hw/android.hardware.security.keymint-service.ru
     disabled
     oneshot
     seclabel u:r:recovery:s0
+
+# --- PIN unlock (stage 5): vendor binaries from /vendor ---------------------
+# Gatekeeper (Trusty TA): verifies the PIN-derived token, returns the auth token
+# keystore2 needs to release the synthetic-password key.
+service twrp.gatekeeper /vendor/bin/hw/android.hardware.gatekeeper-service.trusty
+    user root
+    group root system
+    disabled
+    seclabel u:r:recovery:s0
+
+# citadeld: owns the Titan M2 security chip (/dev/gsc0). Weaver talks through it.
+service twrp.citadeld /vendor/bin/hw/citadeld
+    user root
+    group root hsm
+    disabled
+    seclabel u:r:recovery:s0
+
+# Weaver (Titan M2): releases the PIN-protected secret. Titan counts failed
+# attempts and throttles, exactly like the lock screen.
+service twrp.weaver /vendor/bin/hw/android.hardware.weaver-service.citadel
+    user root
+    group root hsm
+    disabled
+    seclabel u:r:recovery:s0

@@ -80,6 +80,9 @@ gate "KeyMint declared in VINTF"                  "grep -q IKeyMintDevice $R/ven
 gate "keystore2 declared in VINTF"                "grep -q IKeystoreService $R/vendor/etc/vintf/manifest.xml"
 gate "keystore2 not auto-started (KeyMint first)" "! grep -q 'start keystore2' $R/system/etc/init/keystore2.rc && grep -q disabled $R/system/etc/init/keystore2.rc"
 gate "decryption services defined, disabled"     "grep -q 'service twrp.keymint' $R/init.recovery.zuma.rc"
+gate "Gatekeeper + Weaver declared in VINTF"     "grep -q IGatekeeper $R/vendor/etc/vintf/manifest.xml && grep -q IWeaver $R/vendor/etc/vintf/manifest.xml"
+gate "recovery has AIDL Gatekeeper path"         "/bin/grep -a -q 'android.hardware.gatekeeper.IGatekeeper/default' $R/system/bin/recovery"
+gate "no KDF research hook in recovery"          "! /bin/grep -a -q -e fox_fbe_kdf -e fox_kdf.conf $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

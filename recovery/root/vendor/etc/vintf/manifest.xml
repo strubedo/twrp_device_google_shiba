@@ -53,4 +53,17 @@
         <version>4</version>
         <fqname>IKeystoreService/default</fqname>
     </hal>
+    <!-- PIN unlock (decryption stage 5). Vendor binaries from /vendor, started
+         by twrp_crypto_start.sh after keystore2. Copied from
+         vendor/etc/vintf/manifest/android.hardware.gatekeeper-service.trusty.xml
+         and android.hardware.weaver-service.citadel.xml. -->
+    <hal format="aidl">
+        <name>android.hardware.gatekeeper</name>
+        <fqname>IGatekeeper/default</fqname>
+    </hal>
+    <hal format="aidl">
+        <name>android.hardware.weaver</name>
+        <version>2</version>
+        <fqname>IWeaver/default</fqname>
+    </hal>
 </manifest>

@@ -147,11 +147,14 @@ TW_USE_FSCRYPT_POLICY := 2
 # with CANNOT LINK EXECUTABLE. check_libs.py also runs as a build.sh gate.
 SHIBA_CRYPTO_LIBS := \
     android.hardware.confirmationui-V1-ndk \
+    android.hardware.gatekeeper-V1-ndk \
     android.hardware.security.keymint-V3-ndk \
     android.hardware.security.rkp-V3-ndk \
+    android.hardware.weaver-V2-ndk \
     android.security.aaid_aidl-cpp \
     android.system.keystore2-V4-ndk \
     android.system.suspend-V1-ndk \
+    lib_android_keymaster_keymint_utils \
     libsysutils
 TARGET_RECOVERY_DEVICE_MODULES += $(SHIBA_CRYPTO_LIBS)
 TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \

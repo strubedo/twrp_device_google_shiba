@@ -1,0 +1,703 @@
+diff --git a/Android.bp b/Android.bp
+index 200eb67..8c12270 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -176,11 +176,17 @@ cc_library_static {
+     shared_libs: [
+         "android.hardware.confirmationui@1.0",
+         "android.hardware.gatekeeper@1.0",
++        // shiba: AIDL Gatekeeper (Decrypt.cpp tries IGatekeeper/default first;
++        // Pixel 8 has no HIDL gatekeeper) + KeyMintUtils (authToken2AidlVec,
++        // built as lib_android_keymaster_keymint_utils - not libkeymint)
++        "android.hardware.gatekeeper-V1-ndk",
++        "lib_android_keymaster_keymint_utils",
+         "android.hardware.health.storage@1.0",
+         "android.hardware.health.storage-V1-ndk",
+         "android.hardware.keymaster@4.1",
+         "android.hardware.security.keymint-V3-ndk",
+         "android.hardware.weaver@1.0",
++        "android.hardware.weaver-V2-ndk",
+         "android.security.apc-ndk",
+         "android.system.keystore2-V4-ndk",
+         "android.security.authorization-ndk",
+diff --git a/Decrypt.cpp b/Decrypt.cpp
+index 0a5afb0..f2fa5d8 100755
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -20,20 +20,23 @@
+ 
+ #include <map>
+ #include <string>
++#include <vector>
+ 
+ #include <errno.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include <unistd.h>
+ #include <sys/stat.h>
+ #include <sys/types.h>
++#include <sys/wait.h>
+ 
+ #include <keyutils.h>
+-#include "Weaver1.h"
+ #include "cutils/properties.h"
+ 
+ #include <openssl/sha.h>
+ #include <openssl/aes.h>
+ #include <openssl/evp.h>
++#include <openssl/hmac.h>
+ #include <openssl/rand.h>
+ 
+ #include <dirent.h>
+@@ -51,6 +54,7 @@
+ #include <android-base/logging.h>
+ #include <base/threading/platform_thread.h>
+ #include <android/hardware/confirmationui/1.0/types.h>
++#include <aidl/android/hardware/gatekeeper/IGatekeeper.h>
+ #include <aidl/android/hardware/security/keymint/HardwareAuthToken.h>
+ #include <aidl/android/security/authorization/IKeystoreAuthorization.h>
+ #include <aidl/android/security/apc/BnConfirmationCallback.h>
+@@ -74,6 +78,7 @@
+ #include <keystore/OperationResult.h>
+ #include <keymint_support/authorization_set.h>
+ #include <keymasterV4_1/keymaster_utils.h>
++#include <KeyMintUtils.h>
+ 
+ extern "C" {
+ #include "crypto_scrypt.h"
+@@ -83,6 +88,7 @@ extern "C" {
+ #include "HashPassword.h"
+ #include "KeystoreInfo.hpp"
+ #include "KeyStorage.h"
++#include "Weaver1.h"
+ #include "android/os/IVold.h"
+ 
+ namespace apc = ::aidl::android::security::apc;
+@@ -91,11 +97,15 @@ namespace ks2 = ::aidl::android::system::keystore2;
+ 
+ using ::aidl::android::hardware::security::keymint::HardwareAuthenticatorType;
+ using ::aidl::android::hardware::security::keymint::HardwareAuthToken;
++using ::aidl::android::hardware::security::keymint::km_utils::authToken2AidlVec;
+ using aidl::android::system::keystore2::IKeystoreService;
+ using android::security::keymaster::OperationResult;
+ using android::hardware::keymaster::V4_1::support::blob2hidlVec;
++using AidlGatekeeperVerifyResp = aidl::android::hardware::gatekeeper::GatekeeperVerifyResponse;
++using AidlIGatekeeper = aidl::android::hardware::gatekeeper::IGatekeeper;
+ using android::hardware::gatekeeper::V1_0::GatekeeperResponse;
+ using GKResponse = ::android::service::gatekeeper::GateKeeperResponse;
++using GKResponseCode = ::android::service::gatekeeper::ResponseCode;
+ 
+ inline std::string hidlVec2String(const ::keystore::hidl_vec<uint8_t>& value) {
+     return std::string(reinterpret_cast<const std::string::value_type*>(&value[0]), value.size());
+@@ -234,6 +244,10 @@ extern "C" bool Decrypt_DE() {
+ 	return true;
+ }
+ 
++extern "C" bool Reset_FBE_Caches() {
++	return fscrypt_reset_key_caches();
++}
++
+ // Crappy functions for debugging, please ignore unless you need to debug
+ // void output_hex(const std::string& in) {
+ // 	const char *buf = in.data();
+@@ -395,21 +409,48 @@ struct weaver_data_struct {
+  * https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/SyntheticPasswordManager.java#768 */
+ bool Get_Weaver_Data(const std::string& spblob_path, const std::string& handle_str, weaver_data_struct *wd) {
+ 	printf("Get_Weaver_Data\n");
+-	std::string weaver_file = spblob_path + handle_str + ".weaver";
++	bool found_file = false;
+ 	std::string weaver_data;
+-	if (!android::base::ReadFileToString(weaver_file, &weaver_data)) {
+-		printf("Failed to read '%s'\n", weaver_file.c_str());
+-		return false;
++	std::string file = spblob_path + handle_str + ".weaver";
++	if (android::vold::pathExists(file)) {
++		if (!android::base::ReadFileToString(file, &weaver_data)) {
++			printf("Failed to read '%s'\n", file.c_str());
++		} else
++			found_file = true;
++	} else {
++		printf("trying to read %s_file data with leading 0\n", file.c_str());
++		std::vector<std::string> file_paths = {
++			spblob_path + "0" + handle_str + ".weaver",
++			spblob_path + "00" + handle_str + ".weaver"
++		};
++		for (auto& file : file_paths) {
++			if (!android::base::ReadFileToString(file, &weaver_data)) {
++				printf("Failed to read '%s'\n", file.c_str());
++			} else {
++				found_file = true;
++				break;
++			}
++		}
+ 	}
+-	// output_hex(weaver_data.data(), weaver_data.size());printf("\n");
+-	const unsigned char* byteptr = (const unsigned char*)weaver_data.data();
+-	wd->version = *byteptr;
+-	// printf("weaver version %i\n", wd->version);
+-	const int* intptr = (const int*)weaver_data.data() + sizeof(unsigned char);
+-	wd->slot = *intptr;
+-	//endianswap(&wd->slot); not needed
+-	// printf("weaver slot %i\n", wd->slot);
+-	return true;
++	if (found_file == false) {
++		printf("Get_Weaver_Data: No weaver file found for %s\n", handle_str.c_str());
++		return found_file;
++	} else {
++		// output_hex(weaver_data.data(), weaver_data.size());printf("\n");
++		const unsigned char* byteptr = (const unsigned char*)weaver_data.data();
++		wd->version = *byteptr;
++		// printf("weaver version %i\n", wd->version);
++		if (weaver_data.size() == 5) {
++			// packed layout (newer Android): version(1) + slot(4, big-endian)
++			wd->slot = ((int)byteptr[1] << 24) | ((int)byteptr[2] << 16) |
++			           ((int)byteptr[3] << 8) | (int)byteptr[4];
++		} else {
++			const int* intptr = (const int*)weaver_data.data() + sizeof(unsigned char);
++			wd->slot = *intptr;
++		}
++		// printf("weaver slot %i\n", wd->slot);
++	}
++	return found_file;
+ }
+ 
+ namespace android {
+@@ -439,6 +480,7 @@ namespace keystore {
+ #define SYNTHETIC_PASSWORD_VERSION_V1 1
+ #define SYNTHETIC_PASSWORD_VERSION_V2 2
+ #define SYNTHETIC_PASSWORD_VERSION_V3 3
++#define SYNTHETIC_PASSWORD_VERSION_V4 4
+ #define SYNTHETIC_PASSWORD_PASSWORD_BASED 0
+ #define SYNTHETIC_PASSWORD_KEY_PREFIX "USRSKEY_synthetic_password_"
+ #define USR_PRIVATE_KEY_PREFIX "USRPKEY_synthetic_password_"
+@@ -491,7 +533,8 @@ namespace keystore {
+ 			return disk_decryption_secret_key;
+ 		unsigned char* byteptr = (unsigned char*)spblob_data.data();
+ 		if (*byteptr != SYNTHETIC_PASSWORD_VERSION_V2 && *byteptr != SYNTHETIC_PASSWORD_VERSION_V1
+-				&& *byteptr != SYNTHETIC_PASSWORD_VERSION_V3) {
++				&& *byteptr != SYNTHETIC_PASSWORD_VERSION_V3
++				&& *byteptr != SYNTHETIC_PASSWORD_VERSION_V4) {
+ 			printf("Unsupported synthetic password version %i\n", *byteptr);
+ 			return disk_decryption_secret_key;
+ 		}
+@@ -503,8 +546,12 @@ namespace keystore {
+ 		}
+ 		byteptr++; // Now we're pointing to the blob data itself
+ 		if (*synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V2
+-				|| *synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V3) {
+-			printf("spblob v2 / v3\n");
++				|| *synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V3
++				|| *synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V4) {
++			if (*synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V4)
++				printf("spblob v4\n");
++			else
++				printf("spblob v2 / v3\n");
+ 			/* Version 2 / 3 of the spblob is basically the same as version 1, but the order of getting the intermediate key and disk decryption key have been flip-flopped
+ 			* as seen in https://android.googlesource.com/platform/frameworks/base/+/5025791ac6d1538224e19189397de8d71dcb1a12
+ 			*/
+@@ -605,15 +652,69 @@ namespace keystore {
+ 			EVP_DecryptUpdate(d_ctx, secret_key, &actual_size, intermediate_cipher_text, cipher_size);
+ 			unsigned char tag[AES_BLOCK_SIZE];
+ 			EVP_CIPHER_CTX_ctrl(d_ctx, EVP_CTRL_GCM_SET_TAG, 16, tag);
+-			EVP_DecryptFinal_ex(d_ctx, secret_key + actual_size, &final_size);
++			int gcm_ok = EVP_DecryptFinal_ex(d_ctx, secret_key + actual_size, &final_size);
++			(void)gcm_ok;
+ 			EVP_CIPHER_CTX_free(d_ctx);
+ 			free(personalized_application_id);
+ 			free(keystore_result);
+ 			int secret_key_real_size = actual_size - 16;
+-			// printf("secret key:  "); output_hex((const unsigned char*)secret_key, secret_key_real_size); printf("\n");
+-			// The payload data from the keystore update is further personalized at https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/SyntheticPasswordManager.java#153
+-			// We now have the disk decryption key!
+-			if (*synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V3) {
++			if (*synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V4) {
++				// V4 (Android 17): same blob layers as V3 (keystore AES-GCM,
++				// then openssl AES-GCM under the personalized application-id),
++				// but the final KDF is SP800-108 with HMAC-SHA512 PRF
++				// instead of HMAC-SHA256.
++				auto hex_of = [](const unsigned char* b, int n) {
++					std::string h;
++					char tmp[3];
++					for (int i = 0; i < n; i++) {
++						snprintf(tmp, sizeof(tmp), "%02x", b[i]);
++						h += tmp;
++					}
++					return h;
++				};
++				auto try_key = [&](const char* nm, const std::string& k) -> bool {
++					if (k.empty()) return false;
++					if (fscrypt_unlock_ce_storage(user_id, k)) {
++						printf("[OFOX] v4 KDF %s OK\n", nm);
++						disk_decryption_secret_key = k;
++						return true;
++					}
++					return false;
++				};
++				// SP800-108 counter mode, HMAC-SHA512 PRF, L=256 (32 bytes).
++				{
++					HMAC_CTX ctx;
++					HMAC_CTX_init(&ctx);
++					HMAC_Init_ex(&ctx, secret_key, secret_key_real_size,
++							EVP_sha512(), NULL);
++					unsigned int counter = 1;
++					endianswap(&counter);
++					HMAC_Update(&ctx, (const unsigned char*)&counter, 4);
++					HMAC_Update(&ctx, (const unsigned char*)PERSONALIZATION_FBE_KEY,
++							strlen(PERSONALIZATION_FBE_KEY));
++					const unsigned char divider = 0;
++					HMAC_Update(&ctx, &divider, 1);
++					HMAC_Update(&ctx, (const unsigned char*)PERSONALISATION_CONTEXT,
++							strlen(PERSONALISATION_CONTEXT));
++					unsigned int ctxdis = strlen(PERSONALISATION_CONTEXT) * 8;
++					endianswap(&ctxdis);
++					HMAC_Update(&ctx, (const unsigned char*)&ctxdis, 4);
++					unsigned int finalValue = 256;
++					endianswap(&finalValue);
++					HMAC_Update(&ctx, (const unsigned char*)&finalValue, 4);
++					unsigned char out64[SHA512_DIGEST_LENGTH];
++					unsigned int out_size = 0;
++					HMAC_Final(&ctx, out64, &out_size);
++					unsigned char first32[32];
++					memcpy(first32, out64, 32);
++					if (try_key("SP800-SHA512", hex_of(first32, 32))) {
++						free(secret_key);
++						return disk_decryption_secret_key;
++					}
++				}
++				// shiba: LeeGar's research fallback (external fox_fbe_kdf driven by an
++				// adb-pushable /tmp config) removed - not appropriate in a release build.
++			} else if (*synthetic_password_version == SYNTHETIC_PASSWORD_VERSION_V3) {
+ 				// V3 uses SP800 instead of SHA512
+ 				disk_decryption_secret_key = PersonalizedHashSP800(PERSONALIZATION_FBE_KEY, PERSONALISATION_CONTEXT, (const char*)secret_key, secret_key_real_size);
+ 			} else {
+@@ -641,11 +742,21 @@ userid_t fakeUid(const userid_t uid) {
+ }
+ 
+ bool Is_Weaver(const std::string& spblob_path, const std::string& handle_str) {
+-	printf("Is_Weaver\n");
+-	std::string weaver_file = spblob_path + handle_str + ".weaver";
++	printf("Is_Weaver (handle='%s')\n", handle_str.c_str());
+ 	struct stat st;
+-	if (stat(weaver_file.c_str(), &st) == 0)
+-		return true;
++	std::vector<std::string> weaver_file_paths = {
++		spblob_path + handle_str + ".weaver",
++		spblob_path + "0" + handle_str + ".weaver",
++		spblob_path + "00" + handle_str + ".weaver"
++	};
++    for (auto& weaver_file : weaver_file_paths) {
++		if (stat(weaver_file.c_str(), &st) == 0) {
++			printf("Is_Weaver: matched %s\n", weaver_file.c_str());
++			return true;
++			break;
++		}
++	}
++	printf("Is_Weaver: no .weaver file under %s, secdis path\n", spblob_path.c_str());
+ 	return false;
+ }
+ 
+@@ -756,9 +867,18 @@ bool Decrypt_User_Synth_Pass(const userid_t user_id, const std::string& Password
+ 		// Send the slot from the .weaver file, the computed weaver key, and get the escrowed key data
+ 		std::vector<uint8_t> weaver_payload;
+ 		// TODO: we should return more information about the status including time delays before the next retry
++		// Fox: one automatic retry on transient failure. The first Trusty
++		// op after idle can fail (kmr_hal DeviceBegin -62 noise) while a
++		// retry seconds later succeeds; failing the whole PIN attempt on
++		// that instead forces the user through pass_error for nothing.
+ 		if (!weaver.WeaverVerify(wd.slot, weaver_key, &weaver_payload)) {
+-			printf("failed to weaver verify\n");
+-			return Free_Return(retval, weaver_key, &pwd);
++			printf("weaver verify attempt 1 failed (slot %u), retrying once after 2s\n", wd.slot);
++			sleep(2);
++			if (!weaver.WeaverVerify(wd.slot, weaver_key, &weaver_payload)) {
++				printf("failed to weaver verify (both attempts)\n");
++				return Free_Return(retval, weaver_key, &pwd);
++			}
++			printf("weaver verify succeeded on retry\n");
+ 		}
+ 		// printf("weaver payload: "); output_hex(&weaver_payload); printf("\n");
+ 		// Done with weaverVerify
+@@ -790,72 +910,122 @@ bool Decrypt_User_Synth_Pass(const userid_t user_id, const std::string& Password
+ 		if (Password != "!") {
+ 			int ret = -1;
+ 			bool request_reenroll = false;
++			std::shared_ptr<AidlIGatekeeper> aidl_gk_device;
++			// HIDL gatekeeper service.
+ 			android::sp<android::hardware::gatekeeper::V1_0::IGatekeeper> gk_device;
+-			gk_device = ::android::hardware::gatekeeper::V1_0::IGatekeeper::getService();
+-			if (gk_device == nullptr) {
+-				printf("failed to get gatekeeper service\n");
+-				return Free_Return(retval, weaver_key, &pwd);
++			constexpr const char gatekeeperServiceName[] = "android.hardware.gatekeeper.IGatekeeper/default";
++			if (AServiceManager_isDeclared(gatekeeperServiceName)) {
++				::ndk::SpAIBinder ks2Binder(AServiceManager_waitForService(gatekeeperServiceName));
++				aidl_gk_device = AidlIGatekeeper::fromBinder(ks2Binder);
+ 			}
+-			if (pwd.handle_len <= 0) {
+-				printf("no password handle supplied\n");
+-				return Free_Return(retval, weaver_key, &pwd);
++			if (!aidl_gk_device) {
++				gk_device = ::android::hardware::gatekeeper::V1_0::IGatekeeper::getService();
+ 			}
+-			android::hardware::hidl_vec<uint8_t> pwd_handle_hidl;
+-			pwd_handle_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)pwd.password_handle), pwd.handle_len);
+-			void* gk_pwd_token = PersonalizedHashBinary(PERSONALIZATION_USER_GK_AUTH, (char*)&password_token[0], PASSWORD_TOKEN_SIZE);
+-			if (!gk_pwd_token) {
+-				printf("malloc error getting gatekeeper_key\n");
++
++			if (!aidl_gk_device && !gk_device) {
++				printf("failed to get gatekeeper service\n");
+ 				return Free_Return(retval, weaver_key, &pwd);
+ 			}
+-			android::hardware::hidl_vec<uint8_t> gk_pwd_token_hidl;
++
+ 			GKResponse gkResponse;
+-			gk_pwd_token_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)gk_pwd_token), SHA512_DIGEST_LENGTH);
+-			android::hardware::Return<void> hwRet =
+-				gk_device->verify(fakeUid(user_id), 0 /* challenge */,
+-								  pwd_handle_hidl,
+-								  gk_pwd_token_hidl,
+-								  [&gkResponse]
+-									// []
+-									(const android::hardware::gatekeeper::V1_0::GatekeeperResponse &rsp) {
+-										// ret = static_cast<int>(rsp.code); // propagate errors
+-										if (rsp.code >= android::hardware::gatekeeper::V1_0::GatekeeperStatusCode::STATUS_OK) {
+-											printf("GateKeeper status ok\n");
+-											gkResponse = GKResponse::ok({rsp.data.begin(), rsp.data.end()});
+-											const hw_auth_token_t* hwAuthToken =
+-												reinterpret_cast<const hw_auth_token_t*>(gkResponse.payload().data());
+-											HardwareAuthToken authToken;
+-											authToken.timestamp.milliSeconds = betoh64(hwAuthToken->timestamp);
+-											authToken.challenge = hwAuthToken->challenge;
+-											authToken.userId = hwAuthToken->user_id;
+-											authToken.authenticatorId = hwAuthToken->authenticator_id;
+-											authToken.authenticatorType = static_cast<HardwareAuthenticatorType>(
+-													betoh32(hwAuthToken->authenticator_type));
+-											authToken.mac.assign(&hwAuthToken->hmac[0], &hwAuthToken->hmac[32]);
+-											AIBinder* authzAIBinder = AServiceManager_getService("android.security.authorization");
+-											::ndk::SpAIBinder binder(authzAIBinder);
+-											auto service = aidl::android::security::authorization::IKeystoreAuthorization::fromBinder(binder);
+-											if (service == NULL) {
+-												printf("error: could not connect to keystore service\n");
+-												ALOGE("error: could not connect to keystore service\n");
++			if (aidl_gk_device) {
++				if (pwd.handle_len <= 0) {
++					printf("no password handle supplied\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++				android::hardware::hidl_vec<uint8_t> pwd_handle_hidl;
++				pwd_handle_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)pwd.password_handle), pwd.handle_len);
++				void* gk_pwd_token = PersonalizedHashBinary(PERSONALIZATION_USER_GK_AUTH, (char*)&password_token[0], PASSWORD_TOKEN_SIZE);
++				if (!gk_pwd_token) {
++					printf("malloc error getting gatekeeper_key\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++				android::hardware::hidl_vec<uint8_t> gk_pwd_token_hidl;
++				gk_pwd_token_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)gk_pwd_token), SHA512_DIGEST_LENGTH);
++				AidlGatekeeperVerifyResp rsp;
++				auto result = aidl_gk_device->verify(fakeUid(user_id), 0 /* challenge */, pwd_handle_hidl, gk_pwd_token_hidl, &rsp);
++				free(gk_pwd_token);
++
++				if (rsp.statusCode >= AidlIGatekeeper::STATUS_OK) {
++					// Serialize HardwareAuthToken to a vector as hw_auth_token_t.
++					printf("GateKeeper status ok\n");
++					gkResponse = GKResponse::ok(authToken2AidlVec(rsp.hardwareAuthToken));
++				} else if (rsp.statusCode == AidlIGatekeeper::ERROR_RETRY_TIMEOUT) {
++					printf("GateKeeper response timeout\n");
++					gkResponse = GKResponse::retry(rsp.timeoutMs);
++					return Free_Return(retval, weaver_key, &pwd);
++				} else {
++					gkResponse = GKResponse::error();
++					printf("gatekeeper verification failed\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++			}
++                        else if (gk_device) {
++				if (pwd.handle_len <= 0) {
++					printf("no password handle supplied\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++				android::hardware::hidl_vec<uint8_t> pwd_handle_hidl;
++				pwd_handle_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)pwd.password_handle), pwd.handle_len);
++				void* gk_pwd_token = PersonalizedHashBinary(PERSONALIZATION_USER_GK_AUTH, (char*)&password_token[0], PASSWORD_TOKEN_SIZE);
++				if (!gk_pwd_token) {
++					printf("malloc error getting gatekeeper_key\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++				android::hardware::hidl_vec<uint8_t> gk_pwd_token_hidl;
++				gk_pwd_token_hidl.setToExternal(const_cast<uint8_t *>((const uint8_t *)gk_pwd_token), SHA512_DIGEST_LENGTH);
++				android::hardware::Return<void> hwRet =
++					gk_device->verify(fakeUid(user_id), 0 /* challenge */,
++									  pwd_handle_hidl,
++									  gk_pwd_token_hidl,
++									  [&gkResponse]
++										// []
++										(const android::hardware::gatekeeper::V1_0::GatekeeperResponse &rsp) {
++											// ret = static_cast<int>(rsp.code); // propagate errors
++											if (rsp.code >= android::hardware::gatekeeper::V1_0::GatekeeperStatusCode::STATUS_OK) {
++												printf("GateKeeper status ok\n");
++												gkResponse = GKResponse::ok({rsp.data.begin(), rsp.data.end()});
+ 											}
+-											auto binder_result = service->addAuthToken(authToken);
+-										}
+-										else {
+-											if (rsp.code == android::hardware::gatekeeper::V1_0::GatekeeperStatusCode::ERROR_RETRY_TIMEOUT) {
+-												printf("GateKeeper response timeout\n");
+-												gkResponse = GKResponse::retry(rsp.timeout);
+-											} else {
+-												printf("GateKeeper response error\n");
+-												gkResponse = GKResponse::error();
++											else {
++												if (rsp.code == android::hardware::gatekeeper::V1_0::GatekeeperStatusCode::ERROR_RETRY_TIMEOUT) {
++													printf("GateKeeper response timeout\n");
++													gkResponse = GKResponse::retry(rsp.timeout);
++												} else {
++													printf("GateKeeper response error\n");
++													gkResponse = GKResponse::error();
++												}
+ 											}
+ 										}
+-									}
+-								 );
+-			free(gk_pwd_token);
+-			if (!hwRet.isOk()) {
+-				printf("gatekeeper verification failed\n");
+-				return Free_Return(retval, weaver_key, &pwd);
++									);
++				free(gk_pwd_token);
++				if (!hwRet.isOk()) {
++					printf("gatekeeper verification failed\n");
++					return Free_Return(retval, weaver_key, &pwd);
++				}
++			}
++			if (gkResponse.response_code() == GKResponseCode::OK) {
++				if (gkResponse.payload().size() != 0) {
++					const hw_auth_token_t* hwAuthToken =
++						reinterpret_cast<const hw_auth_token_t*>(gkResponse.payload().data());
++					HardwareAuthToken authToken;
++					authToken.timestamp.milliSeconds = betoh64(hwAuthToken->timestamp);
++					authToken.challenge = hwAuthToken->challenge;
++					authToken.userId = hwAuthToken->user_id;
++					authToken.authenticatorId = hwAuthToken->authenticator_id;
++					authToken.authenticatorType = static_cast<HardwareAuthenticatorType>(
++							betoh32(hwAuthToken->authenticator_type));
++					authToken.mac.assign(&hwAuthToken->hmac[0], &hwAuthToken->hmac[32]);
++					AIBinder* authzAIBinder = AServiceManager_getService("android.security.authorization");
++					::ndk::SpAIBinder binder(authzAIBinder);
++					auto service = aidl::android::security::authorization::IKeystoreAuthorization::fromBinder(binder);
++					if (service == NULL) {
++						printf("error: could not connect to keystore service\n");
++						ALOGE("error: could not connect to keystore service\n");
++					}
++					auto binder_result = service->addAuthToken(authToken);
++				}
+ 			}
++
+ 		}
+ 	}
+ 	// Now we will handle https://android.googlesource.com/platform/frameworks/base/+/android-8.0.0_r23/services/core/java/com/android/server/locksettings/SyntheticPasswordManager.java#816
+@@ -979,6 +1149,8 @@ extern "C" bool Decrypt_User(const userid_t user_id, const std::string& Password
+ 	android::hardware::hidl_vec<uint8_t> enteredPwd;
+ 	enteredPwd.setToExternal(const_cast<uint8_t *>((const uint8_t *)Password.c_str()), Password.size());
+ 
++
++
+ 	android::hardware::Return<void> hwRet =
+ 		gk_device->verify(user_id, 0 /* challange */,
+ 						  curPwdHandle,
+diff --git a/Decrypt.h b/Decrypt.h
+index ff926dc..cae9e06 100755
+--- a/Decrypt.h
++++ b/Decrypt.h
+@@ -38,6 +38,7 @@ namespace keystore {
+     int Get_Password_Type(const userid_t user_id, std::string& filename);
+     bool Decrypt_DE();
+     bool Decrypt_User(const userid_t user_id, const std::string& Password);
++    bool Reset_FBE_Caches();
+ }
+ }
+ __END_DECLS
+diff --git a/FsCrypt.cpp b/FsCrypt.cpp
+index 71bdbe3..06fdfac 100644
+--- a/FsCrypt.cpp
++++ b/FsCrypt.cpp
+@@ -893,6 +893,16 @@ bool fscrypt_lock_ce_storage(userid_t user_id) {
+     return evict_user_keys(s_ce_policies, user_id);
+ }
+ 
++// shiba: from LeeGar's vold patch - clears vold's in-memory key caches (e.g.
++// after /data is unmounted). Memory only; touches nothing on disk.
++bool fscrypt_reset_key_caches() {
++    LOG(INFO) << "fscrypt_reset_key_caches: clearing stale key caches after /data unmount";
++    s_ce_policies.clear();
++    s_de_policies.clear();
++    fscrypt_init_user0_done = false;
++    return true;
++}
++
+ static bool prepare_subdirs(const std::string& action, const std::string& volume_uuid,
+                             userid_t user_id, int flags) {
+     if (0 != android::vold::ForkExecvp(
+diff --git a/FsCrypt.h b/FsCrypt.h
+index 23a7396..b2fbad0 100644
+--- a/FsCrypt.h
++++ b/FsCrypt.h
+@@ -39,6 +39,11 @@ bool fscrypt_prepare_user_storage(const std::string& volume_uuid, userid_t user_
+ bool fscrypt_destroy_user_storage(const std::string& volume_uuid, userid_t user_id, int flags);
+ 
+ bool fscrypt_destroy_volume_keys(const std::string& volume_uuid);
++// shiba: from LeeGar's vold patch (needed by his Decrypt.cpp). Only this
++// function was taken - not his "non-fatal in recovery" relaxations of
++// fscrypt_prepare_user_storage(), which would let RestoreconRecursive() run
++// on /data after a partial failure.
++bool fscrypt_reset_key_caches();
+ bool is_metadata_wrapped_key_supported();
+ bool lookup_key_ref(const std::map<userid_t, UserPolicies>& policy_map, userid_t user_id,
+                            std::string* raw_ref);
+diff --git a/Weaver1.cpp b/Weaver1.cpp
+index ea357ed..574ce14 100644
+--- a/Weaver1.cpp
++++ b/Weaver1.cpp
+@@ -28,9 +28,13 @@
+ //#include <keystore/authorization_set.h>
+ //#include <keystore/keystore_hidl_support.h>
+ 
++#include <android/binder_manager.h>
++
+ #include <android/hardware/weaver/1.0/IWeaver.h>
++#include <aidl/android/hardware/weaver/IWeaver.h>
+ 
+ #include <iostream>
++#include <unistd.h>
+ #define ERROR 1
+ #define LOG(x) std::cout
+ 
+@@ -48,7 +52,23 @@ namespace android {
+ namespace vold {
+ 
+ Weaver::Weaver() {
+-	mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
++    const std::string instance = std::string(::aidl::android::hardware::weaver::IWeaver::descriptor) + "/default";
++    // Use checkService with bounded retry instead of waitForService to avoid
++    // infinite hang when Weaver HAL is not registered, while still allowing
++    // time for the service to start during early boot.
++    AIBinder* binder = nullptr;
++    for (int i = 0; i < 15; i++) {
++        binder = AServiceManager_checkService(instance.c_str());
++        if (binder) break;
++        LOG(ERROR) << "Weaver service not yet available, retrying (" << (i + 1) << "/15)..." << std::endl;
++        sleep(2);
++    }
++    if (binder) {
++        mAidlDevice = ::aidl::android::hardware::weaver::IWeaver::fromBinder(ndk::SpAIBinder(binder));
++    }
++	if (mAidlDevice == nullptr) {
++		mDevice = ::android::hardware::weaver::V1_0::IWeaver::getService();
++	}
+ 	GottenConfig = false;
+ }
+ 
+@@ -56,6 +76,15 @@ bool Weaver::GetConfig() {
+ 	if (GottenConfig)
+ 		return true;
+ 
++	if (mAidlDevice != nullptr) {
++		auto r = mAidlDevice->getConfig(&aidlConfig);
++		if (r.isOk()) {
++			GottenConfig = true;
++			return true;
++		}
++		return false;
++	}
++
+ 	WeaverStatus status;
+ 	WeaverConfig cfg;
+ 
+@@ -76,6 +105,10 @@ bool Weaver::GetConfig() {
+ bool Weaver::GetSlots(uint32_t* slots) {
+ 	if (!GetConfig())
+ 		return false;
++	if (mAidlDevice != nullptr) {
++		*slots = aidlConfig.slots;
++		return true;
++	}
+ 	*slots = config.slots;
+ 	return true;
+ }
+@@ -83,13 +116,25 @@ bool Weaver::GetSlots(uint32_t* slots) {
+ bool Weaver::GetKeySize(uint32_t* keySize) {
+ 	if (!GetConfig())
+ 		return false;
+-	*keySize = config.keySize;
++	if (mAidlDevice != nullptr) {
++		*keySize = aidlConfig.keySize;
++	} else {
++		*keySize = config.keySize;
++	}
++	// Titan M3 reports keySize 0 in recovery: fall back to the standard
++	// Android weaver key size so the escrow read is correctly sized.
++	if (*keySize == 0)
++		*keySize = 16;
+ 	return true;
+ }
+ 
+ bool Weaver::GetValueSize(uint32_t* valueSize) {
+ 	if (!GetConfig())
+ 		return false;
++	if (mAidlDevice != nullptr) {
++		*valueSize = aidlConfig.valueSize;
++		return true;
++	}
+ 	*valueSize = config.valueSize;
+ 	return true;
+ }
+@@ -111,6 +156,17 @@ bool Weaver::WeaverVerify(const uint32_t slot, const void* weaver_key, std::vect
+ 		key[index] = *ptr;
+ 		ptr++;
+ 	}
++	
++	if (mAidlDevice != nullptr) {
++		::aidl::android::hardware::weaver::WeaverReadResponse rep;
++		auto r = mAidlDevice->read(slot, key, &rep);
++		if (r.isOk() && rep.status == ::aidl::android::hardware::weaver::WeaverReadStatus::OK) {
++			*payload = rep.value;
++			return true;
++		}
++		return false;
++	}
++
+ 	const auto readRet = mDevice->read(slot, key, [&](WeaverReadStatus s, WeaverReadResponse r) {
+ 		callbackCalled = true;
+ 		status = s;
+diff --git a/Weaver1.h b/Weaver1.h
+index 22f401e..4a329cb 100644
+--- a/Weaver1.h
++++ b/Weaver1.h
+@@ -29,6 +29,7 @@
+ #include <utility>
+ 
+ #include <android/hardware/weaver/1.0/IWeaver.h>
++#include <aidl/android/hardware/weaver/IWeaver.h>
+ #include "Utils.h"
+ 
+ namespace android {
+@@ -40,7 +41,7 @@ class Weaver {
+ 	public:
+ 		Weaver();
+ 		// false if we failed to open the weaver device.
+-		explicit operator bool() { return mDevice.get() != nullptr; }
++		explicit operator bool() { return (mDevice.get() != nullptr) || (mAidlDevice != nullptr); }
+ 
+ 		bool GetSlots(uint32_t* slots);
+ 		bool GetKeySize(uint32_t* keySize);
+@@ -50,7 +51,10 @@ class Weaver {
+ 
+ 	private:
+ 		sp<hardware::weaver::V1_0::IWeaver> mDevice;
++		std::shared_ptr<::aidl::android::hardware::weaver::IWeaver> mAidlDevice;
++
+ 		hardware::weaver::V1_0::WeaverConfig config;
++		::aidl::android::hardware::weaver::WeaverConfig aidlConfig;
+ 		bool GottenConfig;
+ 
+ 		bool GetConfig();
