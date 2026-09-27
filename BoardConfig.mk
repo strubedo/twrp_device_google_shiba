@@ -127,6 +127,35 @@ TW_INCLUDE_FASTBOOTD := true
 # system (/system_root) and vendor partitions before runatboot.sh runs.
 TW_OVERRIDE_SYSTEM_PROPS := "ro.build.version.security_patch;ro.vendor.build.security_patch"
 TW_OVERRIDE_PROPS_ADDITIONAL_PARTITIONS := vendor
+# resetprop: twrp_crypto_start.sh sets the SPL props itself, because TWRP's
+# metadata unlock (Decrypt_Data, from Setup_Fstab_Partitions) runs BEFORE
+# TW_OVERRIDE_SYSTEM_PROPS is applied.
+TW_INCLUDE_RESETPROP := true
+
+# Decryption stage 3: TWRP's crypto stack (vold, keystore2, decrypt UI).
+# FBE (fileencryption=...wrappedkey_v0) + metadata encryption
+# (metadata_encryption=:wrappedkey_v0), fscrypt policy v2 - same flags as
+# LeeGarChat's working OrangeFox tree for zuma.
+TW_INCLUDE_CRYPTO := true
+TW_INCLUDE_CRYPTO_FBE := true
+TW_INCLUDE_FBE_METADATA_DECRYPT := true
+TW_USE_FSCRYPT_POLICY := 2
+
+# Shared libraries the crypto stack links against that TWRP's relink list
+# doesn't copy into the ramdisk (Android 14 names: KeyMint V3, keystore2 V4,
+# RKP V3). Found by check_libs.py; without them recovery and keystore2 fail
+# with CANNOT LINK EXECUTABLE. check_libs.py also runs as a build.sh gate.
+SHIBA_CRYPTO_LIBS := \
+    android.hardware.confirmationui-V1-ndk \
+    android.hardware.security.keymint-V3-ndk \
+    android.hardware.security.rkp-V3-ndk \
+    android.security.aaid_aidl-cpp \
+    android.system.keystore2-V4-ndk \
+    android.system.suspend-V1-ndk \
+    libsysutils
+TARGET_RECOVERY_DEVICE_MODULES += $(SHIBA_CRYPTO_LIBS)
+TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
+    $(foreach lib,$(SHIBA_CRYPTO_LIBS),$(TARGET_OUT_SHARED_LIBRARIES)/$(lib).so)
 TW_EXCLUDE_APEX := true
 TW_NO_SCREEN_BLANK := true
 TW_NO_HAPTICS := true

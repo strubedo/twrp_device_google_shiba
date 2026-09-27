@@ -38,7 +38,14 @@ step "Wiping stale recovery staging root (relink never refreshes it)"
 rm -rf out/target/product/shiba/recovery
 
 step "Building vendorbootimage"
-m adbd vendorbootimage -j10 2>&1 | tail -3
+BUILD_LOG="$HOME/twrp-build.log"
+if ! m adbd vendorbootimage -j10 > "$BUILD_LOG" 2>&1; then
+    echo "BUILD FAILED - first error:"
+    grep -m1 -A30 'FAILED:' "$BUILD_LOG" || tail -40 "$BUILD_LOG"
+    echo "full log: $BUILD_LOG"
+    exit 1
+fi
+tail -3 "$BUILD_LOG"
 
 step "Gates"
 R=out/target/product/shiba/recovery/root
@@ -66,9 +73,16 @@ gate "root shim zips present"                     "test -f $R/system/etc/twrp_ro
 gate "boot-repack menu items hidden"              "grep -q tw_shiba_never $R/twres/portrait.xml"
 gate "CPU temp label in Fahrenheit"               "grep -q 'tw_cpu_temp% &#xB0;F' $R/twres/languages/en.xml"
 gate "recovery storageproxyd (no wakelock) present" "test -x $R/system/bin/storageproxyd && ! /bin/grep -a -q acquire_wake_lock $R/system/bin/storageproxyd"
-gate "runatboot.sh (SPL-gated KeyMint) present"   "test -x $R/system/bin/runatboot.sh && grep -q REFUSING $R/system/bin/runatboot.sh"
+gate "twrp_crypto_start.sh (SPL-gated KeyMint) present" "test -x $R/system/bin/twrp_crypto_start.sh && grep -q REFUSING $R/system/bin/twrp_crypto_start.sh"
+gate "resetprop present"                          "test -x $R/system/bin/resetprop"
+gate "Decrypt_Data runs twrp_crypto_start.sh"     "/bin/grep -a -q twrp_crypto_start.sh $R/system/bin/recovery"
 gate "KeyMint declared in VINTF"                  "grep -q IKeyMintDevice $R/vendor/etc/vintf/manifest.xml"
+gate "keystore2 declared in VINTF"                "grep -q IKeystoreService $R/vendor/etc/vintf/manifest.xml"
+gate "keystore2 not auto-started (KeyMint first)" "! grep -q 'start keystore2' $R/system/etc/init/keystore2.rc && grep -q disabled $R/system/etc/init/keystore2.rc"
 gate "decryption services defined, disabled"     "grep -q 'service twrp.keymint' $R/init.recovery.zuma.rc"
+
+step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
+python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"

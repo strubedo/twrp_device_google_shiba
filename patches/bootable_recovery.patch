@@ -1,3 +1,39 @@
+diff --git a/Android.mk b/Android.mk
+old mode 100755
+new mode 100644
+index 78b94308..09dd3a39
+--- a/Android.mk
++++ b/Android.mk
+@@ -334,14 +334,14 @@ ifeq ($(TW_INCLUDE_CRYPTO), true)
+     TW_INCLUDE_CRYPTO_FBE := true
+     LOCAL_CFLAGS += -DTW_INCLUDE_FBE
+     LOCAL_SHARED_LIBRARIES += android.frameworks.stats@1.0 android.hardware.authsecret@1.0 \
+-	android.security.authorization-ndk_platform \
++	android.security.authorization-ndk \
+         android.hardware.oemlock@1.0 libf2fs_sparseblock \
+         libandroidicu.recovery \
+         android.hardware.gatekeeper@1.0 \
+         android.hardware.weaver@1.0 \
+         android.frameworks.stats@1.0 \
+-        android.security.maintenance-ndk_platform \
+-        android.system.keystore2-V1-ndk_platform \
++        android.security.maintenance-ndk \
++        android.system.keystore2-V1-ndk \
+         libkeyutils \
+         liblog \
+         libsqlite.recovery \
+@@ -349,7 +349,10 @@ ifeq ($(TW_INCLUDE_CRYPTO), true)
+         libgatekeeper_aidl
+ 
+     LOCAL_STATIC_LIBRARIES += libkeymint_support
+-
++    # shiba: vold's Decrypt_User_Synth_Pass() (synthetic password / PIN unlock)
++    # calls crypto_scrypt. TeamWin re-added libscrypt_static to vold's own
++    # Android.bp (vold 38715a3) but not to this Make link of recovery.
++    LOCAL_STATIC_LIBRARIES += libscrypt_static
+     LOCAL_CFLAGS += -DTW_INCLUDE_FBE_METADATA_DECRYPT
+ 
+     ifeq ($(TARGET_HW_DISK_ENCRYPTION),true)
 diff --git a/data.cpp b/data.cpp
 index c19fe4c2..33ffd60a 100644
 --- a/data.cpp
@@ -12,6 +48,33 @@ index c19fe4c2..33ffd60a 100644
  		return 0;
  	}
  	return -1;
+diff --git a/etc/init/keystore2.rc b/etc/init/keystore2.rc
+index fa626624..a7abe6a2 100644
+--- a/etc/init/keystore2.rc
++++ b/etc/init/keystore2.rc
+@@ -5,9 +5,14 @@
+ # Keystore shall run as user keystore and groups keystore, readproc, and log.
+ #
+ # See system/core/init/README.md for information on the init.rc language.
+-
+-on late-init
+-    start keystore2
++#
++# shiba: no longer started at late-init. keystore2 must start AFTER the TEE
++# KeyMint HAL has registered (otherwise it comes up with no KeyMint backend
++# and metadata decryption fails) and AFTER twrp.cpp's copySqliteDb() has
++# created /tmp/misc/keystore/persistent.sqlite (starting earlier means the
++# DB gets truncated underneath the running keystore2). The device's
++# twrp_crypto_start.sh (run by Decrypt_Data) starts it after KeyMint. `disabled`
++# keeps any class_start from launching it early.
+ 
+ service keystore2 /system/bin/keystore2 /tmp/misc/keystore
+     class early_hal
+@@ -15,3 +20,4 @@ service keystore2 /system/bin/keystore2 /tmp/misc/keystore
+     group keystore readproc log
+     writepid /dev/cpuset/foreground/tasks
+     seclabel u:r:recovery:s0
++    disabled
 diff --git a/gui/theme/common/languages/en.xml b/gui/theme/common/languages/en.xml
 old mode 100755
 new mode 100644
@@ -134,6 +197,186 @@ index 104c3f66..78495189
  			</text>
  
  			<text color="%text_color%">
+diff --git a/libtar/Android.mk b/libtar/Android.mk
+old mode 100755
+new mode 100644
+index c3bb691f..008125a5
+--- a/libtar/Android.mk
++++ b/libtar/Android.mk
+@@ -23,10 +23,10 @@ ifeq ($(TW_INCLUDE_CRYPTO_FBE), true)
+         android.hardware.keymaster@4.0 \
+         android.hardware.keymaster@4.1 \
+         android.hardware.weaver@1.0 \
+-        android.security.apc-ndk_platform \
+-        android.system.keystore2-V1-ndk_platform \
+-        android.security.authorization-ndk_platform \
+-        android.security.maintenance-ndk_platform \
++        android.security.apc-ndk \
++        android.system.keystore2-V1-ndk \
++        android.security.authorization-ndk \
++        android.security.maintenance-ndk \
+         libselinux \
+         libbinder_ndk \
+         libext4_utils \
+diff --git a/libtar/append.c b/libtar/append.c
+index 225ae1ad..dfea080b 100755
+--- a/libtar/append.c
++++ b/libtar/append.c
+@@ -38,7 +38,7 @@
+ 
+ #include <selinux/selinux.h>
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ #include "fscrypt_policy.h"
+ #endif
+ 
+@@ -135,7 +135,7 @@ tar_append_file(TAR *t, const char *realname, const char *savename)
+ 		}
+ 	}
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	if (TH_ISDIR(t) && t->options & TAR_STORE_FSCRYPT_POL)
+ 	{
+ 		if (t->th_buf.fep != NULL)
+diff --git a/libtar/block.c b/libtar/block.c
+index aaedc8e8..dbe3dd1a 100755
+--- a/libtar/block.c
++++ b/libtar/block.c
+@@ -22,7 +22,7 @@
+ #define DEBUG 1
+ #endif
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ #include "fscrypt_policy.h"
+ #endif
+ 
+@@ -146,7 +146,7 @@ th_read(TAR *t)
+ 	if (t->th_buf.selinux_context != NULL)
+ 		free(t->th_buf.selinux_context);
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	if (t->th_buf.fep != NULL)
+ 		free(t->th_buf.fep);
+ #endif
+@@ -351,7 +351,7 @@ th_read(TAR *t)
+ #endif
+ 			} // end android user.inode_code_cache xattr
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 			start = strstr(buf, FSCRYPT_TAG);
+ 			if (start && start+FSCRYPT_TAG_LEN < buf+len) {
+ 				t->th_buf.fep = (fscrypt_policy*)malloc(sizeof(fscrypt_policy));
+@@ -376,7 +376,7 @@ th_read(TAR *t)
+ 					LOG("     invalid fscrypt header found\n");
+ 				}
+ 			}
+-#endif // USE_FSCRYPT
++#endif // TW_LIBTAR_FSCRYPT
+ 		}
+ 
+ 		i = th_read_internal(t);
+@@ -575,7 +575,7 @@ th_write(TAR *t)
+ 		ptr += sz;
+ 	}
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	if((t->options & TAR_STORE_FSCRYPT_POL) && t->th_buf.fep != NULL)
+ 	{
+ 		/* setup size - EXT header has format "*size of this whole tag as ascii numbers* *space* *version code* *content* *newline* */
+diff --git a/libtar/extract.c b/libtar/extract.c
+index be989b03..9aa6951e 100755
+--- a/libtar/extract.c
++++ b/libtar/extract.c
+@@ -35,7 +35,7 @@
+ 
+ #include <selinux/selinux.h>
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ #include "fscrypt_policy.h"
+ #endif
+ 
+@@ -554,7 +554,7 @@ tar_extract_dir(TAR *t, const char *realname)
+ 		}
+ 	}
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	if(t->th_buf.fep != NULL)
+ 	{
+ 		uint8_t hex_size, size, *descriptor;
+diff --git a/libtar/libtar.h b/libtar/libtar.h
+old mode 100755
+new mode 100644
+index f42b2010..793ebfeb
+--- a/libtar/libtar.h
++++ b/libtar/libtar.h
+@@ -20,7 +20,16 @@
+ 
+ #include "libtar_listhash.h"
+ 
+-#ifdef USE_FSCRYPT
++/*
++ * shiba: libtar's fscrypt-policy storage was written against the union
++ * fscrypt_policy API (get_policy, fscrypt_policy_size, ...) that TWRP added to
++ * its android-12.1 vold. TWRP's android-14.1 vold doesn't carry those
++ * helpers, so this code is fenced by TW_LIBTAR_FSCRYPT (left undefined)
++ * instead of USE_FSCRYPT - the rest of TWRP keeps USE_FSCRYPT (metadata
++ * decryption needs it). Effect: /data tar backups don't record encryption
++ * policies. TAR_STORE_FSCRYPT_POL stays defined; libtar ignores it.
++ */
++#ifdef TW_LIBTAR_FSCRYPT
+ #include "fscrypt_policy.h"
+ #endif
+ 
+@@ -70,7 +79,7 @@ struct tar_header
+ 	char *gnu_longname;
+ 	char *gnu_longlink;
+ 	char *selinux_context;
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	fscrypt_policy  *fep;
+ #endif
+ 	int has_cap_data;
+@@ -123,9 +132,7 @@ TAR;
+ #define TAR_STORE_SELINUX	128	/* store selinux context */
+ #define TAR_USE_NUMERIC_ID	256	/* favor numeric owner over names */
+ 
+-#ifdef USE_FSCRYPT
+-#define TAR_STORE_FSCRYPT_POL 512 /* store fscrypt crypto policy */
+-#endif
++#define TAR_STORE_FSCRYPT_POL 512 /* store fscrypt crypto policy (ignored unless TW_LIBTAR_FSCRYPT) */
+ 
+ #define TAR_STORE_POSIX_CAP	1024	/* store posix file capabilities */
+ #define TAR_STORE_ANDROID_USER_XATTR	2048	/* store android user.* xattr */
+diff --git a/libtar/output.c b/libtar/output.c
+index 3f57c831..0bc8b5a8 100755
+--- a/libtar/output.c
++++ b/libtar/output.c
+@@ -24,7 +24,7 @@
+ # include <string.h>
+ #endif
+ 
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ #include "fscrypt_policy.h"
+ #endif
+ 
+@@ -60,7 +60,7 @@ th_print(TAR *t)
+ 	       (t->th_buf.gnu_longname ? t->th_buf.gnu_longname : "[NULL]"));
+ 	LOG("  gnu_longlink = \"%s\"\n",
+ 	       (t->th_buf.gnu_longlink ? t->th_buf.gnu_longlink : "[NULL]"));
+-#ifdef USE_FSCRYPT
++#ifdef TW_LIBTAR_FSCRYPT
+ 	LOG("  fep = \"%s\"\n",
+ 		(t->th_buf.fep ? get_policy_descriptor(t->th_buf.fep) : (uint8_t*) "[NULL]"));
+ #endif
 diff --git a/minuitwrp/graphics.cpp b/minuitwrp/graphics.cpp
 index 3e10eb34..b8b45420 100644
 --- a/minuitwrp/graphics.cpp
@@ -169,3 +412,170 @@ index 0508eb5a..42e3131c 100644
              pRow[dx    ] = b; // r
              pRow[dx + 1] = g; // g
              pRow[dx + 2] = r; // b
+diff --git a/partition.cpp b/partition.cpp
+old mode 100755
+new mode 100644
+index 8c53567e..c30aa743
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -53,6 +53,7 @@
+ 	// #include "crypto/fde/cryptfs.h"
+ 	#include "cryptfs.h"
+ 	#include "Decrypt.h"
++	#include <libdm/dm.h>
+ #endif
+ extern "C" {
+ 	#include "mtdutils/mtdutils.h"
+@@ -708,22 +709,10 @@ void TWPartition::Setup_Data_Partition(bool Display_Error) {
+ 	} else if (!Mount(false)) {
+ 		if (Is_Present) {
+ 			if (Key_Directory.empty()) {
+-				set_partition_data(Use_Original_Path ? Original_Path.c_str() : Actual_Block_Device.c_str(), Crypto_Key_Location.c_str());
+-				if (cryptfs_check_footer() == 0) {
+-					Is_Encrypted = true;
+-					Is_Decrypted = false;
+-					Can_Be_Mounted = false;
+-					Current_File_System = "emmc";
+-					Setup_Image();
+-					DataManager::SetValue(TW_CRYPTO_PWTYPE, cryptfs_get_password_type());
+-					DataManager::SetValue("tw_crypto_pwtype_0", cryptfs_get_password_type());
+-					DataManager::SetValue(TW_CRYPTO_PASSWORD, "");
+-					DataManager::SetValue("tw_crypto_display", "");
+-					if (datamedia)
+-						Setup_Data_Media();
+-				} else {
+-					gui_err("mount_data_footer=Could not mount /data and unable to find crypto footer.");
+-				}
++				// shiba: legacy FDE (crypto footer) support was dropped from TWRP's
++				// 14.1 vold (set_partition_data/cryptfs_check_footer no longer
++				// exist). This device is FBE + metadata encryption only.
++				gui_err("mount_data_footer=Could not mount /data and unable to find crypto footer.");
+ 			} else {
+ 				Is_Encrypted = true;
+ 				Is_Decrypted = false;
+@@ -2160,7 +2149,11 @@ bool TWPartition::Wipe_Encryption() {
+ 	if (!UnMount(true))
+ 		return false;
+ 	if (Is_Decrypted && !Decrypted_Block_Device.empty()) {
+-		if (delete_crypto_blk_dev((char*)("userdata")) != 0) {
++		// shiba: FDE-era delete_crypto_blk_dev() is gone from TWRP 14.1 vold.
++		// With metadata encryption, vold's fscrypt_mount_metadata_encrypted()
++		// maps the decrypted view as dm device "userdata"; tear it down with
++		// libdm (the same library vold used to create it) before formatting.
++		if (!android::dm::DeviceMapper::Instance().DeleteDeviceIfExists("userdata")) {
+ 			LOGERR("Error deleting crypto block device, continuing anyway.\n");
+ 		}
+ 	}
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+old mode 100755
+new mode 100644
+index 171feccf..6575fdde
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -586,6 +586,13 @@ void TWPartitionManager::Decrypt_Data() {
+ 	#ifdef TW_INCLUDE_CRYPTO
+ 	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
+ 	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
++		// shiba: bring up the TEE services (Trusty storage proxy, KeyMint,
++		// keystore2) right before the metadata unlock. This runs from
++		// Setup_Fstab_Partitions(), i.e. BEFORE twrp.cpp applies
++		// TW_OVERRIDE_SYSTEM_PROPS and runs runatboot.sh, so the device script
++		// sets the security patch props itself and refuses to start KeyMint
++		// unless they match the installed system (see the script).
++		TWFunc::check_and_run_script("/system/bin/twrp_crypto_start.sh", "decrypt");
+ 		Set_Crypto_State();
+ 		TWPartition* Key_Directory_Partition = Find_Partition_By_Path(Decrypt_Data->Key_Directory);
+ 		if (Key_Directory_Partition != nullptr)
+@@ -595,7 +602,12 @@ void TWPartitionManager::Decrypt_Data() {
+ 			Set_Crypto_Type("file");
+ #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
+ #ifdef USE_FSCRYPT
+-			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, TWFunc::Path_Exists(additional_fstab) ? additional_fstab : "")) {
++			// shiba: TWRP 14.1 vold's last parameter is now zoned_device (a
++			// second zoned block device), not an extra fstab path. Passing
++			// /etc/additional.fstab there made vold look for the key under
++			// <metadata_key_dir>/default/key (the zoned layout) instead of
++			// <metadata_key_dir>/key, so decryption failed. No zoned storage here.
++			if (android::vold::fscrypt_mount_metadata_encrypted(Decrypt_Data->Actual_Block_Device, Decrypt_Data->Mount_Point, false, false, Decrypt_Data->Current_File_System, "")) {
+ 				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
+ 				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
+ 				LOGINFO("Successfully decrypted metadata encrypted data partition with new block device: '%s'\n", crypto_blkdev.c_str());
+@@ -629,22 +641,9 @@ void TWPartitionManager::Decrypt_Data() {
+ 				}
+ 			}
+ 		} else {
+-			LOGINFO("FBE setup failed. Trying FDE...\n");
+-			Set_Crypto_State();
+-			Set_Crypto_Type("block");
+-			int password_type = cryptfs_get_password_type();
+-			if (password_type == CRYPT_TYPE_DEFAULT) {
+-				LOGINFO("Device is encrypted with the default password, attempting to decrypt.\n");
+-				if (Decrypt_Device("default_password") == 0) {
+-					gui_msg("decrypt_success=Successfully decrypted with default password.");
+-					DataManager::SetValue(TW_IS_ENCRYPTED, 0);
+-				} else {
+-					gui_err("unable_to_decrypt=Unable to decrypt with default password.");
+-				}
+-			} else {
+-				DataManager::SetValue("TW_CRYPTO_TYPE", password_type);
+-				DataManager::SetValue("tw_crypto_pwtype_0", password_type);
+-			}
++			// shiba: legacy FDE fallback removed - TWRP 14.1 vold no longer
++			// provides cryptfs_get_password_type(). FBE/metadata only.
++			LOGERR("FBE setup failed (legacy FDE is not supported)\n");
+ 		}
+ 	}
+ 	if (Decrypt_Data && (!Decrypt_Data->Is_Encrypted || Decrypt_Data->Is_Decrypted)) {
+@@ -2176,24 +2175,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+ 	}
+ 
+ 	int pwret = -1;
+-	pid_t pid = fork();
+-	if (pid < 0) {
+-		LOGERR("fork failed\n");
+-		return -1;
+-	} else if (pid == 0) {
+-		// Child process
+-		char cPassword[255];
+-		strcpy(cPassword, Password.c_str());
+-		int ret = cryptfs_check_passwd(cPassword);
+-		exit(ret);
+-	} else {
+-		// Parent
+-		int status;
+-		if (TWFunc::Wait_For_Child_Timeout(pid, &status, "Decrypt", 30))
+-			pwret = -1;
+-		else
+-			pwret = WEXITSTATUS(status) ? -1 : 0;
+-	}
++	// shiba: legacy FDE password check removed - TWRP 14.1 vold no longer
++	// provides cryptfs_check_passwd(). FBE users are handled above.
++	LOGERR("Legacy FDE decryption is not supported\n");
+ 
+ 	// Unmount any partitions that were needed for decrypt
+ 	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+diff --git a/twrp.cpp b/twrp.cpp
+index b257780d..bf9ea9af 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -51,6 +51,7 @@ extern "C" {
+ #include "partitions.hpp"
+ #ifdef __ANDROID_API_N__
+ #include <android-base/strings.h>
++#include <android-base/logging.h>
+ #else
+ #include <base/strings.h>
+ #endif
+@@ -355,6 +356,12 @@ int main(int argc, char **argv) {
+ 	freopen(TMP_LOG_FILE, "a", stderr);
+ 	setbuf(stderr, NULL);
+ 
++	// shiba: route android-base LOG() (vold, fs_mgr, libdm - all linked into
++	// this binary) to stderr, i.e. /tmp/recovery.log. There is no logd in
++	// recovery, so by default their error messages were silently dropped,
++	// including the reason a metadata decryption fails.
++	android::base::SetLogger(android::base::StderrLogger);
++
+ 	signal(SIGPIPE, SIG_IGN);
+ 
+ 	// Handle ADB sideload
