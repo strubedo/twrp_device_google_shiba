@@ -6,16 +6,19 @@
 # before twrp.cpp applies TW_OVERRIDE_SYSTEM_PROPS and runs runatboot.sh. So
 # this script sets the security patch props itself.
 #
-# SAFETY: KeyMint versions keys by security patch level (SPL). If KeyMint ran
-# with a newer SPL than the installed system (our build default is 2099-12-31)
-# it would report "key requires upgrade" and vold could rewrite the /data keys
-# stamped with that future SPL - Android would then reject them as a downgrade
-# and /data could never be unlocked again. So KeyMint is started ONLY when the
-# live SPL props exactly match the installed system and vendor build.prop.
-# On any doubt we start nothing and decryption is simply skipped.
+# SAFETY: KeyMint versions keys by OS version and security patch levels. If
+# KeyMint ran with a newer OS version or SPL than the installed system (our
+# build defaults are PLATFORM_VERSION 99.87.36 and SPL 2099-12-31) it reports
+# "key requires upgrade" for every key and returns blobs stamped with those
+# future values. Android would reject such a key as a downgrade, so /data could
+# never be unlocked again if one ever reached disk. So KeyMint is started ONLY
+# when the live OS version and both SPL props exactly match the installed
+# system and vendor build.prop - then KeyMint sees exactly what Android's does
+# and no key upgrade is requested at all. On any doubt we start nothing and
+# decryption is simply skipped.
 #
 # Order (each step waits for the previous one):
-#   1. read installed SPLs   2. set + verify live SPL props (resetprop)
+#   1. read installed OS version + SPLs  2. set + verify live props (resetprop)
 #   3. real /vendor mounted  4. Trusty storage proxy
 #   5. KeyMint (TEE)         6. keystore2  -> then vold unwraps the metadata key
 #
@@ -42,34 +45,42 @@ if [ -n "$(pidof keystore2)" ] && [ "$(getprop init.svc.twrp.keymint)" = running
     exit 0
 fi
 
-# --- 1. read the installed system's real SPLs (read-only mounts) -------------
+# --- 1. read the installed system's real OS version + SPLs (read-only mounts) --
 mkdir -p "$MNT/system" "$MNT/vendor"
-real_sys=""; real_ven=""
+real_sys=""; real_ven=""; real_rel=""; real_roc=""
 if mount -t ext4 -o ro "/dev/block/mapper/system$SLOT" "$MNT/system" 2>>"$LOG"; then
-    real_sys="$(grep -m1 '^ro.build.version.security_patch=' "$MNT/system/system/build.prop" | cut -d= -f2)"
+    BP="$MNT/system/system/build.prop"
+    real_sys="$(grep -m1 '^ro.build.version.security_patch=' "$BP" | cut -d= -f2)"
+    real_rel="$(grep -m1 '^ro.build.version.release=' "$BP" | cut -d= -f2)"
+    real_roc="$(grep -m1 '^ro.build.version.release_or_codename=' "$BP" | cut -d= -f2)"
     umount "$MNT/system"
 fi
 if mount -t ext4 -o ro "/dev/block/mapper/vendor$SLOT" "$MNT/vendor" 2>>"$LOG"; then
     real_ven="$(grep -m1 '^ro.vendor.build.security_patch=' "$MNT/vendor/build.prop" | cut -d= -f2)"
     umount "$MNT/vendor"
 fi
-log "installed SPL: system=$real_sys vendor=$real_ven"
-if [ -z "$real_sys" ] || [ -z "$real_ven" ]; then
-    log "REFUSING to start KeyMint: installed SPL unreadable - decryption disabled"
+log "installed: os=$real_rel ($real_roc) SPL system=$real_sys vendor=$real_ven"
+if [ -z "$real_sys" ] || [ -z "$real_ven" ] || [ -z "$real_rel" ] || [ -z "$real_roc" ]; then
+    log "REFUSING to start KeyMint: installed OS version/SPL unreadable - decryption disabled"
     exit 0
 fi
 
-# --- 2. set the live SPL props to the installed values, then verify ----------
+# --- 2. set the live props to the installed values, then verify --------------
+/system/bin/resetprop ro.build.version.release "$real_rel" 2>>"$LOG"
+/system/bin/resetprop ro.build.version.release_or_codename "$real_roc" 2>>"$LOG"
 /system/bin/resetprop ro.build.version.security_patch "$real_sys" 2>>"$LOG"
 /system/bin/resetprop ro.vendor.build.security_patch "$real_ven" 2>>"$LOG"
+live_rel="$(getprop ro.build.version.release)"
+live_roc="$(getprop ro.build.version.release_or_codename)"
 live_sys="$(getprop ro.build.version.security_patch)"
 live_ven="$(getprop ro.vendor.build.security_patch)"
-log "live SPL after resetprop: system=$live_sys vendor=$live_ven"
-if [ "$real_sys" != "$live_sys" ] || [ "$real_ven" != "$live_ven" ]; then
-    log "REFUSING to start KeyMint: live SPL != installed - decryption disabled"
+log "live after resetprop: os=$live_rel ($live_roc) SPL system=$live_sys vendor=$live_ven"
+if [ "$real_rel" != "$live_rel" ] || [ "$real_roc" != "$live_roc" ] \
+   || [ "$real_sys" != "$live_sys" ] || [ "$real_ven" != "$live_ven" ]; then
+    log "REFUSING to start KeyMint: live OS version/SPL != installed - decryption disabled"
     exit 0
 fi
-log "SPL match - OK to start KeyMint"
+log "OS version + SPL match - OK to start KeyMint"
 
 # --- 3. real vendor at /vendor (KeyMint binary + its libs), kept mounted -----
 if ! mountpoint -q /vendor || [ ! -x /vendor/bin/hw/android.hardware.security.keymint-service.rust.trusty ]; then

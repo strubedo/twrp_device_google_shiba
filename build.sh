@@ -87,6 +87,8 @@ gate "service tool present"                       "test -x $R/system/bin/service
 gate "vndbinder routed to binder for Weaver"      "grep -q 'ln -s /dev/binderfs/binder /dev/vndbinder' $R/system/bin/twrp_crypto_start.sh"
 gate "citadeld/weaver launched via sh (SELinux)"  "grep -q 'sh -c \"exec /vendor/bin/hw/citadeld' $R/init.recovery.zuma.rc"
 gate "keystore2 restarted after copySqliteDb"     "/bin/grep -a -q 'Restarting keystore2 to load' $R/system/bin/recovery"
+gate "OS version matched to installed (KeyMint)"  "grep -q 'resetprop ro.build.version.release ' $R/system/bin/twrp_crypto_start.sh"
+gate "vold writes upgraded keys only if upgraded" "/bin/grep -a -q 'RAM only, not committed' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

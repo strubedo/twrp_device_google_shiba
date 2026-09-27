@@ -109,7 +109,7 @@ BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
 
 # TWRP
 TW_THEME := portrait_hdpi
-TW_DEVICE_VERSION := shiba-v1
+TW_DEVICE_VERSION := shiba-v9
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 TW_MAX_BRIGHTNESS := 3827
 TW_DEFAULT_BRIGHTNESS := 1500

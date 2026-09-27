@@ -554,6 +554,32 @@ index 23a7396..b2fbad0 100644
  bool is_metadata_wrapped_key_supported();
  bool lookup_key_ref(const std::map<userid_t, UserPolicies>& policy_map, userid_t user_id,
                             std::string* raw_ref);
+diff --git a/KeyStorage.cpp b/KeyStorage.cpp
+index a186c04..35d2a2e 100644
+--- a/KeyStorage.cpp
++++ b/KeyStorage.cpp
+@@ -360,14 +360,19 @@ static KeystoreOperation BeginKeystoreOp(Keystore& keystore, const std::string&
+     if (!opHandle) return opHandle;
+ 
+     // If key blob wasn't upgraded, nothing left to do.
+-    // if (!opHandle.getUpgradedBlob()) return opHandle;
++    // shiba: restored. TWRP had this commented out and then dereferenced
++    // getUpgradedBlob() unconditionally - undefined behaviour when KeyMint
++    // needs no upgrade, which is the normal case now that recovery reports the
++    // installed OS version/SPLs to KeyMint (see twrp_crypto_start.sh).
++    if (!opHandle.getUpgradedBlob()) return opHandle;
+ 
+ //     if (already_upgraded) {
+ //         LOG(ERROR) << "Unexpected case; already-upgraded key " << upgraded_blob_file
+ //                    << " still requires upgrade";
+ //         return KeystoreOperation();
+ //     }
+-    LOG(INFO) << "Upgrading key: " << blob_file;
++    // TWRP: an upgraded blob only ever goes to /tmp (RAM), never to disk.
++    LOG(INFO) << "Upgrading key (RAM only, not committed): " << blob_file;
+     
+     if (!writeStringToFile(*opHandle.getUpgradedBlob(), upgraded_blob_file))
+         return KeystoreOperation();
 diff --git a/Weaver1.cpp b/Weaver1.cpp
 index ea357ed..574ce14 100644
 --- a/Weaver1.cpp
