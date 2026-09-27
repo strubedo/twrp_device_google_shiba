@@ -99,10 +99,33 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..3e153052
+index 99eeef6c..3b65348a
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
-@@ -3878,6 +3878,40 @@
+@@ -216,7 +216,13 @@
+ 			<button style="main_button">
+ 				<placement x="%indent%" y="%row8_y%"/>
+ 				<text>{@backup_btn=Backup}</text>
+-				<action function="page">backup</action>
++				<!-- shiba: the exact /data size is computed only when needed (walking
++				     /data is slow) - request it on the way into Backup. -->
++				<actions>
++					<action function="set">tw_shiba_exact_data_size=1</action>
++					<action function="refreshsizes"/>
++					<action function="page">backup</action>
++				</actions>
+ 			</button>
+ 
+ 			<button style="main_button">
+@@ -1714,6 +1720,7 @@
+ 				<placement x="%center_x%" y="%row18a_y%"/>
+ 				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
+ 				<actions>
++					<action function="set">tw_shiba_exact_data_size=1</action>
+ 					<action function="refreshsizes"/>
+ 					<action function="page">backup</action>
+ 				</actions>
+@@ -3878,6 +3885,40 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -143,7 +166,7 @@ index 99eeef6c..3e153052
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +3940,8 @@
+@@ -3906,6 +3947,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -152,7 +175,7 @@ index 99eeef6c..3e153052
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +3952,8 @@
+@@ -3916,6 +3959,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -161,7 +184,7 @@ index 99eeef6c..3e153052
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +3971,8 @@
+@@ -3933,6 +3978,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -170,7 +193,7 @@ index 99eeef6c..3e153052
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +3983,8 @@
+@@ -3943,6 +3990,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
@@ -421,7 +444,7 @@ index 0508eb5a..42e3131c 100644
 diff --git a/partition.cpp b/partition.cpp
 old mode 100755
 new mode 100644
-index 8c53567e..c30aa743
+index 8c53567e..dd982b8b
 --- a/partition.cpp
 +++ b/partition.cpp
 @@ -53,6 +53,7 @@
@@ -472,10 +495,44 @@ index 8c53567e..c30aa743
  			LOGERR("Error deleting crypto block device, continuing anyway.\n");
  		}
  	}
+@@ -3086,11 +3079,33 @@ bool TWPartition::Update_Size(bool Display_Error) {
+ 
+ 	if (Has_Data_Media) {
+ 		if (Mount(Display_Error)) {
++#ifdef TW_INCLUDE_FBE
++			// shiba: walking all of /data takes ~30-60 s, and the exact size is only
++			// needed for backups. So use statfs' Used as a placeholder (NOT an upper
++			// bound: with f2fs compression, on-disk usage is below the files'
++			// logical sizes) until exact sizes are requested - the main-menu Backup
++			// button and Run_Backup() set tw_shiba_exact_data_size=1 - and always
++			// while a user's CE storage is still locked (encrypted names; walking
++			// them is meaningless).
++			if (Is_FBE && (DataManager::GetStrValue("tw_all_users_decrypted") == "0"
++					|| DataManager::GetStrValue("tw_shiba_exact_data_size") != "1")) {
++				Backup_Size = Used;
++				LOGINFO("Data backup size deferred until needed (statfs placeholder %iMB).\n",
++					(int)(Used / 1048576LLU));
++			} else
++#endif
++			{
+ 			Used = backup_exclusions.Get_Folder_Size(Mount_Point);
+ 			Backup_Size = Used;
+ 			int bak = (int)(Used / 1048576LLU);
+ 			int fre = (int)(Free / 1048576LLU);
+ 			LOGINFO("Data backup size is %iMB, free: %iMB.\n", bak, fre);
++#ifdef TW_INCLUDE_FBE
++			// shiba: one-shot - later size refreshes (after installs, wipes,
++			// mounts...) go back to the fast placeholder until the next request.
++			DataManager::SetValue("tw_shiba_exact_data_size", "0");
++#endif
++			}
+ 		} else {
+ 			if (!Was_Already_Mounted)
+ 				UnMount(false);
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..6575fdde
+index 171feccf..9a5a533e
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -586,6 +586,13 @@ void TWPartitionManager::Decrypt_Data() {
@@ -532,7 +589,17 @@ index 171feccf..6575fdde
  		}
  	}
  	if (Decrypt_Data && (!Decrypt_Data->Is_Encrypted || Decrypt_Data->Is_Decrypted)) {
-@@ -2176,24 +2175,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -1089,6 +1088,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
+ 	part_settings.adbbackup = adbbackup;
+ 	time(&total_start);
+ 
++	// shiba: backups need the exact /data size (partition.cpp defers the slow
++	// walk until something asks for it). Covers GUI, scripted and adb backups.
++	DataManager::SetValue("tw_shiba_exact_data_size", "1");
+ 	Update_System_Details();
+ 
+ 	if (!Mount_Current_Storage(true))
+@@ -2176,24 +2178,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
