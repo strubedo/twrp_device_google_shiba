@@ -53,4 +53,10 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     storageproxyd.recovery
 
+# vbgraft: rebuilds a slot's vendor_boot with our recovery fragment on the
+# phone ("Install TWRP to slot", e.g. after an OTA). Same tool as repack.sh
+# on the host. See device/google/shiba/vbgraft.
+PRODUCT_PACKAGES += \
+    vbgraft.recovery
+
 PRODUCT_SOONG_NAMESPACES += $(LOCAL_PATH)

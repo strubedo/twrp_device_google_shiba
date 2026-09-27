@@ -39,7 +39,7 @@ rm -rf out/target/product/shiba/recovery
 
 step "Building vendorbootimage"
 BUILD_LOG="$HOME/twrp-build.log"
-if ! m adbd vendorbootimage -j10 > "$BUILD_LOG" 2>&1; then
+if ! m adbd vendorbootimage vbgraft -j10 > "$BUILD_LOG" 2>&1; then
     echo "BUILD FAILED - first error:"
     grep -m1 -A30 'FAILED:' "$BUILD_LOG" || tail -40 "$BUILD_LOG"
     echo "full log: $BUILD_LOG"
@@ -90,6 +90,7 @@ gate "keystore2 restarted after copySqliteDb"     "/bin/grep -a -q 'Restarting k
 gate "OS version matched to installed (KeyMint)"  "grep -q 'resetprop ro.build.version.release ' $R/system/bin/twrp_crypto_start.sh"
 gate "vold writes upgraded keys only if upgraded" "/bin/grep -a -q 'RAM only, not committed' $R/system/bin/recovery"
 gate "/data size walk deferred to Backup"        "/bin/grep -a -q 'deferred until needed' $R/system/bin/recovery && grep -q tw_shiba_exact_data_size $R/twres/portrait.xml"
+gate "vbgraft (on-device TWRP install) present"   "test -x $R/system/bin/vbgraft && test -x $R/system/bin/twrp_install_slot.sh"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

@@ -1,0 +1,18 @@
+// vbgraft: graft our TWRP recovery fragment into a vendor_boot v4 image.
+// One implementation for the host (repack.sh) and recovery (on-device
+// "Install TWRP to slot"), so both produce byte-identical images.
+cc_binary {
+    name: "vbgraft",
+    host_supported: true,
+    recovery_available: true,
+    srcs: ["vbgraft.cpp"],
+    // Google's vendor_boot v4 structs (vendor_boot_img_hdr_v4,
+    // vendor_ramdisk_table_entry_v4) - no hand-copied offsets.
+    include_dirs: ["system/tools/mkbootimg/include/bootimg"],
+    // Linked statically: nothing extra needed in the recovery ramdisk.
+    static_libs: ["liblz4"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
