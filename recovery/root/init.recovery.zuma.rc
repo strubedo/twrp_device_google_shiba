@@ -65,3 +65,16 @@ service twrp.weaver /system/bin/sh -c "exec /vendor/bin/hw/android.hardware.weav
     group root hsm
     disabled
     seclabel u:r:recovery:s0
+
+# --- USB OTG auto-mount --------------------------------------------------------
+# Watches for a USB mass-storage disk and mounts it at /usb-otg on plug-in
+# (once per plug-in; a deliberate unmount in TWRP is respected). Needs
+# otg_host_ready.ko for USB host mode at all. See twrp_otg_watch.sh.
+service twrp.otgwatch /system/bin/sh /system/bin/twrp_otg_watch.sh
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+on late-init
+    start twrp.otgwatch

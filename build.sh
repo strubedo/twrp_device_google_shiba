@@ -96,6 +96,7 @@ gate "official TWRP app excluded"                "! test -e $R/system/bin/me.twr
 gate "timezone database present"                 "test -s $R/system/usr/share/zoneinfo/tzdata"
 gate "bash extras present (bashrc, /sbin/bash)"  "test -s $R/system/etc/bash/bashrc && test -L $R/sbin/bash"
 gate "USB OTG: module + load list + storage entry" "test -s $R/lib/modules/5.15/otg_host_ready.ko && grep -q otg_host_ready.ko $R/lib/modules/5.15/modules.dep && grep -q '^/usb-otg' $R/system/etc/twrp.flags"
+gate "USB OTG auto-mount watcher"                "test -x $R/system/bin/twrp_otg_watch.sh && grep -q 'start twrp.otgwatch' $R/init.recovery.zuma.rc"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
