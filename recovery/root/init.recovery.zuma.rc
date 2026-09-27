@@ -47,15 +47,20 @@ service twrp.gatekeeper /vendor/bin/hw/android.hardware.gatekeeper-service.trust
     seclabel u:r:recovery:s0
 
 # citadeld: owns the Titan M2 security chip (/dev/gsc0). Weaver talks through it.
-service twrp.citadeld /vendor/bin/hw/citadeld
+# Launched via sh: its vendor label (citadeld_exec) isn't in recovery's policy,
+# so it's "unlabeled" and init (enforcing) may not exec it directly. The shell
+# runs in the permissive recovery domain and execs it from there.
+service twrp.citadeld /system/bin/sh -c "exec /vendor/bin/hw/citadeld"
     user root
     group root hsm
     disabled
     seclabel u:r:recovery:s0
 
 # Weaver (Titan M2): releases the PIN-protected secret. Titan counts failed
-# attempts and throttles, exactly like the lock screen.
-service twrp.weaver /vendor/bin/hw/android.hardware.weaver-service.citadel
+# attempts and throttles, exactly like the lock screen. Same sh launch as
+# citadeld (label hal_weaver_citadel_exec is vendor-only). Must start only
+# after citadeld has registered ICitadeld on vndbinder (see the script).
+service twrp.weaver /system/bin/sh -c "exec /vendor/bin/hw/android.hardware.weaver-service.citadel"
     user root
     group root hsm
     disabled

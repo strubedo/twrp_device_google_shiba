@@ -159,6 +159,13 @@ SHIBA_CRYPTO_LIBS := \
 TARGET_RECOVERY_DEVICE_MODULES += $(SHIBA_CRYPTO_LIBS)
 TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
     $(foreach lib,$(SHIBA_CRYPTO_LIBS),$(TARGET_OUT_SHARED_LIBRARIES)/$(lib).so)
+
+# service: query servicemanager from scripts (twrp_crypto_start.sh verifies
+# IWeaver registered). Its vndbinder twin vndservice is a vendor tool - the
+# script uses the phone's own /vendor/bin/vndservice (real /vendor is mounted).
+TARGET_RECOVERY_DEVICE_MODULES += service
+TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
+    $(TARGET_OUT_EXECUTABLES)/service
 TW_EXCLUDE_APEX := true
 TW_NO_SCREEN_BLANK := true
 TW_NO_HAPTICS := true

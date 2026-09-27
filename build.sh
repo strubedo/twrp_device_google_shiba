@@ -83,6 +83,10 @@ gate "decryption services defined, disabled"     "grep -q 'service twrp.keymint'
 gate "Gatekeeper + Weaver declared in VINTF"     "grep -q IGatekeeper $R/vendor/etc/vintf/manifest.xml && grep -q IWeaver $R/vendor/etc/vintf/manifest.xml"
 gate "recovery has AIDL Gatekeeper path"         "/bin/grep -a -q 'android.hardware.gatekeeper.IGatekeeper/default' $R/system/bin/recovery"
 gate "no KDF research hook in recovery"          "! /bin/grep -a -q -e fox_fbe_kdf -e fox_kdf.conf $R/system/bin/recovery"
+gate "service tool present"                       "test -x $R/system/bin/service"
+gate "vndbinder routed to binder for Weaver"      "grep -q 'ln -s /dev/binderfs/binder /dev/vndbinder' $R/system/bin/twrp_crypto_start.sh"
+gate "citadeld/weaver launched via sh (SELinux)"  "grep -q 'sh -c \"exec /vendor/bin/hw/citadeld' $R/init.recovery.zuma.rc"
+gate "keystore2 restarted after copySqliteDb"     "/bin/grep -a -q 'Restarting keystore2 to load' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

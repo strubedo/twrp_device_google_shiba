@@ -104,14 +104,40 @@ start twrp.gatekeeper
 wait_running twrp.gatekeeper 30 && log "gatekeeper running" || log "gatekeeper did not start"
 
 if [ -e /dev/gsc0 ]; then
+    # Recovery has ONE flat linker namespace, so a vendor process gets a single
+    # libbinder and a single binder connection. In Android, Weaver has two
+    # (vndbinder to reach citadeld, binder to publish IWeaver); here citadeld's
+    # client lib claims vndbinder first, so IWeaver ends up registered with
+    # vndservicemanager where TWRP never looks. Fix: in recovery only, point
+    # /dev/vndbinder at the main binder so citadeld (ICitadeld) and Weaver
+    # (IWeaver) both register with servicemanager. vndservicemanager can't share
+    # that device and nothing else in recovery uses it, so it's stopped.
+    # /dev is tmpfs - this is gone at reboot; Android is unaffected.
+    stop vndservicemanager
+    rm -f /dev/vndbinder && ln -s /dev/binderfs/binder /dev/vndbinder
+    log "vndbinder -> binder (single-namespace recovery)"
+
     start twrp.citadeld
-    if wait_running twrp.citadeld 30; then
-        log "citadeld running"
-        sleep 0.5   # citadeld must be serving before Weaver connects to it
+    # Weaver looks up ICitadeld at startup - wait for the registration, not
+    # just the process.
+    i=0
+    until service check android.hardware.citadel.ICitadeld 2>/dev/null | grep -q ": found"; do
+        [ $i -ge 100 ] && break
+        sleep 0.1; i=$((i + 1))
+    done
+    if service check android.hardware.citadel.ICitadeld 2>/dev/null | grep -q ": found"; then
+        log "citadeld running, ICitadeld registered (${i}00 ms)"
         start twrp.weaver
-        wait_running twrp.weaver 30 && log "weaver running" || log "weaver did not start"
+        i=0
+        until service check android.hardware.weaver.IWeaver/default 2>/dev/null | grep -q ": found"; do
+            [ $i -ge 100 ] && break
+            sleep 0.1; i=$((i + 1))
+        done
+        service check android.hardware.weaver.IWeaver/default 2>/dev/null | grep -q ": found" \
+            && log "weaver running, IWeaver registered (${i}00 ms)" \
+            || log "weaver started but IWeaver NOT registered after 10 s"
     else
-        log "citadeld did not start - no Weaver"
+        log "ICitadeld not registered after 10 s - no Weaver (citadeld: $(getprop init.svc.twrp.citadeld))"
     fi
 else
     log "/dev/gsc0 missing - no Titan, no Weaver"

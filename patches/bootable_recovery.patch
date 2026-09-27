@@ -561,18 +561,36 @@ index 171feccf..6575fdde
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
 diff --git a/twrp.cpp b/twrp.cpp
-index b257780d..bf9ea9af 100644
+index b257780d..5d6eff50 100644
 --- a/twrp.cpp
 +++ b/twrp.cpp
-@@ -51,6 +51,7 @@ extern "C" {
+@@ -51,6 +51,8 @@ extern "C" {
  #include "partitions.hpp"
  #ifdef __ANDROID_API_N__
  #include <android-base/strings.h>
 +#include <android-base/logging.h>
++#include <android-base/properties.h>
  #else
  #include <base/strings.h>
  #endif
-@@ -355,6 +356,12 @@ int main(int argc, char **argv) {
+@@ -226,6 +228,16 @@ static void process_recovery_mode(twrpAdbBuFifo* adb_bu_fifo, bool skip_decrypti
+ #endif
+ #ifdef TW_INCLUDE_CRYPTO
+ 	android::keystore::copySqliteDb();
++	// shiba: keystore2 was started (by the device's twrp_crypto_start.sh, from
++	// Decrypt_Data) before /data was mounted, so it opened an empty database.
++	// copySqliteDb() just replaced that file with the real one from /data, which
++	// holds the synthetic-password key the PIN unlock needs - restart keystore2
++	// so it opens the real DB. Only if it's running (the SPL gate may have
++	// refused to start the key services).
++	if (android::base::GetProperty("init.svc.keystore2", "") == "running") {
++		LOGINFO("Restarting keystore2 to load the copied keystore database\n");
++		android::base::SetProperty("ctl.restart", "keystore2");
++	}
+ #endif
+ 	Decrypt_Page(skip_decryption, datamedia);
+ 
+@@ -355,6 +367,12 @@ int main(int argc, char **argv) {
  	freopen(TMP_LOG_FILE, "a", stderr);
  	setbuf(stderr, NULL);
  
