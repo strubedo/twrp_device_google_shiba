@@ -1208,6 +1208,243 @@
 			</action>
 		</page>
 
+		<!-- shiba: /data encryption (DFE-NEO). Typed confirmation, then each step
+		     runs only if the previous one succeeded (tw_operation_status == 0):
+		       disable: encryption-disable.zip -> Format Data -> encryption-postformat.zip
+		       enable:  encryption-enable.zip  -> Format Data
+		     (action_page's tw_action2 runs unconditionally, so it can't be used.) -->
+		<page name="shiba_dfe_confirm">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>Encryption</text>
+			</text>
+
+			<text style="text_m">
+				<condition var1="tw_shiba_dfe_mode" var2="disable"/>
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Disable /data encryption (DFE-NEO)</text>
+			</text>
+
+			<text style="text_m">
+				<condition var1="tw_shiba_dfe_mode" var2="enable"/>
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Re-enable /data encryption</text>
+			</text>
+
+			<text style="text_m_fail">
+				<placement x="%center_x%" y="%row2_y%" placement="5"/>
+				<text>This FORMATS /data: all apps, settings,</text>
+			</text>
+
+			<text style="text_m_fail">
+				<placement x="%center_x%" y="%row3_y%" placement="5"/>
+				<text>photos, downloads and TWRP backups.</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row4_y%" placement="5"/>
+				<text>Copy your files off the phone first.</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row5_y%" placement="5"/>
+				<text>Nothing is formatted if the first step fails.</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row8_y%" placement="5"/>
+				<text>{@yes_continue=Type yes to continue.  Press back to cancel.}</text>
+			</text>
+
+			<input>
+				<placement x="%indent%" y="%row10_y%" w="%content_width%" h="%input_height%"/>
+				<text>%tw_confirm_dfe%</text>
+				<data name="tw_confirm_dfe"/>
+				<restrict minlen="3" maxlen="3" allow="yes"/>
+				<action function="page">shiba_dfe_start</action>
+			</input>
+
+			<fill color="%accent_color%">
+				<placement x="%indent%" y="row11_y" w="%content_width%" h="input_line_width"/>
+			</fill>
+
+			<template name="keyboardtemplate"/>
+
+			<action>
+				<touch key="home"/>
+				<action function="page">main</action>
+			</action>
+
+			<action>
+				<touch key="back"/>
+				<action function="page">advanced</action>
+			</action>
+		</page>
+
+		<page name="shiba_dfe_start">
+			<action>
+				<conditions>
+					<condition var1="tw_confirm_dfe" op="=" var2="yes"/>
+					<condition var1="tw_shiba_dfe_mode" var2="disable"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_back=advanced</action>
+					<action function="set">tw_operation_state=0</action>
+					<action function="set">tw_operation_status=0</action>
+					<action function="queueclear"/>
+					<action function="set">tw_filename=/system/etc/twrp_root/encryption-disable.zip</action>
+					<action function="queuezip"/>
+					<action function="set">tw_action_text1=Disabling encryption (1/3)...</action>
+					<action function="set">tw_complete_text1=Encryption unchanged - nothing was formatted</action>
+					<action function="page">shiba_dfe_step1</action>
+				</actions>
+			</action>
+
+			<action>
+				<conditions>
+					<condition var1="tw_confirm_dfe" op="=" var2="yes"/>
+					<condition var1="tw_shiba_dfe_mode" var2="enable"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_back=advanced</action>
+					<action function="set">tw_operation_state=0</action>
+					<action function="set">tw_operation_status=0</action>
+					<action function="queueclear"/>
+					<action function="set">tw_filename=/system/etc/twrp_root/encryption-enable.zip</action>
+					<action function="queuezip"/>
+					<action function="set">tw_action_text1=Re-enabling encryption (1/2)...</action>
+					<action function="set">tw_complete_text1=Encryption unchanged - nothing was formatted</action>
+					<action function="page">shiba_dfe_step1</action>
+				</actions>
+			</action>
+
+			<action>
+				<condition var1="tw_confirm_dfe" op="!=" var2="yes"/>
+				<action function="page">shiba_dfe_confirm</action>
+			</action>
+		</page>
+
+		<!-- step 1: encryption-disable.zip / encryption-enable.zip -->
+		<page name="shiba_dfe_step1">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>%tw_action_text1%</text>
+			</text>
+
+			<template name="console"/>
+
+			<template name="progress_bar"/>
+
+			<action>
+				<conditions>
+					<condition var1="tw_operation_state" var2="1"/>
+					<condition var1="tw_operation_status" var2="0"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_operation_state=0</action>
+					<action function="set">tw_action_text1=Formatting Data...</action>
+					<action function="page">shiba_dfe_step2</action>
+				</actions>
+			</action>
+
+			<action>
+				<conditions>
+					<condition var1="tw_operation_state" var2="1"/>
+					<condition var1="tw_operation_status" op="!=" var2="0"/>
+				</conditions>
+				<action function="page">action_complete</action>
+			</action>
+
+			<action>
+				<action function="flash"/>
+			</action>
+		</page>
+
+		<!-- step 2: TWRP's own Format Data (same as Wipe > Format Data) -->
+		<page name="shiba_dfe_step2">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>%tw_action_text1%</text>
+			</text>
+
+			<template name="console"/>
+
+			<template name="progress_bar"/>
+
+			<action>
+				<conditions>
+					<condition var1="tw_operation_state" var2="1"/>
+					<condition var1="tw_operation_status" var2="0"/>
+					<condition var1="tw_shiba_dfe_mode" var2="disable"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_operation_state=0</action>
+					<action function="queueclear"/>
+					<action function="set">tw_filename=/system/etc/twrp_root/encryption-postformat.zip</action>
+					<action function="queuezip"/>
+					<action function="set">tw_action_text1=Saving backup (3/3)...</action>
+					<action function="set">tw_complete_text1=Encryption disabled - boot Android and set it up</action>
+					<action function="page">shiba_dfe_step3</action>
+				</actions>
+			</action>
+
+			<action>
+				<conditions>
+					<condition var1="tw_operation_state" var2="1"/>
+					<condition var1="tw_operation_status" var2="0"/>
+					<condition var1="tw_shiba_dfe_mode" var2="enable"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_complete_text1=Encryption re-enabled - Android encrypts /data on next boot</action>
+					<action function="page">action_complete</action>
+				</actions>
+			</action>
+
+			<action>
+				<conditions>
+					<condition var1="tw_operation_state" var2="1"/>
+					<condition var1="tw_operation_status" op="!=" var2="0"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_complete_text1=FORMAT FAILED - do not reboot: run Wipe > Format Data now</action>
+					<action function="page">action_complete</action>
+				</actions>
+			</action>
+
+			<action>
+				<action function="wipe">DATAMEDIA</action>
+			</action>
+		</page>
+
+		<!-- step 3 (disable only): encryption-postformat.zip saves the backup -->
+		<page name="shiba_dfe_step3">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>%tw_action_text1%</text>
+			</text>
+
+			<template name="console"/>
+
+			<template name="progress_bar"/>
+
+			<action>
+				<condition var1="tw_operation_state" var2="1"/>
+				<action function="page">action_complete</action>
+			</action>
+
+			<action>
+				<action function="flash"/>
+			</action>
+		</page>
+
 		<page name="formatdata">
 			<template name="page"/>
 
@@ -3936,6 +4173,39 @@
 						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-both.zip</action>
 						<action function="queuezip"/>
 						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<!-- shiba: /data encryption via bundled DFE-NEO (twrp_encryption.sh).
+				     Disable / Re-enable format /data only after their step succeeds
+				     (pages shiba_dfe_*). -->
+				<listitem name="Encryption: Status">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_root/encryption-status.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<listitem name="Encryption: Dry run (no changes)">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_root/encryption-dryrun.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<listitem name="Encryption: Disable (formats data)">
+					<actions>
+						<action function="set">tw_shiba_dfe_mode=disable</action>
+						<action function="set">tw_confirm_dfe=</action>
+						<action function="page">shiba_dfe_confirm</action>
+					</actions>
+				</listitem>
+				<listitem name="Encryption: Re-enable (formats data)">
+					<actions>
+						<action function="set">tw_shiba_dfe_mode=enable</action>
+						<action function="set">tw_confirm_dfe=</action>
+						<action function="page">shiba_dfe_confirm</action>
 					</actions>
 				</listitem>
 				<listitem name="{@reload_theme_btn=Reload Theme}">
