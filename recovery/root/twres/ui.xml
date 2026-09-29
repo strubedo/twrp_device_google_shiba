@@ -27,6 +27,14 @@
 		<image name="main_button" filename="main_button"/>
 		<image name="main_button_half_height" filename="main_button_half_height"/>
 		<image name="main_button_half_height_full_width" filename="main_button_half_height_full_width"/>
+		<image name="tile_install" filename="tile_install" retainaspect="1"/>
+		<image name="tile_wipe" filename="tile_wipe" retainaspect="1"/>
+		<image name="tile_backup" filename="tile_backup" retainaspect="1"/>
+		<image name="tile_restore" filename="tile_restore" retainaspect="1"/>
+		<image name="tile_mount" filename="tile_mount" retainaspect="1"/>
+		<image name="tile_settings" filename="tile_settings" retainaspect="1"/>
+		<image name="tile_advanced" filename="tile_advanced" retainaspect="1"/>
+		<image name="tile_reboot" filename="tile_reboot" retainaspect="1"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>

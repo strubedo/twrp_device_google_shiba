@@ -45,6 +45,13 @@ step() { printf '\n== %s\n' "$*"; }
 step "Generating root-menu shim zips"
 python3 "$DEVICE_DIR/mkrootzips.py"
 
+# Graphite bakes portrait.xml (tile icons) from TWRP's source - re-bake every
+# build so the baked copy always matches the current menus (never stale).
+if [ -f "$DEVICE_DIR/recovery/root/twres/ui.xml" ]; then
+    step "Re-baking Graphite theme (from current TWRP sources)"
+    python3 "$DEVICE_DIR/theme/mktheme.py" --bake
+fi
+
 step "Pre-building modules TWRP copies without declaring dependencies"
 m servicemanager task_profiles.json mke2fs.conf -j10 2>&1 | tail -1
 

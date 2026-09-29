@@ -5,8 +5,9 @@ Every image keeps the stock canvas size AND visible area (measured from
 base/images), so no layout moves - only how things look.
 
 TWRP renders this 1080x1920 theme at 1.0x width, 1.25x height (1080x2400
-screen), stretching every image vertically. Shapes here are drawn 1.25x
-shorter (VS) so corners, circles and icons come out true on screen.
+screen). Images WITHOUT retainaspect in ui.xml (buttons, slider, progress) are
+stretched vertically, so their shapes are drawn 1.25x shorter to come out true.
+Images WITH retainaspect="1" (icons, toggles) are scaled uniformly - drawn as-is.
 
   ~/.venvs/twrp-theme/bin/python mkimages.py   -> graphite/images/*.png
 """
@@ -16,7 +17,8 @@ import cairosvg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "graphite", "images")
-VS = 1.25                       # vertical stretch applied by TWRP at runtime
+STRETCH = 1.25                  # vertical stretch TWRP applies to non-retainaspect images
+VS = STRETCH                    # set per image by main(): STRETCH or 1.0
 
 ACCENT = "#0090CA"              # TWRP blue
 SURFACE = "#121212"             # tiles / buttons
@@ -46,6 +48,19 @@ def icon(w, h, cx, cy, size, paths, stroke, sw=2.0):
             f'stroke-linecap="round" stroke-linejoin="round">{paths}</g>')
 
 
+def ellipse(cx, cy, r, stroke=None, fill="none", sw=4):
+    """Circle that looks round on screen (uses the current VS)."""
+    s = f' stroke="{stroke}" stroke-width="{sw}"' if stroke else ""
+    return f'<ellipse cx="{cx}" cy="{cy}" rx="{r}" ry="{r / VS:.2f}" fill="{fill}"{s}/>'
+
+
+def outline_box(x0, y0, x1, y1, r, stroke, sw=4):
+    h = (y1 - y0) / VS
+    y = y0 + ((y1 - y0) - h) / 2
+    return (f'<rect x="{x0}" y="{y:.2f}" width="{x1 - x0}" height="{h:.2f}" rx="{r}" '
+            f'ry="{r / VS:.2f}" fill="none" stroke="{stroke}" stroke-width="{sw}"/>')
+
+
 # Mockup icon paths (24x24 viewBox)
 P_BACK = '<path d="M15 18l-6-6 6-6"/>'
 P_HOME = '<path d="M4 11l8-7 8 7v9H4z"/>'
@@ -54,43 +69,78 @@ P_CHECK = '<path d="M5 12l5 5 9-10"/>'
 P_ARROW = '<path d="M5 12h14M13 6l6 6-6 6"/>'
 P_FOLDER = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
 P_FILE = '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>'
+# main-menu tiles (Home mockup)
+P_INSTALL = '<path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/>'
+P_WIPE = '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/>'
+P_BACKUP = '<path d="M3 5h18v5H3zM5 10v10h14V10M10 14h4"/>'
+P_RESTORE = '<path d="M4 12a8 8 0 1 0 2.5-5.8M4 4v5h5"/>'
+P_MOUNT = '<rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 14h.01M11 14h6"/>'
+P_SETTINGS = '<path d="M4 7h9M18 7h2M4 17h4M12 17h8"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/>'
+P_ADVANCED = '<path d="M4 17l6-6-6-6M12 19h8"/>'
+P_REBOOT = '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/>'
+WARN = "#F2A25C"
+TILE = 96                       # tile icon canvas (retainaspect, declared by mktheme)
 
+# name: (w, h, body builder). Builders run with VS set for that image.
 IMAGES = {
     # buttons: charcoal rounded tiles in the stock visible box
-    "main_button":                        (504, 288,  rrect(36, 32, 468, 256, 44, SURFACE)),
-    "main_button_half_height":            (504, 192,  rrect(36, 32, 468, 160, 36, SURFACE)),
-    "main_button_half_height_full_width": (1008, 192, rrect(36, 32, 972, 160, 36, SURFACE)),
+    "main_button":                        (504, 288,  lambda: rrect(36, 32, 468, 256, 44, SURFACE)),
+    "main_button_half_height":            (504, 192,  lambda: rrect(36, 32, 468, 160, 36, SURFACE)),
+    "main_button_half_height_full_width": (1008, 192, lambda: rrect(36, 32, 972, 160, 36, SURFACE)),
     # bottom navigation bar
-    "back":    (265, 128, icon(265, 128, 132.5, 64, 56, P_BACK, ICON)),
-    "home":    (265, 128, icon(265, 128, 132.5, 64, 56, P_HOME, ICON)),
-    "console": (265, 128, icon(265, 128, 132.5, 64, 56, P_CONSOLE, ICON)),
+    "back":    (265, 128, lambda: icon(265, 128, 132.5, 64, 56, P_BACK, ICON)),
+    "home":    (265, 128, lambda: icon(265, 128, 132.5, 64, 56, P_HOME, ICON)),
+    "console": (265, 128, lambda: icon(265, 128, 132.5, 64, 56, P_CONSOLE, ICON)),
     # toggles (stock visible box 0,21 - 54,75)
-    "checkbox_true":  (72, 96, rrect(2, 27, 52, 69, 12, ACCENT) + icon(72, 96, 27, 48, 40, P_CHECK, INK, 3.0)),
-    "checkbox_false": (72, 96, f'<rect x="4" y="28.6" width="46" height="{38.8:.1f}" rx="10" ry="8" '
-                               f'fill="none" stroke="{OUTLINE}" stroke-width="4"/>'),
-    "radio_true":     (72, 96, f'<ellipse cx="27" cy="48" rx="25" ry="20" fill="none" stroke="{ACCENT}" stroke-width="4"/>'
-                               f'<ellipse cx="27" cy="48" rx="13" ry="10.4" fill="{ACCENT}"/>'),
-    "radio_false":    (72, 96, f'<ellipse cx="27" cy="48" rx="25" ry="20" fill="none" stroke="{OUTLINE}" stroke-width="4"/>'),
+    "checkbox_true":  (72, 96, lambda: rrect(2, 23, 52, 73, 12, ACCENT) + icon(72, 96, 27, 48, 40, P_CHECK, INK, 3.0)),
+    "checkbox_false": (72, 96, lambda: outline_box(4, 25, 50, 71, 10, OUTLINE)),
+    "radio_true":     (72, 96, lambda: ellipse(27, 48, 25, ACCENT) + ellipse(27, 48, 13, fill=ACCENT)),
+    "radio_false":    (72, 96, lambda: ellipse(27, 48, 25, OUTLINE)),
     # swipe-to-confirm (stock visible 0,32 - W,160)
-    "slider":       (936, 192, rrect(0, 32, 936, 160, 64, TRACK)),
-    "slider_used":  (936, 192, rrect(0, 32, 936, 160, 64, "#0B3A4E")),
-    "slider_touch": (288, 192, rrect(8, 40, 280, 152, 56, ACCENT) + icon(288, 192, 144, 96, 64, P_ARROW, INK, 2.5)),
+    "slider":       (936, 192, lambda: rrect(0, 32, 936, 160, 64, TRACK)),
+    "slider_used":  (936, 192, lambda: rrect(0, 32, 936, 160, 64, "#0B3A4E")),
+    "slider_touch": (288, 192, lambda: rrect(8, 40, 280, 152, 56, ACCENT) + icon(288, 192, 144, 96, 64, P_ARROW, INK, 2.5)),
     # progress bars: slim pill track + fill
-    "progress_empty": (1008, 64, rrect(0, 20, 1008, 44, 12, TRACK)),
-    "progress_fill":  (1008, 64, rrect(0, 20, 1008, 44, 12, ACCENT)),
+    "progress_empty": (1008, 64, lambda: rrect(0, 20, 1008, 44, 12, TRACK)),
+    "progress_fill":  (1008, 64, lambda: rrect(0, 20, 1008, 44, 12, ACCENT)),
     # file browser
-    "folder": (72, 96, icon(72, 96, 27, 48, 52, P_FOLDER, ACCENT, 2.0)),
-    "file":   (72, 96, icon(72, 96, 27, 48, 52, P_FILE, ICON, 2.0)),
+    "folder": (72, 96, lambda: icon(72, 96, 27, 48, 52, P_FOLDER, ACCENT, 2.0)),
+    "file":   (72, 96, lambda: icon(72, 96, 27, 48, 52, P_FILE, ICON, 2.0)),
+    # NEW: main-menu tile icons (not in stock; mktheme declares them retainaspect)
+    "tile_install":  (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_INSTALL, ACCENT, 2.0)),
+    "tile_wipe":     (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_WIPE, WARN, 2.0)),
+    "tile_backup":   (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_BACKUP, ACCENT, 2.0)),
+    "tile_restore":  (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_RESTORE, ACCENT, 2.0)),
+    "tile_mount":    (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_MOUNT, ACCENT, 2.0)),
+    "tile_settings": (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_SETTINGS, ACCENT, 2.0)),
+    "tile_advanced": (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_ADVANCED, ACCENT, 2.0)),
+    "tile_reboot":   (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_REBOOT, ACCENT, 2.0)),
 }
+NEW_IMAGES = [n for n in IMAGES if n.startswith("tile_")]
+
+
+def stretched_images():
+    """Image files TWRP stretches: declared in base/ui.xml WITHOUT retainaspect."""
+    import re
+    xml = open(os.path.join(HERE, "base", "ui.xml"), encoding="utf-8").read()
+    out = set()
+    for m in re.finditer(r'<image name="[^"]+" filename="([^"]+)"([^/]*)/>', xml):
+        if 'retainaspect="1"' not in m.group(2):
+            out.add(m.group(1))
+    return out
 
 
 def main():
+    global VS
     os.makedirs(OUT, exist_ok=True)
-    for name, (w, h, body) in IMAGES.items():
+    stretched = stretched_images()
+    for name, (w, h, build) in IMAGES.items():
+        VS = STRETCH if name in stretched else 1.0
         path = os.path.join(OUT, f"{name}.png")
-        cairosvg.svg2png(bytestring=svg(w, h, body).encode(), write_to=path,
+        cairosvg.svg2png(bytestring=svg(w, h, build()).encode(), write_to=path,
                          output_width=w, output_height=h)
-    print(f"  wrote {len(IMAGES)} images to {os.path.relpath(OUT, HERE)}/")
+    print(f"  wrote {len(IMAGES)} images to {os.path.relpath(OUT, HERE)}/ "
+          f"(stretch-compensated: {', '.join(sorted(n for n in IMAGES if n in stretched))})")
 
 
 if __name__ == "__main__":

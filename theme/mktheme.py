@@ -27,6 +27,20 @@ GRAPHITE = os.path.join(HERE, "graphite")
 DIST = os.path.join(HERE, "dist")
 BAKE_DIR = os.path.join(HERE, "..", "recovery", "root", "twres")
 BAKE_LIST = os.path.join(HERE, ".baked")
+# portrait.xml is read from TWRP's source every time (the build copies it
+# byte-for-byte), so baking it can never undo later menu changes.
+SRC_PORTRAIT = os.path.join(HERE, "..", "..", "..", "..", "bootable", "recovery",
+                            "gui", "theme", "common", "portrait.xml")
+
+# --- Stage 2b: main-menu tile icons -----------------------------------------
+# button label (string id) -> icon image drawn by mkimages.py. Button.cpp puts
+# the icon above the centred label when both fit.
+TILE_ICONS = {
+    "install_btn": "tile_install", "wipe_btn": "tile_wipe",
+    "backup_btn": "tile_backup", "restore_btn": "tile_restore",
+    "mount_btn": "tile_mount", "settings_btn": "tile_settings",
+    "advanced_btn": "tile_advanced", "reboot_btn": "tile_reboot",
+}
 
 # --- Stage 1: palette + fonts ------------------------------------------------
 VARIABLES = {                       # ui.xml <variable name=... value=...>
@@ -87,21 +101,47 @@ def build_ui_xml():
         if found != n:
             fail(f"expected {n}x /{rx}/ in base ui.xml, found {found}")
         xml = re.sub(rx, repl, xml)
+    # declare the stage 2b tile icons (not stock images) - keep aspect
+    anchor = '<image name="main_button_half_height_full_width" filename="main_button_half_height_full_width"/>'
+    if xml.count(anchor) != 1:
+        fail("cannot find main_button_half_height_full_width resource in base ui.xml")
+    decl = "".join(f'\n\t\t<image name="{i}" filename="{i}" retainaspect="1"/>' for i in TILE_ICONS.values())
+    xml = xml.replace(anchor, anchor + decl)
     return xml
+
+
+def build_portrait():
+    """TWRP's current portrait.xml with an icon added to each main-menu tile."""
+    xml = open(SRC_PORTRAIT, encoding="utf-8").read()
+    start = xml.find('<page name="main2">')
+    end = xml.find("</page>", start)
+    if start < 0 or end < 0:
+        fail("main2 page not found in TWRP's portrait.xml")
+    page = xml[start:end]
+    for label, icon in TILE_ICONS.items():
+        pat = re.compile(r'(\n(\t+)<text>\{@' + label + r'=[^}]*\}</text>)')
+        if len(pat.findall(page)) != 1:
+            fail(f"expected one {label} button on the main2 page")
+        page = pat.sub(lambda m: f'\n{m.group(2)}<icon resource="{icon}"/>' + m.group(1), page)
+    return xml[:start] + page + xml[end:]
 
 
 def changed_files(ui_xml):
     """{relative path in twres: bytes} for everything Graphite adds or changes."""
-    out = {"ui.xml": ui_xml.encode("utf-8")}
+    out = {"ui.xml": ui_xml.encode("utf-8"), "portrait.xml": build_portrait().encode("utf-8")}
     for f in sorted(os.listdir(os.path.join(GRAPHITE, "fonts"))):
         out[f"fonts/{f}"] = open(os.path.join(GRAPHITE, "fonts", f), "rb").read()
     img_dir = os.path.join(GRAPHITE, "images")        # stage 2 (mkimages.py)
     if os.path.isdir(img_dir):
         for f in sorted(os.listdir(img_dir)):
             if f.endswith(".png"):
-                if not os.path.exists(os.path.join(BASE, "images", f)):
+                new = f[:-4] in TILE_ICONS.values()
+                if not new and not os.path.exists(os.path.join(BASE, "images", f)):
                     fail(f"graphite/images/{f} replaces nothing in base/images")
                 out[f"images/{f}"] = open(os.path.join(img_dir, f), "rb").read()
+    for i in TILE_ICONS.values():
+        if f"images/{i}.png" not in out:
+            fail(f"missing graphite/images/{i}.png - run mkimages.py")
     return out
 
 
