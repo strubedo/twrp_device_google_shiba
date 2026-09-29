@@ -99,6 +99,7 @@ gate "bash extras present (bashrc, /sbin/bash)"  "test -s $R/system/etc/bash/bas
 gate "USB OTG: module + load list + storage entry" "test -s $R/lib/modules/5.15/otg_host_ready.ko && grep -q otg_host_ready.ko $R/lib/modules/5.15/modules.dep && grep -q '^/usb-otg' $R/system/etc/twrp.flags"
 gate "USB OTG auto-mount watcher"                "test -x $R/system/bin/twrp_otg_watch.sh && grep -q 'start twrp.otgwatch' $R/init.recovery.zuma.rc"
 gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to enable MTP' $R/system/bin/recovery && grep -q 'functions/ffs.mtp' $R/init.recovery.zuma.rc && test -x $R/system/bin/twrp_mtp_guard.sh"
+gate "encryption (DFE): script, pinned payload, shims, pages" "test -x $R/system/bin/twrp_encryption.sh && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'DFE_METHOD=neov2' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WHERE_TO_INJECT=super' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WIPE_DATA_AFTER_INSTALL=false' && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
