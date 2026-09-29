@@ -116,6 +116,7 @@ gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to en
 gate "encryption (DFE): script, pinned payload, shims, pages" "test -x $R/system/bin/twrp_encryption.sh && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'DFE_METHOD=neov2' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WHERE_TO_INJECT=super' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WIPE_DATA_AFTER_INSTALL=false' && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
+gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-kmis' $R/system/bin/twrp_root.sh"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

@@ -96,8 +96,19 @@ do_status() { read_part "$W/current.img"; state_of "$W/current.img"; }
 do_install_ksu() {
     read_part "$W/current.img"
     require_state STOCK "use Remove root first"
-    local backup; backup="$(backup_current)"
+    # The KernelSU module only loads into a kernel with a matching KMI. Check
+    # before touching anything, instead of failing inside boot-patch (or
+    # worse, producing an image whose kernelsu.ko never loads).
     local k; k="$(kmi)"
+    local kmis; kmis="$("$KSUD" boot-info supported-kmis 2>/dev/null)"
+    [[ -n "$kmis" ]] || die "ksud reports no supported KMIs - bundled ksud is broken. Nothing was changed."
+    if ! grep -qx "$k" <<< "$kmis"; then
+        say "! This kernel's KMI is $k ($(uname -r))"
+        say "! The bundled KernelSU supports: $(tr '\n' ' ' <<< "$kmis")"
+        die "KernelSU can't root this kernel. Use Install Magisk, or a TWRP with a newer ksud. Nothing was changed."
+    fi
+    say "- Kernel KMI $k is supported by the bundled KernelSU"
+    local backup; backup="$(backup_current)"
     say "- Patching with KernelSU (KMI $k)"
     rm -f "$W/ksu_patched.img"
     "$KSUD" boot-patch -b "$W/current.img" --kmi "$k" -o "$W" --out-name ksu_patched.img >/dev/null \
