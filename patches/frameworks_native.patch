@@ -1,0 +1,43 @@
+diff --git a/libs/binder/ndk/ibinder.cpp b/libs/binder/ndk/ibinder.cpp
+index bf7a0ba5f0..8488812a60 100644
+--- a/libs/binder/ndk/ibinder.cpp
++++ b/libs/binder/ndk/ibinder.cpp
+@@ -395,6 +395,20 @@ const char* AIBinder_Class_getDescriptor(const AIBinder_Class* clazz) {
+     return clazz->getInterfaceDescriptorUtf8();
+ }
+ 
++// shiba (TWRP recovery): API 36 / Android 16. Android 16's vendor services
++// (the Rust Trusty KeyMint needed for /data decryption) import this at
++// LIBBINDER_NDK36; this Android 14-based libbinder_ndk tops out at NDK35, so
++// the linker would refuse to start them. Upstream it only names transaction
++// codes for tracing/debugging; recovery doesn't trace, so accepting and
++// ignoring the map is behaviour-neutral. Exported via libbinder_ndk.map.txt.
++extern "C" void AIBinder_Class_setTransactionCodeToFunctionNameMap(
++        AIBinder_Class* clazz, const char** transactionCodeToFunctionMap, size_t length) {
++    LOG_ALWAYS_FATAL_IF(clazz == nullptr,
++                        "setTransactionCodeToFunctionNameMap requires non-null clazz");
++    (void)transactionCodeToFunctionMap;
++    (void)length;
++}
++
+ AIBinder_DeathRecipient::TransferDeathRecipient::~TransferDeathRecipient() {
+     if (mOnUnlinked != nullptr) {
+         mOnUnlinked(mCookie);
+diff --git a/libs/binder/ndk/libbinder_ndk.map.txt b/libs/binder/ndk/libbinder_ndk.map.txt
+index de624e44f6..cd6e00b991 100644
+--- a/libs/binder/ndk/libbinder_ndk.map.txt
++++ b/libs/binder/ndk/libbinder_ndk.map.txt
+@@ -207,6 +207,13 @@ LIBBINDER_NDK35 { # introduced=VanillaIceCream
+     AServiceManager_openDeclaredPassthroughHal; # systemapi llndk
+ };
+ 
++# shiba (TWRP recovery): the one API 36 symbol Android 16's vendor services
++# (Rust Trusty KeyMint) import - see ibinder.cpp. Not a full NDK36 backport.
++LIBBINDER_NDK36 { # introduced=VanillaIceCream
++  global:
++    AIBinder_Class_setTransactionCodeToFunctionNameMap;
++};
++
+ LIBBINDER_NDK_PLATFORM {
+   global:
+     AParcel_getAllowFds;
