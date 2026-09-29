@@ -83,10 +83,34 @@ fi
 log "OS version + SPL match - OK to start KeyMint"
 
 # --- 3. real vendor at /vendor (KeyMint binary + its libs), kept mounted -----
+# Our ramdisk's /vendor/etc/vintf (the HALs this chain registers, in a schema
+# our libvintf reads) is hidden once the real vendor is mounted on top - save
+# it first. Only needed when the real one is too new (see 3b).
+if ! mountpoint -q /vendor && [ -d /vendor/etc/vintf ] && [ ! -d /tmp/twrp_vintf ]; then
+    cp -a /vendor/etc/vintf /tmp/twrp_vintf
+fi
 if ! mountpoint -q /vendor || [ ! -x /vendor/bin/hw/android.hardware.security.keymint-service.rust.trusty ]; then
     mountpoint -q /vendor && umount /vendor 2>/dev/null
     mount -t ext4 -o ro "/dev/block/mapper/vendor$SLOT" /vendor 2>>"$LOG" \
         || { log "cannot mount vendor$SLOT at /vendor"; exit 0; }
+fi
+
+# --- 3b. VINTF schema: servicemanager only lets HALs register if it can parse
+# the vendor's VINTF manifests. Our libvintf (Android 14 base) reads schema up
+# to 8.0 (system/libvintf constants.h kMetaVersion); Android 16's vendor uses
+# 9.0, which it rejects -> EVERY HAL registration refused. Then serve our own
+# manifest instead (bind over /vendor/etc/vintf); Android 14 (8.0) keeps its own.
+MAX_VINTF=8
+vendor_vintf="$(grep -rhoE '<manifest version="[0-9]+' /vendor/etc/vintf/ 2>/dev/null \
+    | sed 's/.*"//' | sort -n | tail -1)"
+if [ -n "$vendor_vintf" ] && [ "$vendor_vintf" -gt "$MAX_VINTF" ]; then
+    if [ -d /tmp/twrp_vintf ] && ! grep -q " /vendor/etc/vintf " /proc/mounts; then
+        mount --bind /tmp/twrp_vintf /vendor/etc/vintf \
+            && log "vendor VINTF schema $vendor_vintf.x > $MAX_VINTF.0: serving recovery's own manifest" \
+            || log "WARNING: could not bind recovery VINTF over /vendor/etc/vintf"
+    fi
+else
+    log "vendor VINTF schema ${vendor_vintf:-?}.x - using vendor manifests"
 fi
 
 # --- 4. Trusty secure storage in RAM (mirrors init.zuma.rc's /data/vendor/ss)
