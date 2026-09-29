@@ -93,10 +93,12 @@ gate "/data size walk deferred to Backup"        "/bin/grep -a -q 'deferred unti
 gate "vbgraft (on-device TWRP install) present"   "test -x $R/system/bin/vbgraft && test -x $R/system/bin/twrp_install_slot.sh"
 gate "TWRP install menu entries + zips"          "grep -q twrp-install-other.zip $R/twres/portrait.xml && test -f $R/system/etc/twrp_root/twrp-install-other.zip && test -f $R/system/etc/twrp_root/twrp-install-both.zip"
 gate "official TWRP app excluded"                "! test -e $R/system/bin/me.twrp.twrpapp.apk"
+gate "no 'Install TWRP App' without the app"     "/bin/grep -a -q 'TWRP app not included in this build' $R/system/bin/recovery"
 gate "timezone database present"                 "test -s $R/system/usr/share/zoneinfo/tzdata"
 gate "bash extras present (bashrc, /sbin/bash)"  "test -s $R/system/etc/bash/bashrc && test -L $R/sbin/bash"
 gate "USB OTG: module + load list + storage entry" "test -s $R/lib/modules/5.15/otg_host_ready.ko && grep -q otg_host_ready.ko $R/lib/modules/5.15/modules.dep && grep -q '^/usb-otg' $R/system/etc/twrp.flags"
 gate "USB OTG auto-mount watcher"                "test -x $R/system/bin/twrp_otg_watch.sh && grep -q 'start twrp.otgwatch' $R/init.recovery.zuma.rc"
+gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to enable MTP' $R/system/bin/recovery && grep -q 'functions/ffs.mtp' $R/init.recovery.zuma.rc && test -x $R/system/bin/twrp_mtp_guard.sh"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"

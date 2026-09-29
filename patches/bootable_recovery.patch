@@ -687,6 +687,26 @@ index 171feccf..9a5a533e
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+diff --git a/twrp-functions.cpp b/twrp-functions.cpp
+index cccb1e78..8709daae 100644
+--- a/twrp-functions.cpp
++++ b/twrp-functions.cpp
+@@ -1341,6 +1341,15 @@ bool TWFunc::Is_TWRP_App_In_System() {
+ 
+ void TWFunc::checkforapp(){
+ 
++	// shiba: a build without the app (TW_EXCLUDE_TWRPAPP) must not offer it -
++	// the check below only asks whether it's installed in Android, so it would
++	// show "Install TWRP App" (Advanced menu + reboot prompt) with no APK.
++	if (!Path_Exists("/system/bin/me.twrp.twrpapp.apk")) {
++		LOGINFO("TWRP app not included in this build\n");
++		DataManager::SetValue("tw_app_install_status", 2); // 2 = do not install
++		return;
++	}
++
+ 	string sdkverstr = System_Property_Get("ro.build.version.sdk");
+ 	int sdkver = 0;
+ 	if (!sdkverstr.empty()) {
 diff --git a/twrp.cpp b/twrp.cpp
 index b257780d..5d6eff50 100644
 --- a/twrp.cpp

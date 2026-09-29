@@ -78,3 +78,46 @@ service twrp.otgwatch /system/bin/sh /system/bin/twrp_otg_watch.sh
 
 on late-init
     start twrp.otgwatch
+
+# --- MTP over FunctionFS (configfs) -------------------------------------------
+# TWRP's init.recovery.usb.rc only has legacy android_usb rules; the configfs
+# rules in init.rc cover adb/sideload/fastboot but not mtp,adb - so enabling
+# MTP used to leave the gadget unbound (ADB dead). Same model as Pixel's
+# init.zuma.usb.rc: an ffs.mtp function backed by functionfs at
+# /dev/usb-ffs/mtp, served by TWRP's MTP server (mtp/ffs, FFS_MTP_EP0).
+on fs && property:sys.usb.configfs=1
+    mkdir /config/usb_gadget/g1/functions/ffs.mtp
+    mkdir /dev/usb-ffs 0775 shell shell
+    mkdir /dev/usb-ffs/mtp 0770 root root
+    mount functionfs mtp /dev/usb-ffs/mtp rmode=0770,fmode=0660,uid=0,gid=0,no_disconnect=1
+
+# Bind only once BOTH servers have written their descriptors: adbd sets
+# sys.usb.ffs.ready, TWRP's MTP server sets sys.usb.ffs.mtp.ready
+# (MtpDescriptors.cpp). TWRP's legacy mtp,adb rule still runs `start adbd`.
+on property:sys.usb.config=mtp,adb && property:sys.usb.ffs.ready=1 && property:sys.usb.ffs.mtp.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/UDC "none"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+    write /config/usb_gadget/g1/idProduct 0x4EE2
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "mtp_adb"
+    symlink /config/usb_gadget/g1/functions/ffs.mtp /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f2
+    write /config/usb_gadget/g1/UDC ${sys.usb.controller}
+    setprop sys.usb.state ${sys.usb.config}
+
+# The stock none rule only removes f1; mtp,adb also links adb as f2, which
+# would make the next adb-only bind fail (ffs.adb linked twice).
+on property:sys.usb.config=none && property:sys.usb.configfs=1
+    rm /config/usb_gadget/g1/configs/b.1/f2
+
+# Safety net: TWRP enables MTP at every boot. If the MTP server isn't ready
+# within 10 s the gadget would stay unbound (no ADB) - fall back to adb.
+service twrp.mtpguard /system/bin/sh /system/bin/twrp_mtp_guard.sh
+    user root
+    group root
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+on property:sys.usb.config=mtp,adb
+    start twrp.mtpguard

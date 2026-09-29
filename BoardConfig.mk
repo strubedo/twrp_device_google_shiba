@@ -177,10 +177,10 @@ TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_TZDATA := true
 TW_NO_SCREEN_BLANK := true
 TW_NO_HAPTICS := true
-# MTP: TWRP's init.rc has no configfs trigger for mtp,adb, so enabling it
-# unbinds the gadget. It only serves /sdcard (on /data), which needs
-# decryption anyway. Revisit with FunctionFS MTP alongside decryption.
-TW_EXCLUDE_MTP := true
+# MTP over FunctionFS: init.recovery.zuma.rc adds the configfs mtp,adb rule
+# TWRP lacks (ffs.mtp + ffs.adb, bound once both servers are ready) and a
+# guard that falls back to adb if MTP isn't ready in 10 s.
+# (Previously excluded: without that rule, enabling MTP unbound the gadget.)
 
 # Touch: Goodix BRL chain from vendor_dlkm (first stage already has
 # touch_offload, touch_bus_negotiator, systrace).
