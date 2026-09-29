@@ -42,6 +42,62 @@ TILE_ICONS = {
     "advanced_btn": "tile_advanced", "reboot_btn": "tile_reboot",
 }
 
+# --- Stage 2c: PIN page -------------------------------------------------------
+# pin_keypad replaces the numeric keyboard's drawn keys (keyboard.cpp blits a
+# layout image and skips DrawKey - taps/backspace/enter still work, labels are
+# in the image). Stretched like any non-retainaspect image.
+PIN_IMAGES = {"pin_keypad": False, "pin_lock": True}     # name: retainaspect
+NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES)
+
+# Graphite decrypt_pin page (mockup: lock tile, title, subtitle, dots, note,
+# skip, keypad). Functional parts kept from TWRP's page: the masked input on
+# tw_crypto_password -> trydecrypt, the failure message, cancel -> canceldecrypt.
+PIN_PAGE = '''<page name="decrypt_pin">
+			<template name="page"/>
+
+			<image>
+				<image resource="pin_lock"/>
+				<placement x="%center_x%" y="300" placement="5"/>
+			</image>
+
+			<text style="text_l">
+				<placement x="%center_x%" y="500" placement="5"/>
+				<text>Decrypt data</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="575" placement="5"/>
+				<text>Enter the PIN you use to unlock this phone.</text>
+			</text>
+
+			<input>
+				<placement x="240" y="650" w="600" h="%input_height%"/>
+				<text>%tw_crypto_display%</text>
+				<data name="tw_crypto_password" mask="\u2022" maskvariable="tw_crypto_display"/>
+				<restrict minlen="1" maxlen="254"/>
+				<action function="page">trydecrypt</action>
+			</input>
+
+			<text style="text_m_fail">
+				<condition var1="tw_password_fail" var2="1"/>
+				<placement x="%center_x%" y="760" placement="5"/>
+				<text>Wrong PIN - try again</text>
+			</text>
+
+			<button style="main_button_half_height_full_width">
+				<placement x="%indent%" y="900"/>
+				<text>Skip - use without decrypting</text>
+				<action function="page">canceldecrypt</action>
+			</button>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="1070" placement="5"/>
+				<text>Wrong PINs count toward the lock screen's limit.</text>
+			</text>
+
+			<template name="keyboardnum"/>
+		'''.replace("\\u2022", "\u2022")
+
 # --- Stage 1: palette + fonts ------------------------------------------------
 VARIABLES = {                       # ui.xml <variable name=... value=...>
     "background_color":             ("#1A1A1A",   "#000000"),    # black matte (OLED off)
@@ -82,6 +138,44 @@ def fail(msg):
     sys.exit(f"mktheme: {msg}")
 
 
+# Language files re-set the fonts AFTER ui.xml loads (<resource type="fontoverride">,
+# gui/resources.cpp), so every language that overrides must be rewritten too.
+# Space Grotesk is Latin-only: Greek/Cyrillic languages get Plex Sans headings.
+NON_LATIN = {"el", "ru", "uk"}
+
+
+def build_languages():
+    out = {}
+    ldir = os.path.join(BASE, "languages")
+    for f in sorted(os.listdir(ldir)):
+        if not f.endswith(".xml"):
+            continue
+        xml = open(os.path.join(ldir, f), encoding="utf-8").read()
+        if "fontoverride" not in xml:
+            continue
+        heading = FONTS["font_m"][0] if f[:-4] in NON_LATIN else FONTS["font_l"][0]
+        want = {"font_l": heading, "font_m": FONTS["font_m"][0],
+                "font_s": FONTS["font_s"][0], "fixed": FONTS["fixed"][0]}
+        seen = []
+
+        def rewrite(m):     # one <resource .../> element, any attribute order
+            el = m.group(0)
+            if 'type="fontoverride"' not in el:
+                return el
+            name = re.search(r'(?<![\w-])name="([^"]+)"', el).group(1)   # not the tail of filename=
+            if name not in want:
+                fail(f"languages/{f}: unexpected fontoverride '{name}'")
+            seen.append(name)
+            return re.sub(r'filename="[^"]+"', f'filename="{want[name]}"', el)
+        xml = re.sub(r'<resource\b[^>]*/>', rewrite, xml)
+        if sorted(seen) != sorted(want):
+            fail(f"languages/{f}: expected fontoverrides {sorted(want)}, found {sorted(seen)}")
+        out[f"languages/{f}"] = xml.encode("utf-8")
+    if "languages/en.xml" not in out:
+        fail("languages/en.xml has no fontoverride block - base changed?")
+    return out
+
+
 def build_ui_xml():
     xml = open(os.path.join(BASE, "ui.xml"), encoding="utf-8").read()
     for name, (old, new) in VARIABLES.items():
@@ -106,7 +200,18 @@ def build_ui_xml():
     if xml.count(anchor) != 1:
         fail("cannot find main_button_half_height_full_width resource in base ui.xml")
     decl = "".join(f'\n\t\t<image name="{i}" filename="{i}" retainaspect="1"/>' for i in TILE_ICONS.values())
+    decl += "".join(f'\n\t\t<image name="{i}" filename="{i}"' + (' retainaspect="1"' if keep else "") + "/>"
+                    for i, keep in PIN_IMAGES.items())
     xml = xml.replace(anchor, anchor + decl)
+    # PIN keypad: give the keyboardnum template's layout the pin_keypad image
+    s = xml.find('<template name="keyboardnum">')
+    e = xml.find("</template>", s)
+    block = xml[s:e]
+    if s < 0 or block.count('<keymargin x="8" y="8"/>') != 1 or "<layout1>" not in block:
+        fail("keyboardnum template not as expected in base ui.xml")
+    block = block.replace('<keymargin x="8" y="8"/>',
+                          '<keymargin x="8" y="8"/>\n\t\t\t\t<layout resource1="pin_keypad"/>')
+    xml = xml[:s] + block + xml[e:]
     return xml
 
 
@@ -123,23 +228,31 @@ def build_portrait():
         if len(pat.findall(page)) != 1:
             fail(f"expected one {label} button on the main2 page")
         page = pat.sub(lambda m: f'\n{m.group(2)}<icon resource="{icon}"/>' + m.group(1), page)
-    return xml[:start] + page + xml[end:]
+    xml = xml[:start] + page + xml[end:]
+    # PIN page: replace TWRP's decrypt_pin page body with the Graphite layout
+    s = xml.find('<page name="decrypt_pin">')
+    e = xml.find("</page>", s)
+    if s < 0 or xml[s:e].count('<template name="keyboardnum"/>') != 1 \
+            or 'name="tw_crypto_password"' not in xml[s:e]:
+        fail("decrypt_pin page not as expected in TWRP's portrait.xml")
+    return xml[:s] + PIN_PAGE + xml[e:]
 
 
 def changed_files(ui_xml):
     """{relative path in twres: bytes} for everything Graphite adds or changes."""
     out = {"ui.xml": ui_xml.encode("utf-8"), "portrait.xml": build_portrait().encode("utf-8")}
+    out.update(build_languages())
     for f in sorted(os.listdir(os.path.join(GRAPHITE, "fonts"))):
         out[f"fonts/{f}"] = open(os.path.join(GRAPHITE, "fonts", f), "rb").read()
     img_dir = os.path.join(GRAPHITE, "images")        # stage 2 (mkimages.py)
     if os.path.isdir(img_dir):
         for f in sorted(os.listdir(img_dir)):
             if f.endswith(".png"):
-                new = f[:-4] in TILE_ICONS.values()
+                new = f[:-4] in NEW_IMAGES
                 if not new and not os.path.exists(os.path.join(BASE, "images", f)):
                     fail(f"graphite/images/{f} replaces nothing in base/images")
                 out[f"images/{f}"] = open(os.path.join(img_dir, f), "rb").read()
-    for i in TILE_ICONS.values():
+    for i in NEW_IMAGES:
         if f"images/{i}.png" not in out:
             fail(f"missing graphite/images/{i}.png - run mkimages.py")
     return out
@@ -170,7 +283,8 @@ def unbake():
             if os.path.exists(p):
                 os.remove(p)
         os.remove(BAKE_LIST)
-    for d in (os.path.join(BAKE_DIR, "fonts"), os.path.join(BAKE_DIR, "images"), BAKE_DIR):   # remove empty dirs we made
+    for d in (os.path.join(BAKE_DIR, "fonts"), os.path.join(BAKE_DIR, "images"),
+              os.path.join(BAKE_DIR, "languages"), BAKE_DIR):   # remove empty dirs we made
         if os.path.isdir(d) and not os.listdir(d):
             os.rmdir(d)
 

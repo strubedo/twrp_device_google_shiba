@@ -35,6 +35,8 @@
 		<image name="tile_settings" filename="tile_settings" retainaspect="1"/>
 		<image name="tile_advanced" filename="tile_advanced" retainaspect="1"/>
 		<image name="tile_reboot" filename="tile_reboot" retainaspect="1"/>
+		<image name="pin_keypad" filename="pin_keypad"/>
+		<image name="pin_lock" filename="pin_lock" retainaspect="1"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>
@@ -712,6 +714,7 @@
 				<condition var1="tw_hide_kb" var2="0"/>
 				<placement x="0" y="%keyboard_y%" w="1080" h="644"/>
 				<keymargin x="8" y="8"/>
+				<layout resource1="pin_keypad"/>
 				<background color="#000000"/>
 				<key-alphanumeric color="#121212" font="keylabel" textcolor="#EDEDED"/>
 				<key-other color="#121212" font="keylabel-small" textcolor="#A1A1A1FF"/>

@@ -5371,62 +5371,45 @@
 		<page name="decrypt_pin">
 			<template name="page"/>
 
+			<image>
+				<image resource="pin_lock"/>
+				<placement x="%center_x%" y="300" placement="5"/>
+			</image>
+
 			<text style="text_l">
-				<placement x="%col1_x_header%" y="%row3_header_y%"/>
-				<text>{@mount_hdr=Mount}</text>
+				<placement x="%center_x%" y="500" placement="5"/>
+				<text>Decrypt data</text>
 			</text>
 
 			<text style="text_m">
-				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-				<text>{@decrypt_data_hdr=Decrypt Data}</text>
-			</text>
-
-			<text style="text_m_accent">
-				<condition var1="tw_is_fbe" op="!=" var2="1"/>
-				<placement x="%center_x%" y="%row2_y%" placement="5"/>
-				<text>{@decrypt_data_enter_pass=Enter PIN:}</text>
-			</text>
-
-			<text style="text_m_accent">
-				<condition var1="tw_is_fbe" var2="1"/>
-				<placement x="%center_x%" y="%row2_y%" placement="5"/>
-				<text>{@decrypt_data_enter_pass_fbe=Enter PIN for User [%tw_crypto_user_id%]}</text>
+				<placement x="%center_x%" y="575" placement="5"/>
+				<text>Enter the PIN you use to unlock this phone.</text>
 			</text>
 
 			<input>
-				<placement x="%indent%" y="%row3_input_y%" w="%content_width%" h="%input_height%"/>
+				<placement x="240" y="650" w="600" h="%input_height%"/>
 				<text>%tw_crypto_display%</text>
-				<data name="tw_crypto_password" mask="*" maskvariable="tw_crypto_display"/>
+				<data name="tw_crypto_password" mask="•" maskvariable="tw_crypto_display"/>
 				<restrict minlen="1" maxlen="254"/>
 				<action function="page">trydecrypt</action>
 			</input>
 
-			<fill color="%accent_color%">
-				<placement x="%indent%" y="row4a_y" w="%content_width%" h="input_line_width" placement="1"/>
-			</fill>
-
-			<fill color="%text_fail_color%">
-				<condition var1="tw_password_fail" var2="1"/>
-				<placement x="%indent%" y="row4a_y" w="%content_width%" h="input_line_width" placement="1"/>
-			</fill>
-
 			<text style="text_m_fail">
 				<condition var1="tw_password_fail" var2="1"/>
-				<placement x="%indent%" y="%row5_y%"/>
-				<text>{@decrypt_data_failed=PIN failed, please try again!}</text>
+				<placement x="%center_x%" y="760" placement="5"/>
+				<text>Wrong PIN - try again</text>
 			</text>
 
-			<button style="main_button_half_height">
-				<placement x="%indent%" y="%row10_y%"/>
-				<text>{@cancel_btn=Cancel}</text>
+			<button style="main_button_half_height_full_width">
+				<placement x="%indent%" y="900"/>
+				<text>Skip - use without decrypting</text>
 				<action function="page">canceldecrypt</action>
 			</button>
 
-			<button style="main_button_half_height">
-				<placement x="%center_x%" y="%row10_y%"/>
-				<text>{@sel_lang_btn=Select Language}</text>
-				<action function="overlay">select_language</action>
-			</button>
+			<text style="text_m">
+				<placement x="%center_x%" y="1070" placement="5"/>
+				<text>Wrong PINs count toward the lock screen's limit.</text>
+			</text>
 
 			<template name="keyboardnum"/>
 		</page>

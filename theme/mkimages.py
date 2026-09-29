@@ -80,6 +80,38 @@ P_ADVANCED = '<path d="M4 17l6-6-6-6M12 19h8"/>'
 P_REBOOT = '<path d="M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0"/>'
 WARN = "#F2A25C"
 TILE = 96                       # tile icon canvas (retainaspect, declared by mktheme)
+P_BKSP = '<path d="M21 5H9l-6 7 6 7h12z"/><path d="M16 10l-4 4M12 10l4 4"/>'
+P_LOCK = '<rect x="4" y="10" width="16" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'
+TEXT = "#EDEDED"
+
+
+def pin_keypad():
+    """Keyboard image for the PIN page (keyboardnum template, 1080x644).
+
+    Geometry mirrors keyboard.cpp for layout1: rows of 160, a 225 spacer then
+    three 212-wide keys; DrawKey insets each key by keymargin (8,8). With an
+    image layout the keyboard draws no labels, so digits/icons are drawn here.
+    """
+    body, fs = [], 64
+    keys = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"], ["bksp", "0", "enter"]]
+    for r, row in enumerate(keys):
+        for c, k in enumerate(row):
+            x0, y0 = 225 + c * 212 + 8, r * 160 + 8
+            x1, y1 = x0 + 196, y0 + 144
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            if k == "bksp":
+                body.append(icon(1080, 644, cx, cy, 68, P_BKSP, ICON, 2.0))
+            elif k == "enter":
+                body.append(rrect(x0, y0, x1, y1, 40, ACCENT))
+                body.append(icon(1080, 644, cx, cy, 64, P_CHECK, INK, 2.6))
+            else:
+                body.append(rrect(x0, y0, x1, y1, 40, SURFACE))
+                # text squashed by 1/VS so it reads true after TWRP's stretch
+                body.append(f'<g transform="translate({cx},{cy}) scale(1,{1 / VS:.4f})">'
+                            f'<text x="0" y="{fs * 0.36:.1f}" text-anchor="middle" '
+                            f'font-family="Space Grotesk" font-weight="500" font-size="{fs}" '
+                            f'fill="{TEXT}">{k}</text></g>')
+    return "".join(body)
 
 # name: (w, h, body builder). Builders run with VS set for that image.
 IMAGES = {
@@ -115,8 +147,11 @@ IMAGES = {
     "tile_settings": (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_SETTINGS, ACCENT, 2.0)),
     "tile_advanced": (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_ADVANCED, ACCENT, 2.0)),
     "tile_reboot":   (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_REBOOT, ACCENT, 2.0)),
+    # NEW: PIN page (mktheme declares pin_keypad stretched, pin_lock retainaspect)
+    "pin_keypad": (1080, 644, pin_keypad),
+    "pin_lock":   (176, 176, lambda: rrect(8, 8, 168, 168, 56, TRACK) + icon(176, 176, 88, 88, 84, P_LOCK, ACCENT, 2.0)),
 }
-NEW_IMAGES = [n for n in IMAGES if n.startswith("tile_")]
+NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 
 
 def stretched_images():
@@ -133,7 +168,7 @@ def stretched_images():
 def main():
     global VS
     os.makedirs(OUT, exist_ok=True)
-    stretched = stretched_images()
+    stretched = stretched_images() | {"pin_keypad"}   # declared without retainaspect by mktheme
     for name, (w, h, build) in IMAGES.items():
         VS = STRETCH if name in stretched else 1.0
         path = os.path.join(OUT, f"{name}.png")
