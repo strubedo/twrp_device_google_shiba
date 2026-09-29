@@ -21,6 +21,20 @@ TOP="$(cd "$DEVICE_DIR/../../.." && pwd)"
 cd "$TOP"
 
 export ALLOW_MISSING_DEPENDENCIES=true
+
+# Version shown in TWRP (TW_DEVICE_VERSION, read by BoardConfig.mk) comes from
+# the latest device-tree tag: v9.9-encryption -> shiba-v9.9. A trailing `+`
+# marks commits or uncommitted changes since that tag, so a work-in-progress
+# build never shows a release number.
+SHIBA_TAG="$(git -C "$DEVICE_DIR" describe --tags --abbrev=0 2>/dev/null || true)"
+SHIBA_NUM="$(echo "$SHIBA_TAG" | sed -n 's/^v\([0-9][0-9.]*\).*/\1/p')"
+export SHIBA_VERSION="shiba-v${SHIBA_NUM:-dev}"
+if [ -n "$SHIBA_TAG" ] && { [ "$(git -C "$DEVICE_DIR" rev-list -n1 "$SHIBA_TAG")" != "$(git -C "$DEVICE_DIR" rev-parse HEAD)" ] \
+        || [ -n "$(git -C "$DEVICE_DIR" status --porcelain)" ]; }; then
+    SHIBA_VERSION="${SHIBA_VERSION}+"
+fi
+echo "TWRP device version: $SHIBA_VERSION (tag ${SHIBA_TAG:-none})"
+
 # No `set -u`: envsetup.sh's functions (lunch, m) reference unset variables.
 # shellcheck disable=SC1091
 source build/envsetup.sh >/dev/null
@@ -101,6 +115,7 @@ gate "USB OTG auto-mount watcher"                "test -x $R/system/bin/twrp_otg
 gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to enable MTP' $R/system/bin/recovery && grep -q 'functions/ffs.mtp' $R/init.recovery.zuma.rc && test -x $R/system/bin/twrp_mtp_guard.sh"
 gate "encryption (DFE): script, pinned payload, shims, pages" "test -x $R/system/bin/twrp_encryption.sh && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'DFE_METHOD=neov2' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WHERE_TO_INJECT=super' && unzip -p $R/system/etc/twrp_dfe/dfe-neo-shiba.zip NEO.config | grep -qx 'WIPE_DATA_AFTER_INSTALL=false' && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
+gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }
