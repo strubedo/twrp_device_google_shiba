@@ -95,6 +95,13 @@ def changed_files(ui_xml):
     out = {"ui.xml": ui_xml.encode("utf-8")}
     for f in sorted(os.listdir(os.path.join(GRAPHITE, "fonts"))):
         out[f"fonts/{f}"] = open(os.path.join(GRAPHITE, "fonts", f), "rb").read()
+    img_dir = os.path.join(GRAPHITE, "images")        # stage 2 (mkimages.py)
+    if os.path.isdir(img_dir):
+        for f in sorted(os.listdir(img_dir)):
+            if f.endswith(".png"):
+                if not os.path.exists(os.path.join(BASE, "images", f)):
+                    fail(f"graphite/images/{f} replaces nothing in base/images")
+                out[f"images/{f}"] = open(os.path.join(img_dir, f), "rb").read()
     return out
 
 
@@ -123,7 +130,7 @@ def unbake():
             if os.path.exists(p):
                 os.remove(p)
         os.remove(BAKE_LIST)
-    for d in (os.path.join(BAKE_DIR, "fonts"), BAKE_DIR):   # remove empty dirs we made
+    for d in (os.path.join(BAKE_DIR, "fonts"), os.path.join(BAKE_DIR, "images"), BAKE_DIR):   # remove empty dirs we made
         if os.path.isdir(d) and not os.listdir(d):
             os.rmdir(d)
 
