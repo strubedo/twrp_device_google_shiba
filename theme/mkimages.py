@@ -150,6 +150,8 @@ IMAGES = {
     # NEW: PIN page (mktheme declares pin_keypad stretched, pin_lock retainaspect)
     "pin_keypad": (1080, 644, pin_keypad),
     "pin_lock":   (176, 176, lambda: rrect(8, 8, 168, 168, 56, TRACK) + icon(176, 176, 88, 88, 84, P_LOCK, ACCENT, 2.0)),
+    # NEW: frame - rounded bar behind the back/home/console buttons (navbar 1080x130)
+    "navbar_bg":  (1080, 130, lambda: rrect(36, 10, 1044, 120, 48, SURFACE)),
 }
 NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 
@@ -168,7 +170,7 @@ def stretched_images():
 def main():
     global VS
     os.makedirs(OUT, exist_ok=True)
-    stretched = stretched_images() | {"pin_keypad"}   # declared without retainaspect by mktheme
+    stretched = stretched_images() | {"pin_keypad", "navbar_bg"}   # declared without retainaspect by mktheme
     for name, (w, h, build) in IMAGES.items():
         VS = STRETCH if name in stretched else 1.0
         path = os.path.join(OUT, f"{name}.png")

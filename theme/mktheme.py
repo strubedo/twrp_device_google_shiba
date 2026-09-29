@@ -47,7 +47,9 @@ TILE_ICONS = {
 # layout image and skips DrawKey - taps/backspace/enter still work, labels are
 # in the image). Stretched like any non-retainaspect image.
 PIN_IMAGES = {"pin_keypad": False, "pin_lock": True}     # name: retainaspect
-NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES)
+FRAME_IMAGES = {"navbar_bg": False}
+NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES)
+MUTED = "#A1A1A1"
 
 # Graphite decrypt_pin page (mockup: lock tile, title, subtitle, dots, note,
 # skip, keypad). Functional parts kept from TWRP's page: the masked input on
@@ -111,6 +113,7 @@ VARIABLES = {                       # ui.xml <variable name=... value=...>
     "error":                        ("#FF0101",   "#FF5A5A"),    # softer red on black
     "text_fail_color":              ("#FF0101",   "#FF5A5A"),
     "text_success_color":           ("#76FF03",   "#7EE787"),
+    "col1_x_header":                ("184",       "36"),         # no logo: titles at the margin
     # accent_color / highlight stay #0090CA - TWRP blue
 }
 
@@ -176,6 +179,56 @@ def build_languages():
     return out
 
 
+def patch_page_template(xml):
+    """Graphite frame (every page): black header without the logo, mockup-style
+    status line (time | version | temp + battery, small + muted), rounded nav bar.
+    Only the default-position status items are restyled (tw_*_pos_x == 0)."""
+    s = xml.find('<template name="page">')
+    e = xml.find("</template>", s)
+    if s < 0 or e < 0:
+        fail("page template not found in base ui.xml")
+    t = xml[s:e]
+    edits = [
+        # header bar: blue -> page background
+        (r'<fill color="%accent_color%">(\s*<placement x="0" y="0" w="%screen_width%" h="%header_height%"/>)',
+         r'<fill color="%background_color%">\1'),
+        # drop the TWRP logo (busy image + home button)
+        (r'\s*<image>\s*<condition var1="tw_busy" var2="1"/>\s*<image resource="logo"/>\s*<placement x="0" y="0"/>\s*</image>', ''),
+        (r'\s*<button>\s*<condition var1="tw_busy" var2="0"/>\s*<placement x="0" y="0"/>\s*<image resource="logo"/>\s*<action function="key">home</action>\s*</button>', ''),
+        # status strip: no tint
+        (r'<fill color="#00000030">', '<fill color="#00000000">'),
+        # CPU slot -> right: "113°F · 100%"
+        (r'<text color="%text_color%">(\s*<condition var1="tw_no_cpu_temp" var2="0"/>\s*<condition var1="tw_cpu_pos_x" var2="0"/>)\s*'
+         r'<font resource="font_m"/>\s*<placement x="%indent%" y="%row1_header_y%"/>\s*<text>\{@cpu_temp=[^}]*\}</text>',
+         f'<text color="{MUTED}">\\1\n\t\t\t\t<font resource="font_s"/>\n\t\t\t\t'
+         '<placement x="%indent_right%" y="%row1_header_y%" placement="1"/>\n\t\t\t\t'
+         '<text>%tw_cpu_temp%\u00b0F \u00b7 %tw_battery%</text>'),
+        # clock slot -> left
+        (r'<text color="%text_color%">(\s*<condition var1="tw_clock_12_pos_x" var2="0"/>\s*<condition var1="tw_clock_24_pos_x" var2="0"/>)\s*'
+         r'<font resource="font_m"/>\s*<placement x="%center_x%" y="%row1_header_y%" placement="5"/>',
+         f'<text color="{MUTED}">\\1\n\t\t\t\t<font resource="font_s"/>\n\t\t\t\t'
+         '<placement x="%indent%" y="%row1_header_y%"/>'),
+        # battery slot -> centre: TWRP version (battery is in the right slot now)
+        (r'<text color="%text_color%">(\s*<conditions>\s*<condition var1="tw_no_battery_percent" var2="0"/>\s*'
+         r'<condition var1="tw_battery" op="&gt;" var2="0"/>\s*<condition var1="tw_battery" op="&lt;" var2="101"/>\s*'
+         r'<condition var1="tw_battery_pos_x" var2="0"/>\s*</conditions>)\s*<font resource="font_m"/>\s*'
+         r'<placement x="%indent_right%" y="%row1_header_y%" placement="1"/>\s*<text>\{@battery_pct=[^}]*\}</text>',
+         f'<text color="{MUTED}">\\1\n\t\t\t\t<font resource="font_s"/>\n\t\t\t\t'
+         '<placement x="%center_x%" y="%row1_header_y%" placement="5"/>\n\t\t\t\t<text>TWRP %tw_version%</text>'),
+        # nav bar: keep the black fill, add the rounded charcoal bar on top
+        (r'(<fill color="#000000">\s*<condition var1="tw_busy" var2="0"/>\s*'
+         r'<placement x="0" y="%navbar_y%" w="%screen_width%" h="%navbar_height%"/>\s*</fill>)',
+         '\\1\n\t\t\t<image>\n\t\t\t\t<condition var1="tw_busy" var2="0"/>\n\t\t\t\t'
+         '<image resource="navbar_bg"/>\n\t\t\t\t<placement x="0" y="%navbar_y%"/>\n\t\t\t</image>'),
+    ]
+    for rx, repl in edits:
+        n = len(re.findall(rx, t))
+        if n != 1:
+            fail(f"page template: expected 1 match for /{rx[:60]}.../, found {n}")
+        t = re.sub(rx, repl, t)
+    return xml[:s] + t + xml[e:]
+
+
 def build_ui_xml():
     xml = open(os.path.join(BASE, "ui.xml"), encoding="utf-8").read()
     for name, (old, new) in VARIABLES.items():
@@ -201,7 +254,7 @@ def build_ui_xml():
         fail("cannot find main_button_half_height_full_width resource in base ui.xml")
     decl = "".join(f'\n\t\t<image name="{i}" filename="{i}" retainaspect="1"/>' for i in TILE_ICONS.values())
     decl += "".join(f'\n\t\t<image name="{i}" filename="{i}"' + (' retainaspect="1"' if keep else "") + "/>"
-                    for i, keep in PIN_IMAGES.items())
+                    for i, keep in {**PIN_IMAGES, **FRAME_IMAGES}.items())
     xml = xml.replace(anchor, anchor + decl)
     # PIN keypad: give the keyboardnum template's layout the pin_keypad image
     s = xml.find('<template name="keyboardnum">')
@@ -212,7 +265,7 @@ def build_ui_xml():
     block = block.replace('<keymargin x="8" y="8"/>',
                           '<keymargin x="8" y="8"/>\n\t\t\t\t<layout resource1="pin_keypad"/>')
     xml = xml[:s] + block + xml[e:]
-    return xml
+    return patch_page_template(xml)
 
 
 def build_portrait():
