@@ -300,7 +300,7 @@
 				</conditions>
 				<font resource="font_s"/>
 				<placement x="%center_x%" y="%row1_header_y%" placement="5"/>
-				<text>TWRP %tw_version%</text>
+				<text>%tw_version%</text>
 			</text>
 
 			<!-- Custom position for status bar items if defined START -->

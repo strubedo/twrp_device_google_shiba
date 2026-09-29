@@ -152,6 +152,14 @@ IMAGES = {
     "pin_lock":   (176, 176, lambda: rrect(8, 8, 168, 168, 56, TRACK) + icon(176, 176, 88, 88, 84, P_LOCK, ACCENT, 2.0)),
     # NEW: frame - rounded bar behind the back/home/console buttons (navbar 1080x130)
     "navbar_bg":  (1080, 130, lambda: rrect(36, 10, 1044, 120, 48, SURFACE)),
+    # splash (replaces TeamWin's art; splash.xml declares both retainaspect)
+    "splashlogo":    (500, 500, lambda: (
+        '<text x="232" y="305" text-anchor="middle" font-family="Space Grotesk" '
+        f'font-weight="600" font-size="168" letter-spacing="-4" fill="{TEXT}">TWRP</text>'
+        f'<circle cx="452" cy="294" r="17" fill="{ACCENT}"/>')),
+    "splashteamwin": (708, 96, lambda: (
+        '<text x="354" y="62" text-anchor="middle" font-family="IBM Plex Sans" '
+        f'font-weight="500" font-size="40" letter-spacing="8" fill="#A1A1A1">PIXEL 8 · SHIBA</text>')),
 }
 NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 

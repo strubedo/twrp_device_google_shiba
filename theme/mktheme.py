@@ -214,7 +214,7 @@ def patch_page_template(xml):
          r'<condition var1="tw_battery_pos_x" var2="0"/>\s*</conditions>)\s*<font resource="font_m"/>\s*'
          r'<placement x="%indent_right%" y="%row1_header_y%" placement="1"/>\s*<text>\{@battery_pct=[^}]*\}</text>',
          f'<text color="{MUTED}">\\1\n\t\t\t\t<font resource="font_s"/>\n\t\t\t\t'
-         '<placement x="%center_x%" y="%row1_header_y%" placement="5"/>\n\t\t\t\t<text>TWRP %tw_version%</text>'),
+         '<placement x="%center_x%" y="%row1_header_y%" placement="5"/>\n\t\t\t\t<text>%tw_version%</text>'),
         # nav bar: keep the black fill, add the rounded charcoal bar on top
         (r'(<fill color="#000000">\s*<condition var1="tw_busy" var2="0"/>\s*'
          r'<placement x="0" y="%navbar_y%" w="%screen_width%" h="%navbar_height%"/>\s*</fill>)',
@@ -227,6 +227,29 @@ def patch_page_template(xml):
             fail(f"page template: expected 1 match for /{rx[:60]}.../, found {n}")
         t = re.sub(rx, repl, t)
     return xml[:s] + t + xml[e:]
+
+
+def build_splash():
+    """Graphite splash: black, 'TWRP.' wordmark centred, PIXEL 8 · SHIBA below,
+    'Unofficial build · <version>' at the bottom (images from mkimages.py).
+    Splash loads before the language files, so its own font setting sticks."""
+    xml = open(os.path.join(BASE, "splash.xml"), encoding="utf-8").read()
+    subs = [
+        ('<variable name="background_color" value="#222222"/>', '<variable name="background_color" value="#000000"/>'),
+        ('<variable name="header_color" value="#555555"/>', '<variable name="header_color" value="#000000"/>'),
+        ('<font name="font_l" filename="RobotoCondensed-Regular.ttf" size="52"/>',
+         '<font name="font_l" filename="IBMPlexSans-Regular.ttf" size="34"/>'),
+        ('<placement x="540" y="456" placement="4"/>', '<placement x="540" y="880" placement="4"/>'),
+        ('<placement x="540" y="1540" placement="4"/>', '<placement x="540" y="1080" placement="4"/>'),
+        ('<text color="%header_color%">', f'<text color="#6E6E6E">'),
+        ('<placement x="540" y="1590" placement="5"/>', '<placement x="540" y="1720" placement="5"/>'),
+        ('<text>Recovery Project %tw_version%</text>', '<text>Unofficial build \u00b7 %tw_version%</text>'),
+    ]
+    for old, new in subs:
+        if xml.count(old) != 1:
+            fail(f"splash.xml: expected 1x {old}")
+        xml = xml.replace(old, new)
+    return xml
 
 
 def build_ui_xml():
@@ -293,7 +316,8 @@ def build_portrait():
 
 def changed_files(ui_xml):
     """{relative path in twres: bytes} for everything Graphite adds or changes."""
-    out = {"ui.xml": ui_xml.encode("utf-8"), "portrait.xml": build_portrait().encode("utf-8")}
+    out = {"ui.xml": ui_xml.encode("utf-8"), "portrait.xml": build_portrait().encode("utf-8"),
+           "splash.xml": build_splash().encode("utf-8")}
     out.update(build_languages())
     for f in sorted(os.listdir(os.path.join(GRAPHITE, "fonts"))):
         out[f"fonts/{f}"] = open(os.path.join(GRAPHITE, "fonts", f), "rb").read()
