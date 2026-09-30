@@ -4238,7 +4238,14 @@
 					</actions>
 				</listitem>
 				<listitem name="TOOLS" header="1"></listitem>
-				<listitem name="{@adb_sideload_btn=ADB Sideload}"><condition var1="tw_has_data_media" var2="1"/><action function="page">sideload</action></listitem><listitem name="{@file_manager_btn=File Manager}"><action function="page">filemanagerlist</action></listitem><listitem name="{@terminal_btn=Terminal}"><action function="page">terminalcommand</action></listitem><listitem name="{@copy_log_btn=Copy Log}"><action function="page">copylog</action></listitem><listitem name="{@change_twrp_folder_btn=Change TWRP folder}">
+				<listitem name="{@adb_sideload_btn=ADB Sideload}"><condition var1="tw_has_data_media" var2="1"/><action function="page">sideload</action></listitem><listitem name="{@file_manager_btn=File Manager}"><action function="page">filemanagerlist</action></listitem><listitem name="{@terminal_btn=Terminal}"><action function="page">terminalcommand</action></listitem><listitem name="{@copy_log_btn=Copy Log}"><action function="page">copylog</action></listitem><listitem name="Enable USB debugging">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_tools/enable-adb.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem><listitem name="{@change_twrp_folder_btn=Change TWRP folder}">
 					<condition var1="tw_is_decrypted" var2="1"/>
 					<action function="page">changeTwrpFolder</action>
 				</listitem><listitem name="{@decrypt_users=Decrypt Users}">

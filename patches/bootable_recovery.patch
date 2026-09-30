@@ -414,7 +414,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..29347771
+index 99eeef6c..e3232391
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -703,12 +703,20 @@ index 99eeef6c..29347771
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
-@@ -3878,6 +4123,91 @@
+@@ -3878,6 +4123,99 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
 +				<!-- shiba root menu: each entry flashes a shim zip from the ramdisk so
 +				     twrp_root.sh output streams live to the console (see mkrootzips.py) -->
++				<listitem name="Enable USB debugging">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_tools/enable-adb.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
 +				<listitem name="Root: Show status">
 +					<actions>
 +						<action function="queueclear"/>
@@ -795,7 +803,7 @@ index 99eeef6c..29347771
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4236,8 @@
+@@ -3906,6 +4244,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -804,7 +812,7 @@ index 99eeef6c..29347771
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4248,8 @@
+@@ -3916,6 +4256,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -813,7 +821,7 @@ index 99eeef6c..29347771
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4267,8 @@
+@@ -3933,6 +4275,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -822,7 +830,7 @@ index 99eeef6c..29347771
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4279,8 @@
+@@ -3943,6 +4287,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
