@@ -88,7 +88,8 @@ ADV_ITEMS = [
     ('{@reload_theme_btn=Reload Theme}', None, "TOOLS", None),
 ]
 # stock items that sat above ROOT - moved into TOOLS (mockup has no GENERAL)
-ADV_MOVE_TO_TOOLS = ['{@change_twrp_folder_btn=Change TWRP folder}', '{@decrypt_users=Decrypt Users}']
+ADV_MOVE_TO_TOOLS = ['Enable USB debugging',
+                     '{@change_twrp_folder_btn=Change TWRP folder}', '{@decrypt_users=Decrypt Users}']
 # Advanced page: the four stock buttons become TOOLS rows (same actions and
 # conditions) and the list fills the page, like the mockup.
 ADV_BUTTONS = [          # (label string, action page) - mockup order
