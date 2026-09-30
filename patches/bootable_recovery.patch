@@ -1161,7 +1161,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..9a5a533e
+index 171feccf..13ac68d2
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -586,6 +586,13 @@ void TWPartitionManager::Decrypt_Data() {
@@ -1228,7 +1228,35 @@ index 171feccf..9a5a533e
  	Update_System_Details();
  
  	if (!Mount_Current_Storage(true))
-@@ -2176,24 +2178,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -1964,6 +1966,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+ 
+ 		DataManager::SetValue(TW_IS_DECRYPTED, 1);
+ 		dat->Is_Decrypted = true;
++		// shiba: vold mounts /data with f2fs checkpoint=disable when the slot isn't
++		// marked successful (cp_needsCheckpoint). f2fs then rolls back every change
++		// made in TWRP on unmount or reboot. Commit like vold's cp_commitChanges:
++		// remount with the full fstab options + checkpoint=enable (a bare option
++		// would reset the rest, e.g. inlinecrypt).
++		{
++			std::string mounts;
++			TWFunc::read_file("/proc/mounts", mounts);
++			size_t p = mounts.find(" /data f2fs ");
++			if (p != std::string::npos) {
++				std::string line = mounts.substr(p, mounts.find('\n', p) - p);
++				if (line.find("checkpoint=disable") != std::string::npos) {
++					std::string opts = dat->Mount_Options.empty() ? "checkpoint=enable"
++					                                               : dat->Mount_Options + ",checkpoint=enable";
++					if (mount(NULL, "/data", NULL, MS_REMOUNT | dat->Mount_Flags, opts.c_str()) == 0)
++						gui_print("Committed pending userdata checkpoint - changes to /data now persist\n");
++					else
++						LOGERR("Unable to remount /data with checkpoint=enable: %s\n", strerror(errno));
++				}
++			}
++		}
+ 		if (!Block_Device.empty()) {
+ 			dat->Decrypted_Block_Device = Block_Device;
+ 			gui_msg(Msg("decrypt_success_dev=Data successfully decrypted, new block device: '{1}'")(Block_Device));
+@@ -2176,24 +2199,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
