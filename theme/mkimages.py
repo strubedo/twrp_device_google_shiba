@@ -117,6 +117,7 @@ def pin_keypad():
 IMAGES = {
     # buttons: charcoal rounded tiles in the stock visible box
     "main_button":                        (504, 288,  lambda: rrect(36, 32, 468, 256, 44, SURFACE)),
+    "main_button_accent":                 (504, 288,  lambda: rrect(36, 32, 468, 256, 44, ACCENT)),
     "main_button_half_height":            (504, 192,  lambda: rrect(36, 32, 468, 160, 36, SURFACE)),
     "main_button_half_height_full_width": (1008, 192, lambda: rrect(36, 32, 972, 160, 36, SURFACE)),
     # bottom navigation bar
@@ -140,6 +141,7 @@ IMAGES = {
     "file":   (72, 96, lambda: icon(72, 96, 27, 48, 52, P_FILE, ICON, 2.0)),
     # NEW: main-menu tile icons (not in stock; mktheme declares them retainaspect)
     "tile_install":  (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_INSTALL, ACCENT, 2.0)),
+    "tile_install_dark": (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_INSTALL, INK, 2.2)),
     "tile_wipe":     (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_WIPE, WARN, 2.0)),
     "tile_backup":   (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_BACKUP, ACCENT, 2.0)),
     "tile_restore":  (TILE, TILE, lambda: icon(TILE, TILE, 48, 48, 84, P_RESTORE, ACCENT, 2.0)),
@@ -152,6 +154,12 @@ IMAGES = {
     "pin_lock":   (176, 176, lambda: rrect(8, 8, 168, 168, 56, TRACK) + icon(176, 176, 88, 88, 84, P_LOCK, ACCENT, 2.0)),
     # NEW: frame - rounded bar behind the back/home/console buttons (navbar 1080x130)
     "navbar_bg":  (1080, 130, lambda: rrect(36, 10, 1044, 120, 48, SURFACE)),
+    # NEW: main-page chips (retainaspect; text drawn over them by the theme).
+    # Widths = measured IBM Plex Sans 33 text + 28 padding each side (+ 12 dot + 12 gap).
+    "chip_slot":      (270, 64, lambda: rrect(0, 0, 270, 64, 32, TRACK)),
+    "chip_decrypted": (310, 64, lambda: rrect(0, 0, 310, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_locked":    (256, 64, lambda: rrect(0, 0, 256, 64, 32, TRACK) + ellipse(34, 32, 6, fill=WARN)),
+    "chip_plain":     (320, 64, lambda: rrect(0, 0, 320, 64, 32, TRACK)),
     # splash (replaces TeamWin's art; splash.xml declares both retainaspect)
     "splashlogo":    (500, 500, lambda: (
         '<text x="232" y="305" text-anchor="middle" font-family="Space Grotesk" '
@@ -178,7 +186,7 @@ def stretched_images():
 def main():
     global VS
     os.makedirs(OUT, exist_ok=True)
-    stretched = stretched_images() | {"pin_keypad", "navbar_bg"}   # declared without retainaspect by mktheme
+    stretched = stretched_images() | {"pin_keypad", "navbar_bg", "main_button_accent"}   # declared without retainaspect by mktheme
     for name, (w, h, build) in IMAGES.items():
         VS = STRETCH if name in stretched else 1.0
         path = os.path.join(OUT, f"{name}.png")

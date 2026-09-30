@@ -36,7 +36,7 @@ SRC_PORTRAIT = os.path.join(HERE, "..", "..", "..", "..", "bootable", "recovery"
 # button label (string id) -> icon image drawn by mkimages.py. Button.cpp puts
 # the icon above the centred label when both fit.
 TILE_ICONS = {
-    "install_btn": "tile_install", "wipe_btn": "tile_wipe",
+    "install_btn": "tile_install_dark", "wipe_btn": "tile_wipe",
     "backup_btn": "tile_backup", "restore_btn": "tile_restore",
     "mount_btn": "tile_mount", "settings_btn": "tile_settings",
     "advanced_btn": "tile_advanced", "reboot_btn": "tile_reboot",
@@ -47,9 +47,107 @@ TILE_ICONS = {
 # layout image and skips DrawKey - taps/backspace/enter still work, labels are
 # in the image). Stretched like any non-retainaspect image.
 PIN_IMAGES = {"pin_keypad": False, "pin_lock": True}     # name: retainaspect
-FRAME_IMAGES = {"navbar_bg": False}
-NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES)
+FRAME_IMAGES = {"navbar_bg": False, "chip_slot": True, "chip_decrypted": True,
+                "chip_locked": True, "chip_plain": True,
+                "main_button_accent": False}             # Install = primary (blue) tile
+NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES) | {"tile_install"}
+# primary tile style: blue image, black label (button parts resolve node-first,
+# then style - pages.cpp FindNode - so only the Install button uses it)
+ACCENT_STYLE = '''
+		<style name="main_button_accent">
+			<highlight color="%highlight_color%"/>
+			<font resource="font_l" color="#000000"/>
+			<image resource="main_button_accent"/>
+		</style>
+'''
 MUTED = "#A1A1A1"
+
+# --- Stage 3: lists (engine support: scrolllist.cpp <itemcard>, listbox.cpp header="1")
+# Every list style gets rounded row cards; the separator becomes the gap.
+LIST_STYLES = ["fileselector", "listbox", "advanced_listbox", "options_listbox",
+               "partitionlist", "partitionlist_storage"]
+CARD = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>'
+        '\n\t\t\t<separator color="%background_color%" height="14"/>')
+# Advanced page: (existing item name, new name or None to keep, header before it or None)
+ADV_ITEMS = [
+    ('{@change_twrp_folder_btn=Change TWRP folder}', None, "GENERAL"),
+    ('Root: Show status', 'Show status', "ROOT"),
+    ('Root: Install KernelSU', 'Install KernelSU', None),
+    ('Root: Install Magisk', 'Install Magisk', None),
+    ('Root: Remove root', 'Remove root', None),
+    ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP"),
+    ('TWRP: Install to both slots', 'Install to both slots', None),
+    ('Encryption: Status', 'Status', "ENCRYPTION"),
+    ('Encryption: Dry run (no changes)', 'Dry run (no changes)', None),
+    ('Encryption: Disable (formats data)', 'Disable (formats data)', None),
+    ('Encryption: Re-enable (formats data)', 'Re-enable (formats data)', None),
+    ('{@reload_theme_btn=Reload Theme}', None, "TOOLS"),
+]
+
+
+def patch_lists(xml):
+    for name in LIST_STYLES:
+        s = xml.find(f'<style name="{name}">')
+        e = xml.find("</style>", s)
+        if s < 0 or e < 0:
+            fail(f"list style {name} not found in portrait.xml")
+        block = re.sub(r'\n\s*<separator [^>]*/>', '', xml[s:e])        # stock divider line out
+        block = block.rstrip() + "\n\t\t\t" + CARD + "\n\t\t"
+        xml = xml[:s] + block + xml[e:]
+    a = xml.find('<page name="advanced">')
+    b = xml.find("</page>", a)
+    page = xml[a:b]
+    for old, new, header in ADV_ITEMS:
+        pat = re.compile(r'(\n(\t+))<listitem name="' + re.escape(old) + '">')
+        if len(pat.findall(page)) != 1:
+            fail(f"advanced page: expected one listitem '{old}'")
+        def repl(m, new=new, header=header, old=old):
+            out = m.group(1)
+            if header:
+                out += f'<listitem name="{header}" header="1"></listitem>' + m.group(1)
+            return out + f'<listitem name="{new or old}">'
+        page = pat.sub(repl, page)
+    return xml[:a] + page + xml[b:]
+
+# Main page header (mockup): big TWRP title + live chips. Chip widths/text x
+# come from measured Plex Sans 33 text (see mkimages.py). Unencrypted data
+# (e.g. DFE) also sets tw_is_decrypted, so tw_is_encrypted decides first.
+MAIN_HEADER = '''<text color="%text_color%">
+				<font resource="font_xl"/>
+				<placement x="36" y="84"/>
+				<text>TWRP</text>
+			</text>
+
+			<image>
+				<image resource="chip_slot"/>
+				<placement x="36" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<font resource="font_s"/>
+				<placement x="64" y="204"/>
+				<text>Pixel 8 \u00b7 Slot %tw_active_slot%</text>
+			</text>
+''' + "".join(f'''
+			<image>
+				<conditions>{conds}</conditions>
+				<image resource="{img}"/>
+				<placement x="322" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions>{conds}</conditions>
+				<font resource="font_s"/>
+				<placement x="{tx}" y="204"/>
+				<text>{label}</text>
+			</text>
+''' for img, tx, label, conds in [
+    ("chip_plain", 350, "Data unencrypted",
+     '<condition var1="tw_is_encrypted" var2="0"/>'),
+    ("chip_decrypted", 374, "Data decrypted",
+     '<condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>'),
+    ("chip_locked", 374, "Data locked",
+     '<condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
+])
+MAIN_HEADER = MAIN_HEADER.replace("\\u00b7", "\u00b7")
 
 # Graphite decrypt_pin page (mockup: lock tile, title, subtitle, dots, note,
 # skip, keypad). Functional parts kept from TWRP's page: the masked input on
@@ -266,6 +364,9 @@ def build_ui_xml():
         if not os.path.exists(os.path.join(GRAPHITE, "fonts", fname)):
             fail(f"missing graphite/fonts/{fname}")
         xml = pat.sub(f'<font name="{name}" filename="{fname}" size="{size}"/>', xml)
+    # extra-large heading for the main page title (not language-overridden)
+    fl = f'<font name="font_l" filename="{FONTS["font_l"][0]}" size="{FONTS["font_l"][1]}"/>'
+    xml = xml.replace(fl, fl + f'\n\t\t<font name="font_xl" filename="{FONTS["font_l"][0]}" size="96"/>')
     for rx, repl, n in LITERALS:
         found = len(re.findall(rx, xml))
         if found != n:
@@ -299,19 +400,34 @@ def build_portrait():
     if start < 0 or end < 0:
         fail("main2 page not found in TWRP's portrait.xml")
     page = xml[start:end]
+    hdr = re.compile(r'<text style="text_l">\s*<placement x="%col1_x_header%" y="%row3_header_y%"/>\s*'
+                     r'<text>\{@twrp_header=[^}]*\}</text>\s*</text>\s*<text style="text_m">(?:\s*<condition[^>]*/>)*\s*'
+                     r'<placement x="%col1_x_header%" y="%row4_header_y%"/>\s*<text>%tw_version%</text>\s*</text>')
+    if len(hdr.findall(page)) != 1:
+        fail("main2 header (title + version) not as expected")
+    page = hdr.sub(lambda m: MAIN_HEADER, page)
     for label, icon in TILE_ICONS.items():
         pat = re.compile(r'(\n(\t+)<text>\{@' + label + r'=[^}]*\}</text>)')
         if len(pat.findall(page)) != 1:
             fail(f"expected one {label} button on the main2 page")
-        page = pat.sub(lambda m: f'\n{m.group(2)}<icon resource="{icon}"/>' + m.group(1), page)
+        page = pat.sub(lambda m: f'\n{m.group(2)}<icon resource="{icon}" tile="1" padx="72" padtop="60" padbottom="60"/>' + m.group(1), page)
+    inst = re.compile(r'<button style="main_button">(\s*<placement[^>]*/>\s*<icon resource="tile_install_dark"[^>]*/>)')
+    if len(inst.findall(page)) != 1:
+        fail("Install tile not found on main2")
+    page = inst.sub(r'<button style="main_button_accent">\1', page)
     xml = xml[:start] + page + xml[end:]
+    # the primary-tile style, right after main_button's
+    st = re.compile(r'(<style name="main_button">\s*<highlight[^>]*/>\s*<font[^>]*/>\s*<image resource="main_button"/>\s*</style>\n)')
+    if len(st.findall(xml)) != 1:
+        fail("main_button style not as expected in portrait.xml")
+    xml = st.sub(lambda m: m.group(1) + ACCENT_STYLE, xml)
     # PIN page: replace TWRP's decrypt_pin page body with the Graphite layout
     s = xml.find('<page name="decrypt_pin">')
     e = xml.find("</page>", s)
     if s < 0 or xml[s:e].count('<template name="keyboardnum"/>') != 1 \
             or 'name="tw_crypto_password"' not in xml[s:e]:
         fail("decrypt_pin page not as expected in TWRP's portrait.xml")
-    return xml[:s] + PIN_PAGE + xml[e:]
+    return patch_lists(xml[:s] + PIN_PAGE + xml[e:])
 
 
 def changed_files(ui_xml):

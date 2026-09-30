@@ -15,6 +15,7 @@
 
 	<resources>
 		<font name="font_l" filename="SpaceGrotesk-SemiBold.ttf" size="50"/>
+		<font name="font_xl" filename="SpaceGrotesk-SemiBold.ttf" size="96"/>
 		<font name="font_m" filename="IBMPlexSans-Regular.ttf" size="38"/>
 		<font name="font_s" filename="IBMPlexSans-Regular.ttf" size="33"/>
 		<font name="fixed" filename="IBMPlexMono-Regular.ttf" size="28"/>
@@ -27,7 +28,7 @@
 		<image name="main_button" filename="main_button"/>
 		<image name="main_button_half_height" filename="main_button_half_height"/>
 		<image name="main_button_half_height_full_width" filename="main_button_half_height_full_width"/>
-		<image name="tile_install" filename="tile_install" retainaspect="1"/>
+		<image name="tile_install_dark" filename="tile_install_dark" retainaspect="1"/>
 		<image name="tile_wipe" filename="tile_wipe" retainaspect="1"/>
 		<image name="tile_backup" filename="tile_backup" retainaspect="1"/>
 		<image name="tile_restore" filename="tile_restore" retainaspect="1"/>
@@ -38,6 +39,11 @@
 		<image name="pin_keypad" filename="pin_keypad"/>
 		<image name="pin_lock" filename="pin_lock" retainaspect="1"/>
 		<image name="navbar_bg" filename="navbar_bg"/>
+		<image name="chip_slot" filename="chip_slot" retainaspect="1"/>
+		<image name="chip_decrypted" filename="chip_decrypted" retainaspect="1"/>
+		<image name="chip_locked" filename="chip_locked" retainaspect="1"/>
+		<image name="chip_plain" filename="chip_plain" retainaspect="1"/>
+		<image name="main_button_accent" filename="main_button_accent"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>

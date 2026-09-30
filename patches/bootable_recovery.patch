@@ -104,6 +104,259 @@ index fa626624..a7abe6a2 100644
      writepid /dev/cpuset/foreground/tasks
      seclabel u:r:recovery:s0
 +    disabled
+diff --git a/gui/button.cpp b/gui/button.cpp
+old mode 100755
+new mode 100644
+index 4ce595b2..481e2fd2
+--- a/gui/button.cpp
++++ b/gui/button.cpp
+@@ -53,6 +53,7 @@ GUIButton::GUIButton(xml_node<>* node)
+ 	hasHighlightColor = false;
+ 	renderHighlight = false;
+ 	hasFill = false;
++	mTileLayout = mTilePadX = mTilePadTop = mTilePadBottom = 0;
+ 
+ 	if (!node)  return;
+ 
+@@ -79,6 +80,14 @@ GUIButton::GUIButton(xml_node<>* node)
+ 
+ 	// The icon is a special case
+ 	mButtonIcon = LoadAttrImage(FindNode(node, "icon"), "resource");
++	// shiba (Graphite): tile layout - icon top-left, label bottom-left
++	xml_node<>* iconNode = FindNode(node, "icon");
++	if (iconNode && LoadAttrInt(iconNode, "tile", 0)) {
++		mTileLayout = 1;
++		mTilePadX = LoadAttrIntScaleX(iconNode, "padx", 0);
++		mTilePadTop = LoadAttrIntScaleY(iconNode, "padtop", 0);
++		mTilePadBottom = LoadAttrIntScaleY(iconNode, "padbottom", 0);
++	}
+ 
+ 	mHighlightColor = LoadAttrColor(FindNode(node, "highlight"), "color", &hasHighlightColor);
+ 
+@@ -92,7 +101,16 @@ GUIButton::GUIButton(xml_node<>* node)
+ 	SetRenderPos(x, y, w, h);
+ 	if (mButtonLabel) {
+ 		TextPlacement = (Placement)LoadAttrInt(FindNode(node, "placement"), "textplacement", TOP_LEFT);
+-		if (TextPlacement != TEXT_ONLY_RIGHT) {
++		if (mTileLayout && TextPlacement != TEXT_ONLY_RIGHT) {
++			// shiba (Graphite): label left-aligned on the bottom padding
++			mButtonLabel->scaleWidth = 1;
++			mButtonLabel->SetMaxWidth(w - 2 * mTilePadX);
++			mButtonLabel->SetPlacement(TOP_LEFT);
++			mButtonLabel->GetCurrentBounds(mTextW, mTextH);
++			mTextX = mRenderX + mTilePadX;
++			mTextY = mRenderY + mRenderH - mTilePadBottom - mTextH;
++			mButtonLabel->SetRenderPos(mTextX, mTextY);
++		} else if (TextPlacement != TEXT_ONLY_RIGHT) {
+ 			mButtonLabel->scaleWidth = 1;
+ 			mButtonLabel->SetMaxWidth(w);
+ 			mButtonLabel->SetPlacement(CENTER);
+@@ -224,6 +242,17 @@ int GUIButton::SetRenderPos(int x, int y, int w, int h)
+ 		mIconY = mRenderY + (divisor / 3);
+ 	}
+ 
++	if (mTileLayout) {
++		// shiba (Graphite): icon top-left, label bottom-left
++		mIconX = mRenderX + mTilePadX;
++		mIconY = mRenderY + mTilePadTop;
++		if (mButtonLabel) {
++			mButtonLabel->GetCurrentBounds(mTextW, mTextH);
++			mTextX = mRenderX + mTilePadX;
++			mTextY = mRenderY + mRenderH - mTilePadBottom - mTextH;
++		}
++	}
++
+ 	if (mButtonLabel)   mButtonLabel->SetRenderPos(mTextX, mTextY);
+ 	if (mAction)		mAction->SetActionPos(mRenderX, mRenderY, mRenderW, mRenderH);
+ 	SetActionPos(mRenderX, mRenderY, mRenderW, mRenderH);
+diff --git a/gui/listbox.cpp b/gui/listbox.cpp
+index 91cb7a7b..3114139b 100644
+--- a/gui/listbox.cpp
++++ b/gui/listbox.cpp
+@@ -116,6 +116,9 @@ GUIListBox::GUIListBox(xml_node<>* node) : GUIScrollList(node)
+ 		if (!attr) continue;
+ 		// We will parse display names when we get page focus to ensure that translating takes place
+ 		item.displayName = attr->value();
++		// shiba (Graphite): section header row (not selectable, no card)
++		xml_attribute<>* hdr = child->first_attribute("header");
++		item.isHeader = hdr && atoi(hdr->value()) != 0;
+ 		item.variableValue = gui_parse_text(child->value());
+ 		item.selected = (child->value() == currentValue);
+ 		item.action = NULL;
+@@ -269,6 +272,15 @@ void GUIListBox::RenderItem(size_t itemindex, int yPos, bool selected)
+ 	// note: the "selected" parameter above is for the currently touched item
+ 	// don't confuse it with the more persistent "selected" flag per list item used below
+ 	ListItem& item = mListItems[mVisibleItems[itemindex]];
++	if (item.isHeader) {
++		// shiba (Graphite): section header - muted text on the page background
++		if (mFont && mFont->GetResource()) {
++			gr_color(mCardHeaderColor.red, mCardHeaderColor.green, mCardHeaderColor.blue, mCardHeaderColor.alpha);
++			int textY = yPos + (actualItemHeight - mSeparatorH) / 2;
++			gr_textEx_scaleW(mRenderX + 8, textY, item.displayName.c_str(), mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
++		}
++		return;
++	}
+ 	ImageResource* icon = item.selected ? mIconSelected : mIconUnselected;
+ 	const std::string& text = item.displayName;
+ 
+@@ -277,6 +289,8 @@ void GUIListBox::RenderItem(size_t itemindex, int yPos, bool selected)
+ 
+ void GUIListBox::NotifySelect(size_t item_selected)
+ {
++	if (mListItems[mVisibleItems[item_selected]].isHeader)
++		return;	// shiba (Graphite): headers aren't selectable
+ 	if (!isCheckList) {
+ 		// deselect all items, even invisible ones
+ 		for (size_t i = 0; i < mListItems.size(); i++) {
+diff --git a/gui/objects.hpp b/gui/objects.hpp
+old mode 100755
+new mode 100644
+index 7ca15ed8..48231a5f
+--- a/gui/objects.hpp
++++ b/gui/objects.hpp
+@@ -418,6 +418,9 @@ protected:
+ 	GUIAction* mAction;
+ 	int mTextX, mTextY, mTextW, mTextH;
+ 	int mIconX, mIconY, mIconW, mIconH;
++	// shiba (Graphite): <icon tile="1" padx padtop padbottom> - icon top-left,
++	// label bottom-left (theme units, scaled). 0 = stock centred layout.
++	int mTileLayout, mTilePadX, mTilePadTop, mTilePadBottom;
+ 	bool mRendered;
+ 	bool hasHighlightColor;
+ 	bool renderHighlight;
+@@ -564,6 +567,12 @@ protected:
+ 	int mFastScrollRectCurrentH; // current height of fastscroll rect
+ 	int mFastScrollRectTouchY; // offset from top of fastscroll rect where the user initially touched
+ 	bool hasScroll; // indicates that we have enough items in the list to scroll
++	// shiba (Graphite): <itemcard color selectedcolor radius padx headercolor/> -
++	// each row drawn as an anti-aliased rounded card; separator becomes the gap
++	bool hasItemCard;
++	COLOR mCardColor, mCardSelColor, mCardHeaderColor;
++	int mCardRadius, mCardPadX;
++	void DrawCard(int x, int y, int w, int h, const COLOR& c);
+ 	int firstDisplayedItem; // this item goes at the top of the display list - may only be partially visible
+ 	int scrollingSpeed; // on a touch release, this is set based on the difference in the y-axis between the last 2 touches and indicates how fast the kinetic scrolling will go
+ 	int y_offset; // this is how many pixels offset in the y axis for per pixel scrolling, is always <= 0 and should never be < -actualItemHeight
+@@ -661,6 +670,7 @@ protected:
+ 		unsigned int selected;
+ 		GUIAction* action;
+ 		std::vector<Condition> mConditions;
++		bool isHeader = false;  // shiba (Graphite): <listitem header="1"> section title
+ 	};
+ 
+ protected:
+diff --git a/gui/scrolllist.cpp b/gui/scrolllist.cpp
+old mode 100755
+new mode 100644
+index cdc6c9e9..fa916a06
+--- a/gui/scrolllist.cpp
++++ b/gui/scrolllist.cpp
+@@ -17,6 +17,7 @@
+ */
+ 
+ #include <string.h>
++#include <cmath>
+ 
+ extern "C" {
+ #include "../twcommon.h"
+@@ -40,6 +41,8 @@ GUIScrollList::GUIScrollList(xml_node<>* node) : GUIObject(node)
+ 	mHeaderSeparatorH = mHeaderH = actualItemHeight = 0;
+ 	mHeaderIsStatic = false;
+ 	mBackground = mHeaderIcon = NULL;
++	hasItemCard = false;
++	mCardRadius = mCardPadX = 0;
+ 	mFont = NULL;
+ 	mFastScrollW = mFastScrollLineW = mFastScrollRectW = mFastScrollRectH = 0;
+ 	mFastScrollRectCurrentY = mFastScrollRectCurrentH = mFastScrollRectTouchY = 0;
+@@ -97,6 +100,18 @@ GUIScrollList::GUIScrollList(xml_node<>* node) : GUIObject(node)
+ 		mSeparatorH = LoadAttrIntScaleY(child, "height");
+ 	}
+ 
++	// shiba (Graphite): rounded row cards
++	child = FindNode(node, "itemcard");
++	if (child)
++	{
++		hasItemCard = true;
++		mCardColor = LoadAttrColor(child, "color");
++		mCardSelColor = LoadAttrColor(child, "selectedcolor", mCardColor);
++		mCardHeaderColor = LoadAttrColor(child, "headercolor", mFontColor);
++		mCardRadius = LoadAttrIntScaleX(child, "radius", 0);
++		mCardPadX = LoadAttrIntScaleX(child, "padx", 0);
++	}
++
+ 	// Fast scroll
+ 	child = FindNode(node, "fastscroll");
+ 	if (child)
+@@ -318,9 +333,52 @@ void GUIScrollList::RenderItem(size_t itemindex __unused, int yPos, bool selecte
+ 	RenderStdItem(yPos, selected, NULL, "implement RenderItem!");
+ }
+ 
++// shiba (Graphite): anti-aliased rounded rectangle. Corner pixels get alpha
++// from their distance to the arc; gr_fill blends alpha over what's below.
++void GUIScrollList::DrawCard(int x, int y, int w, int h, const COLOR& c)
++{
++	int r = mCardRadius;
++	if (r * 2 > h) r = h / 2;
++	if (r * 2 > w) r = w / 2;
++	gr_color(c.red, c.green, c.blue, c.alpha);
++	if (r <= 0) {
++		gr_fill(x, y, w, h);
++		return;
++	}
++	gr_fill(x, y + r, w, h - 2 * r);	// straight middle band
++	for (int i = 0; i < r; i++) {		// corner rows, top and bottom mirrored
++		double cy = r - i - 0.5;
++		int solid = r;
++		for (int px = 0; px < r; px++) {
++			double cx = r - px - 0.5;
++			double a = r - sqrt(cx * cx + cy * cy) + 0.5;
++			if (a >= 1.0) { solid = px; break; }
++			if (a > 0.0) {
++				gr_color(c.red, c.green, c.blue, (int)(c.alpha * a));
++				gr_fill(x + px, y + i, 1, 1);
++				gr_fill(x + w - 1 - px, y + i, 1, 1);
++				gr_fill(x + px, y + h - 1 - i, 1, 1);
++				gr_fill(x + w - 1 - px, y + h - 1 - i, 1, 1);
++			}
++		}
++		gr_color(c.red, c.green, c.blue, c.alpha);
++		gr_fill(x + solid, y + i, w - 2 * solid, 1);
++		gr_fill(x + solid, y + h - 1 - i, w - 2 * solid, 1);
++	}
++}
++
+ void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon, const char* text, int iconAndTextH)
+ {
+-	if (hasHighlightColor && selected) {
++	int padX = 0;
++	if (hasItemCard) {
++		// shiba (Graphite): the row is a card; the separator below it is the gap
++		int cardW = mRenderW - (hasScroll ? mFastScrollW : 0);
++		DrawCard(mRenderX, yPos, cardW, actualItemHeight - mSeparatorH,
++		         selected ? mCardSelColor : mCardColor);
++		padX = mCardPadX;
++		if (!iconAndTextH)
++			iconAndTextH = actualItemHeight - mSeparatorH;
++	} else if (hasHighlightColor && selected) {
+ 		// Highlight the item background of the selected item
+ 		gr_color(mHighlightColor.red, mHighlightColor.green, mHighlightColor.blue, mHighlightColor.alpha);
+ 		gr_fill(mRenderX, yPos, mRenderW, actualItemHeight);
+@@ -342,13 +400,13 @@ void GUIScrollList::RenderStdItem(int yPos, bool selected, ImageResource* icon,
+ 		int iconH = icon->GetHeight();
+ 		int iconW = icon->GetWidth();
+ 		int iconY = yPos + (iconAndTextH - iconH) / 2;
+-		int iconX = mRenderX + (maxIconWidth - iconW) / 2;
++		int iconX = mRenderX + padX + (maxIconWidth - iconW) / 2;
+ 		gr_blit(icon->GetResource(), 0, 0, iconW, iconH, iconX, iconY);
+ 	}
+ 
+ 	// render label text
+ 	if (mFont && mFont->GetResource()) {
+-		int textX = mRenderX + maxIconWidth + 5;
++		int textX = mRenderX + padX + maxIconWidth + 5;
+ 		int textY = yPos + (iconAndTextH / 2);
+ 		gr_textEx_scaleW(textX, textY, text, mFont->GetResource(), mRenderW, TEXT_ONLY_RIGHT, 0);
+ 	}
 diff --git a/gui/theme/common/languages/en.xml b/gui/theme/common/languages/en.xml
 old mode 100755
 new mode 100644

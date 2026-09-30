@@ -52,6 +52,18 @@ if [ -f "$DEVICE_DIR/recovery/root/twres/ui.xml" ]; then
     python3 "$DEVICE_DIR/theme/mktheme.py" --bake
 fi
 
+# gui/*.hpp changes (e.g. objects.hpp class layouts) are NOT tracked by the
+# build: stale .o files keep old layouts and corrupt memory (list pages
+# segfaulted in GUIListBox::NotifyVarChange). If any gui header is newer than
+# any compiled gui object, recompile the GUI and its includers from scratch.
+GUI_OBJ=out/soong/.intermediates/bootable/recovery/gui/libguitwrp
+GUI_HDR="$(ls -t bootable/recovery/gui/*.hpp | head -1)"
+if [ -d "$GUI_OBJ" ] && [ -n "$(find "$GUI_OBJ" -name '*.o' ! -newer "$GUI_HDR" | head -1)" ]; then
+    step "GUI headers changed ($GUI_HDR) - forcing a clean GUI rebuild"
+    rm -rf "$GUI_OBJ"
+    find out/soong/.intermediates/bootable/recovery -name 'twrp.o' -o -name 'twrpAdbBuFifo.o' | xargs -r rm -f
+fi
+
 step "Pre-building modules TWRP copies without declaring dependencies"
 m servicemanager task_profiles.json mke2fs.conf -j10 2>&1 | tail -1
 

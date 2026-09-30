@@ -38,6 +38,12 @@
 			<image resource="main_button"/>
 		</style>
 
+		<style name="main_button_accent">
+			<highlight color="%highlight_color%"/>
+			<font resource="font_l" color="#000000"/>
+			<image resource="main_button_accent"/>
+		</style>
+
 		<style name="main_button_half_height">
 			<highlight color="%highlight_color%"/>
 			<font resource="font_m" color="%text_button_color%"/>
@@ -90,21 +96,23 @@
 			<highlight color="%fileselector_highlight_color%"/>
 			<header background="%background_color%" textcolor="%accent_color%" separatorcolor="%accent_color%" separatorheight="%fileselector_separatorheight%"/>
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
-			<separator color="%fileselector_linecolor%" height="%fileselector_separatorheight%"/>
 			<sort name="tw_gui_sort_order"/>
 			<icon folder="folder" file="file"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%fileselector_spacing%" color="%text_color%" highlightcolor="%accent_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="listbox">
 			<highlight color="%fileselector_highlight_color%"/>
 			<header background="%background_color%" textcolor="%accent_color%" separatorcolor="%accent_color%" separatorheight="%fileselector_separatorheight%"/>
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
-			<separator color="%fileselector_linecolor%" height="%fileselector_separatorheight%"/>
 			<icon selected="radio_true" unselected="radio_false"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%fileselector_spacing%" color="%text_color%" highlightcolor="%accent_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="scrolllist">
@@ -119,9 +127,10 @@
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
 			<dimensions lineh="%slidervalue_lineh%" linepadding="%slidervalue_padding%" sliderw="%slidervalue_sliderw%" sliderh="%slidervalue_sliderh%"/>
 			<icon selected="checkbox_true" unselected="checkbox_false"/>
-			<separator color="%fileselector_linecolor%" height="%fileselector_separatorheight%"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%partitionlist_spacing%" color="%text_color%" highlightcolor="%fileselector_highlight_font_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="partitionlist_storage">
@@ -131,28 +140,31 @@
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
 			<dimensions lineh="%slidervalue_lineh%" linepadding="%slidervalue_padding%" sliderw="%slidervalue_sliderw%" sliderh="%slidervalue_sliderh%"/>
 			<icon selected="radio_true" unselected="radio_false"/>
-			<separator color="%fileselector_linecolor%" height="%fileselector_separatorheight%"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%partitionlist_spacing%" color="%text_color%" highlightcolor="%fileselector_highlight_font_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="advanced_listbox">
 			<highlight color="%fileselector_highlight_color%"/>
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
-			<separator color="%fileselector_linecolor%" height="%fileselector_separatorheight%"/>
 			<dimensions lineh="%slidervalue_lineh%" linepadding="%slidervalue_padding%" sliderw="%slidervalue_sliderw%" sliderh="%slidervalue_sliderh%"/>
 			<icon selected="handle" unselected="handle"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%fileselector_spacing%" color="%text_color%" highlightcolor="%accent_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="options_listbox">
 			<highlight color="%fileselector_highlight_color%"/>
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
-			<separator color="%background_color%" height="%fileselector_separatorheight%"/>
 			<dimensions lineh="%slidervalue_lineh%" linepadding="%slidervalue_padding%" sliderw="%slidervalue_sliderw%" sliderh="%slidervalue_sliderh%"/>
 			<background color="%background_color%"/>
 			<font resource="font_m" spacing="%fileselector_spacing%" color="%text_color%" highlightcolor="%accent_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
+			<separator color="%background_color%" height="14"/>
 		</style>
 
 		<style name="slider">
@@ -186,20 +198,62 @@
 		<page name="main2">
 			<template name="page"/>
 
-			<text style="text_l">
-				<placement x="%col1_x_header%" y="%row3_header_y%"/>
-				<text>{@twrp_header=Team Win Recovery Project}</text>
+			<text color="%text_color%">
+				<font resource="font_xl"/>
+				<placement x="36" y="84"/>
+				<text>TWRP</text>
 			</text>
 
-			<text style="text_m">
-				<condition var1="tw_no_cpu_temp" var2="0"/>
-				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-				<text>%tw_version%</text>
+			<image>
+				<image resource="chip_slot"/>
+				<placement x="36" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<font resource="font_s"/>
+				<placement x="64" y="204"/>
+				<text>Pixel 8 · Slot %tw_active_slot%</text>
 			</text>
 
-			<button style="main_button">
+			<image>
+				<conditions><condition var1="tw_is_encrypted" var2="0"/></conditions>
+				<image resource="chip_plain"/>
+				<placement x="322" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_encrypted" var2="0"/></conditions>
+				<font resource="font_s"/>
+				<placement x="350" y="204"/>
+				<text>Data unencrypted</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
+				<image resource="chip_decrypted"/>
+				<placement x="322" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
+				<font resource="font_s"/>
+				<placement x="374" y="204"/>
+				<text>Data decrypted</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
+				<image resource="chip_locked"/>
+				<placement x="322" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
+				<font resource="font_s"/>
+				<placement x="374" y="204"/>
+				<text>Data locked</text>
+			</text>
+
+
+			<button style="main_button_accent">
 				<placement x="%indent%" y="%row2a_y%"/>
-				<icon resource="tile_install"/>
+				<icon resource="tile_install_dark" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@install_btn=Install}</text>
 				<actions>
 					<action function="queueclear"/>
@@ -210,14 +264,14 @@
 
 			<button style="main_button">
 				<placement x="%center_x%" y="%row2a_y%"/>
-				<icon resource="tile_wipe"/>
+				<icon resource="tile_wipe" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@wipe_btn=Wipe}</text>
 				<action function="page">wipe</action>
 			</button>
 
 			<button style="main_button">
 				<placement x="%indent%" y="%row8_y%"/>
-				<icon resource="tile_backup"/>
+				<icon resource="tile_backup" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@backup_btn=Backup}</text>
 				<!-- shiba: the exact /data size is computed only when needed (walking
 				     /data is slow) - request it on the way into Backup. -->
@@ -230,35 +284,35 @@
 
 			<button style="main_button">
 				<placement x="%center_x%" y="%row8_y%"/>
-				<icon resource="tile_restore"/>
+				<icon resource="tile_restore" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@restore_btn=Restore}</text>
 				<action function="page">restore</action>
 			</button>
 
 			<button style="main_button">
 				<placement x="%indent%" y="%row13a_y%"/>
-				<icon resource="tile_mount"/>
+				<icon resource="tile_mount" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@mount_btn=Mount}</text>
 				<action function="page">mount</action>
 			</button>
 
 			<button style="main_button">
 				<placement x="%center_x%" y="%row13a_y%"/>
-				<icon resource="tile_settings"/>
+				<icon resource="tile_settings" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@settings_btn=Settings}</text>
 				<action function="page">settings</action>
 			</button>
 
 			<button style="main_button">
 				<placement x="%indent%" y="%row19_y%"/>
-				<icon resource="tile_advanced"/>
+				<icon resource="tile_advanced" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@advanced_btn=Advanced}</text>
 				<action function="page">advanced</action>
 			</button>
 
 			<button style="main_button">
 				<placement x="%center_x%" y="%row19_y%"/>
-				<icon resource="tile_reboot"/>
+				<icon resource="tile_reboot" tile="1" padx="72" padtop="60" padbottom="60"/>
 				<text>{@reboot_btn=Reboot}</text>
 				<action function="page">reboot</action>
 			</button>
@@ -4117,6 +4171,7 @@
 
 			<listbox style="advanced_listbox">
 				<placement x="%indent%" y="%row13a_y%" w="%content_width%" h="%listbox_advanced_height%"/>
+				<listitem name="GENERAL" header="1"></listitem>
 				<listitem name="{@change_twrp_folder_btn=Change TWRP folder}">
 					<condition var1="tw_is_decrypted" var2="1"/>
 					<action function="page">changeTwrpFolder</action>
@@ -4133,7 +4188,8 @@
 				</listitem>
 				<!-- shiba root menu: each entry flashes a shim zip from the ramdisk so
 				     twrp_root.sh output streams live to the console (see mkrootzips.py) -->
-				<listitem name="Root: Show status">
+				<listitem name="ROOT" header="1"></listitem>
+				<listitem name="Show status">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/status.zip</action>
@@ -4141,7 +4197,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Root: Install KernelSU">
+				<listitem name="Install KernelSU">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/install-ksu.zip</action>
@@ -4149,7 +4205,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Root: Install Magisk">
+				<listitem name="Install Magisk">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/install-magisk.zip</action>
@@ -4157,7 +4213,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Root: Remove root">
+				<listitem name="Remove root">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/remove.zip</action>
@@ -4167,7 +4223,8 @@
 				</listitem>
 				<!-- shiba: keep TWRP after an OTA - rebuild a slot's vendor_boot with
 				     the running TWRP (twrp_install_slot.sh / vbgraft) -->
-				<listitem name="TWRP: Install to other slot">
+				<listitem name="KEEP TWRP" header="1"></listitem>
+				<listitem name="Install to other slot">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-other.zip</action>
@@ -4175,7 +4232,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="TWRP: Install to both slots">
+				<listitem name="Install to both slots">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-both.zip</action>
@@ -4186,7 +4243,8 @@
 				<!-- shiba: /data encryption via bundled DFE-NEO (twrp_encryption.sh).
 				     Disable / Re-enable format /data only after their step succeeds
 				     (pages shiba_dfe_*). -->
-				<listitem name="Encryption: Status">
+				<listitem name="ENCRYPTION" header="1"></listitem>
+				<listitem name="Status">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/encryption-status.zip</action>
@@ -4194,7 +4252,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Encryption: Dry run (no changes)">
+				<listitem name="Dry run (no changes)">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/encryption-dryrun.zip</action>
@@ -4202,20 +4260,21 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Encryption: Disable (formats data)">
+				<listitem name="Disable (formats data)">
 					<actions>
 						<action function="set">tw_shiba_dfe_mode=disable</action>
 						<action function="set">tw_confirm_dfe=</action>
 						<action function="page">shiba_dfe_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Encryption: Re-enable (formats data)">
+				<listitem name="Re-enable (formats data)">
 					<actions>
 						<action function="set">tw_shiba_dfe_mode=enable</action>
 						<action function="set">tw_confirm_dfe=</action>
 						<action function="page">shiba_dfe_confirm</action>
 					</actions>
 				</listitem>
+				<listitem name="TOOLS" header="1"></listitem>
 				<listitem name="{@reload_theme_btn=Reload Theme}">
 					<action function="reload"/>
 				</listitem>
