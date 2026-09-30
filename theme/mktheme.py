@@ -68,21 +68,36 @@ LIST_STYLES = ["fileselector", "listbox", "advanced_listbox", "options_listbox",
                "partitionlist", "partitionlist_storage"]
 CARD = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>'
         '\n\t\t\t<separator color="%background_color%" height="14"/>')
-# Advanced page: (existing item name, new name or None to keep, header before it or None)
+# Advanced (and Reboot) lists: grouped sections - rows share one card, split by
+# thin dividers; only a group's ends are rounded (listbox.cpp); small headers.
+CARD_GROUPED = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" '
+                'headercolor="#A1A1A1" headerfont="font_s"/>'
+                '\n\t\t\t<separator color="%background_color%" height="2"/>')
+# Advanced page: (existing item name, new name or None, header before it or None, subtitle or None)
 ADV_ITEMS = [
-    ('{@change_twrp_folder_btn=Change TWRP folder}', None, "GENERAL"),
-    ('Root: Show status', 'Show status', "ROOT"),
-    ('Root: Install KernelSU', 'Install KernelSU', None),
-    ('Root: Install Magisk', 'Install Magisk', None),
-    ('Root: Remove root', 'Remove root', None),
-    ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP"),
-    ('TWRP: Install to both slots', 'Install to both slots', None),
-    ('Encryption: Status', 'Status', "ENCRYPTION"),
-    ('Encryption: Dry run (no changes)', 'Dry run (no changes)', None),
-    ('Encryption: Disable (formats data)', 'Disable (formats data)', None),
-    ('Encryption: Re-enable (formats data)', 'Re-enable (formats data)', None),
-    ('{@reload_theme_btn=Reload Theme}', None, "TOOLS"),
+    ('Root: Show status', 'Show status', "ROOT", None),
+    ('Root: Install KernelSU', 'Install KernelSU', None, None),
+    ('Root: Install Magisk', 'Install Magisk', None, None),
+    ('Root: Remove root', 'Remove root', None, None),
+    ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
+    ('TWRP: Install to both slots', 'Install to both slots', None, None),
+    ('Encryption: Status', 'Status', "ENCRYPTION", None),
+    ('Encryption: Dry run (no changes)', 'Dry run (no changes)', None, None),
+    ('Encryption: Disable (formats data)', 'Disable encryption', None, "Formats data \u00b7 type yes to confirm"),
+    ('Encryption: Re-enable (formats data)', 'Re-enable encryption', None, "Formats data \u00b7 type yes to confirm"),
+    ('{@reload_theme_btn=Reload Theme}', None, "TOOLS", None),
 ]
+# stock items that sat above ROOT - moved into TOOLS (mockup has no GENERAL)
+ADV_MOVE_TO_TOOLS = ['{@change_twrp_folder_btn=Change TWRP folder}', '{@decrypt_users=Decrypt Users}']
+# Advanced page: the four stock buttons become TOOLS rows (same actions and
+# conditions) and the list fills the page, like the mockup.
+ADV_BUTTONS = [          # (label string, action page) - mockup order
+    ("{@adb_sideload_btn=ADB Sideload}", "sideload"),
+    ("{@file_manager_btn=File Manager}", "filemanagerlist"),
+    ("{@terminal_btn=Terminal}", "terminalcommand"),
+    ("{@copy_log_btn=Copy Log}", "copylog"),
+]
+ADV_LIST_PLACEMENT = '<placement x="%indent%" y="176" w="%content_width%" h="1600"/>'
 
 
 def patch_lists(xml):
@@ -92,26 +107,65 @@ def patch_lists(xml):
         if s < 0 or e < 0:
             fail(f"list style {name} not found in portrait.xml")
         block = re.sub(r'\n\s*<separator [^>]*/>', '', xml[s:e])        # stock divider line out
-        block = block.rstrip() + "\n\t\t\t" + CARD + "\n\t\t"
+        if name == "advanced_listbox":                                 # no row icon (mockup)
+            if block.count('<icon selected="handle" unselected="handle"/>') != 1:
+                fail("advanced_listbox: handle icon line not found")
+            block = re.sub(r'\n\s*<icon selected="handle" unselected="handle"/>', '', block)
+            # the handle icon set the row height; without it, set it via spacing
+            fs = re.compile(r'(<font resource="font_m" spacing=")[^"]*(")')
+            if len(fs.findall(block)) != 1:
+                fail("advanced_listbox: font spacing not found")
+            block = fs.sub(r'\g<1>72\g<2>', block)
+        card = CARD_GROUPED if name == "advanced_listbox" else CARD
+        block = block.rstrip() + "\n\t\t\t" + card + "\n\t\t"
         xml = xml[:s] + block + xml[e:]
     a = xml.find('<page name="advanced">')
     b = xml.find("</page>", a)
     page = xml[a:b]
-    for old, new, header in ADV_ITEMS:
+    # the four buttons -> TOOLS rows (keep each button's conditions + action)
+    tool_rows = ""
+    for label, target in ADV_BUTTONS:
+        bt = re.compile(r'\n\t*<button style="main_button">((?:\s*<condition[^>]*/>)*)\s*<placement[^>]*/>\s*'
+                        r'<text>' + re.escape(label) + r'</text>\s*<action function="page">'
+                        + re.escape(target) + r'</action>\s*</button>\n')
+        found = bt.findall(page)
+        if len(found) != 1:
+            fail(f"advanced page: expected one {label} button")
+        conds = found[0].strip()
+        tool_rows += (f'<listitem name="{label}">' + (conds + "" if conds else "")
+                      + f'<action function="page">{target}</action></listitem>')
+        page = bt.sub("\n", page)
+    lp = re.compile(r'(<listbox style="advanced_listbox">\s*)<placement[^>]*/>')
+    if len(lp.findall(page)) != 1:
+        fail("advanced page: listbox placement not found")
+    page = lp.sub(lambda m: m.group(1) + ADV_LIST_PLACEMENT, page)
+    # stock items above ROOT -> end of the TOOLS rows (whole blocks, conditions kept)
+    for label in ADV_MOVE_TO_TOOLS:
+        blk = re.compile(r'\n\t*<listitem name="' + re.escape(label) + r'">.*?</listitem>', re.S)
+        found = blk.findall(page)
+        if len(found) != 1:
+            fail(f"advanced page: expected one listitem '{label}'")
+        tool_rows += found[0].strip()
+        page = blk.sub("", page)
+    for old, new, header, subtitle in ADV_ITEMS:
         pat = re.compile(r'(\n(\t+))<listitem name="' + re.escape(old) + '">')
         if len(pat.findall(page)) != 1:
             fail(f"advanced page: expected one listitem '{old}'")
-        def repl(m, new=new, header=header, old=old):
+        def repl(m, new=new, header=header, old=old, subtitle=subtitle):
             out = m.group(1)
             if header:
                 out += f'<listitem name="{header}" header="1"></listitem>' + m.group(1)
-            return out + f'<listitem name="{new or old}">'
+            if header == "TOOLS":
+                out += tool_rows + m.group(1)
+            sub = f' subtitle="{subtitle}"' if subtitle else ""
+            return out + f'<listitem name="{new or old}"{sub}>'
         page = pat.sub(repl, page)
     return xml[:a] + page + xml[b:]
 
 # Main page header (mockup): big TWRP title + live chips. Chip widths/text x
-# come from measured Plex Sans 33 text (see mkimages.py). Unencrypted data
-# (e.g. DFE) also sets tw_is_decrypted, so tw_is_encrypted decides first.
+# come from measured Plex Sans 33 text (see mkimages.py). TWRP clears
+# tw_is_encrypted during a successful decrypt, so the data state keys off
+# tw_is_fbe (data uses FBE at all; stays set) + tw_is_decrypted.
 MAIN_HEADER = '''<text color="%text_color%">
 				<font resource="font_xl"/>
 				<placement x="36" y="84"/>
@@ -141,11 +195,11 @@ MAIN_HEADER = '''<text color="%text_color%">
 			</text>
 ''' for img, tx, label, conds in [
     ("chip_plain", 350, "Data unencrypted",
-     '<condition var1="tw_is_encrypted" var2="0"/>'),
+     '<condition var1="tw_is_fbe" var2="0"/>'),
     ("chip_decrypted", 374, "Data decrypted",
-     '<condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>'),
+     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>'),
     ("chip_locked", 374, "Data locked",
-     '<condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
+     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
 ])
 MAIN_HEADER = MAIN_HEADER.replace("\\u00b7", "\u00b7")
 

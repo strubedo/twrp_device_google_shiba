@@ -150,11 +150,10 @@
 			<highlight color="%fileselector_highlight_color%"/>
 			<fastscroll linecolor="%fileselector_linecolor%" rectcolor="%accent_color%" w="%fastscroll_w%" linew="%fastscroll_linew%" rectw="%fastscroll_rectw%" recth="%fastscroll_recth%"/>
 			<dimensions lineh="%slidervalue_lineh%" linepadding="%slidervalue_padding%" sliderw="%slidervalue_sliderw%" sliderh="%slidervalue_sliderh%"/>
-			<icon selected="handle" unselected="handle"/>
 			<background color="%background_color%"/>
-			<font resource="font_m" spacing="%fileselector_spacing%" color="%text_color%" highlightcolor="%accent_color%"/>
-			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1"/>
-			<separator color="%background_color%" height="14"/>
+			<font resource="font_m" spacing="72" color="%text_color%" highlightcolor="%accent_color%"/>
+			<itemcard color="#121212" selectedcolor="#242424" radius="28" padx="24" headercolor="#A1A1A1" headerfont="font_s"/>
+			<separator color="%background_color%" height="2"/>
 		</style>
 
 		<style name="options_listbox">
@@ -215,36 +214,36 @@
 			</text>
 
 			<image>
-				<conditions><condition var1="tw_is_encrypted" var2="0"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<image resource="chip_plain"/>
 				<placement x="322" y="196"/>
 			</image>
 			<text color="#CFCFCF">
-				<conditions><condition var1="tw_is_encrypted" var2="0"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<font resource="font_s"/>
 				<placement x="350" y="204"/>
 				<text>Data unencrypted</text>
 			</text>
 
 			<image>
-				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<image resource="chip_decrypted"/>
 				<placement x="322" y="196"/>
 			</image>
 			<text color="#CFCFCF">
-				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<font resource="font_s"/>
 				<placement x="374" y="204"/>
 				<text>Data decrypted</text>
 			</text>
 
 			<image>
-				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<image resource="chip_locked"/>
 				<placement x="322" y="196"/>
 			</image>
 			<text color="#CFCFCF">
-				<conditions><condition var1="tw_is_encrypted" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<font resource="font_s"/>
 				<placement x="374" y="204"/>
 				<text>Data locked</text>
@@ -4144,48 +4143,12 @@
 				<text>{@advanced_hdr=Advanced}</text>
 			</text>
 
-			<button style="main_button">
-				<placement x="%indent%" y="%row2a_y%"/>
-				<text>{@copy_log_btn=Copy Log}</text>
-				<action function="page">copylog</action>
-			</button>
 
-			<button style="main_button">
-				<condition var1="tw_has_data_media" var2="1"/>
-				<placement x="%center_x%" y="%row2a_y%"/>
-				<text>{@adb_sideload_btn=ADB Sideload}</text>
-				<action function="page">sideload</action>
-			</button>
 
-			<button style="main_button">
-				<placement x="%indent%" y="%row8_y%"/>
-				<text>{@terminal_btn=Terminal}</text>
-				<action function="page">terminalcommand</action>
-			</button>
 
-			<button style="main_button">
-				<placement x="%center_x%" y="%row8_y%"/>
-				<text>{@file_manager_btn=File Manager}</text>
-				<action function="page">filemanagerlist</action>
-			</button>
 
 			<listbox style="advanced_listbox">
-				<placement x="%indent%" y="%row13a_y%" w="%content_width%" h="%listbox_advanced_height%"/>
-				<listitem name="GENERAL" header="1"></listitem>
-				<listitem name="{@change_twrp_folder_btn=Change TWRP folder}">
-					<condition var1="tw_is_decrypted" var2="1"/>
-					<action function="page">changeTwrpFolder</action>
-				</listitem>
-				<listitem name="{@decrypt_users=Decrypt Users}">
-					<conditions>
-						<condition var1="tw_is_fbe" var2="1"/>
-						<condition var1="tw_all_users_decrypted" var2="0"/>
-					</conditions>
-					<actions>
-						<action function="set">tw_crypto_user_id=</action>
-						<action function="page">decrypt_users</action>
-					</actions>
-				</listitem>
+				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
 				<!-- shiba root menu: each entry flashes a shim zip from the ramdisk so
 				     twrp_root.sh output streams live to the console (see mkrootzips.py) -->
 				<listitem name="ROOT" header="1"></listitem>
@@ -4224,7 +4187,7 @@
 				<!-- shiba: keep TWRP after an OTA - rebuild a slot's vendor_boot with
 				     the running TWRP (twrp_install_slot.sh / vbgraft) -->
 				<listitem name="KEEP TWRP" header="1"></listitem>
-				<listitem name="Install to other slot">
+				<listitem name="Install to other slot" subtitle="After an update">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/twrp-install-other.zip</action>
@@ -4260,14 +4223,14 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Disable (formats data)">
+				<listitem name="Disable encryption" subtitle="Formats data · type yes to confirm">
 					<actions>
 						<action function="set">tw_shiba_dfe_mode=disable</action>
 						<action function="set">tw_confirm_dfe=</action>
 						<action function="page">shiba_dfe_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Re-enable (formats data)">
+				<listitem name="Re-enable encryption" subtitle="Formats data · type yes to confirm">
 					<actions>
 						<action function="set">tw_shiba_dfe_mode=enable</action>
 						<action function="set">tw_confirm_dfe=</action>
@@ -4275,6 +4238,19 @@
 					</actions>
 				</listitem>
 				<listitem name="TOOLS" header="1"></listitem>
+				<listitem name="{@adb_sideload_btn=ADB Sideload}"><condition var1="tw_has_data_media" var2="1"/><action function="page">sideload</action></listitem><listitem name="{@file_manager_btn=File Manager}"><action function="page">filemanagerlist</action></listitem><listitem name="{@terminal_btn=Terminal}"><action function="page">terminalcommand</action></listitem><listitem name="{@copy_log_btn=Copy Log}"><action function="page">copylog</action></listitem><listitem name="{@change_twrp_folder_btn=Change TWRP folder}">
+					<condition var1="tw_is_decrypted" var2="1"/>
+					<action function="page">changeTwrpFolder</action>
+				</listitem><listitem name="{@decrypt_users=Decrypt Users}">
+					<conditions>
+						<condition var1="tw_is_fbe" var2="1"/>
+						<condition var1="tw_all_users_decrypted" var2="0"/>
+					</conditions>
+					<actions>
+						<action function="set">tw_crypto_user_id=</action>
+						<action function="page">decrypt_users</action>
+					</actions>
+				</listitem>
 				<listitem name="{@reload_theme_btn=Reload Theme}">
 					<action function="reload"/>
 				</listitem>
