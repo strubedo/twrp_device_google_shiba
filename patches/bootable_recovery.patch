@@ -1183,7 +1183,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..13ac68d2
+index 171feccf..018ff67c
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -586,6 +586,13 @@ void TWPartitionManager::Decrypt_Data() {
@@ -1306,6 +1306,49 @@ index 171feccf..13ac68d2
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+@@ -3314,6 +3322,28 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+ 	if (Fstab_Processed())
+ 		Update_System_Details();
+ }
++
++// shiba: point the bootloader at Slot through the boot HAL. Unlike
++// Set_Active_Slot() this never returns early on TWRP's cached slot - after an
++// A/B OTA the cache still names the running slot while the bootloader already
++// points at the updated one (used by the DFE OTA guard in twinstall.cpp).
++bool TWPartitionManager::Restore_Boot_Slot(const string& Slot) {
++#ifdef AB_OTA_UPDATER
++	if (Slot != "A" && Slot != "B")
++		return false;
++	android::sp<IBootControl> module = IBootControl::getService();
++	if (module == nullptr) {
++		LOGERR("Error getting bootctrl module.\n");
++		return false;
++	}
++	CommandResult result;
++	auto ret = module->setActiveBootSlot(Slot == "B" ? 1 : 0, [&result]
++			(const CommandResult &cb_result) { result = cb_result; });
++	return ret.isOk() && result.success;
++#else
++	return false;
++#endif
++}
+ string TWPartitionManager::Get_Active_Slot_Suffix() {
+ 	if (Active_Slot_Display == "A")
+ 		return "_a";
+diff --git a/partitions.hpp b/partitions.hpp
+old mode 100755
+new mode 100644
+index 8c686edd..63613712
+--- a/partitions.hpp
++++ b/partitions.hpp
+@@ -386,6 +386,7 @@ public:
+ 	TWAtomicInt stop_backup;
+ 	void Override_Active_Slot(const string& Slot);                            // Override the active slot for repacking
+ 	void Set_Active_Slot(const string& Slot);                                 // Sets the active slot to A or B
++	bool Restore_Boot_Slot(const string& Slot);                               // shiba: set the bootloader's slot via the HAL, no cache shortcut (OTA guard)
+ 	string Get_Active_Slot_Suffix();                                          // Returns active slot _a or _b
+ 	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
+ 	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
 index cccb1e78..a4b881aa 100644
 --- a/twrp-functions.cpp
@@ -1463,10 +1506,10 @@ index 1da19e26..b29d1543
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
 old mode 100755
 new mode 100644
-index 6abccea7..0dcecc28
+index 6abccea7..67b109aa
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
-@@ -348,9 +348,13 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -348,9 +348,36 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  			}
  			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
  			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
@@ -1478,6 +1521,29 @@ index 6abccea7..0dcecc28
  			repacker.Flash_Current_Twrp();
 +			} else if (reflashtwrp) {
 +				gui_warn("auto_reflash_skipped=OTA did not install - TWRP not reflashed.");
++			}
++			// shiba: DFE guard. An OTA can't carry DFE (disabled /data encryption)
++			// to the new slot - its vendor_boot and vendor are new - and booting
++			// it with unencrypted /data bootloops or forces a wipe. So keep
++			// booting the current slot (a normal rollback for update_engine).
++			if (ret_val == INSTALL_SUCCESS && TWFunc::Path_Exists("/system/bin/twrp_encryption.sh")) {
++				std::string dfe;
++				TWFunc::Exec_Cmd("/system/bin/twrp_encryption.sh dfe-active", dfe, false);
++				if (dfe.find("DFE_ACTIVE") != std::string::npos) {
++					std::string cur = PartitionManager.Get_Active_Slot_Display();
++					std::string upd = cur == "A" ? "B" : "A";
++					gui_print_color("error", "\n!! Encryption is disabled (DFE) on this phone, and an update\n"
++						"!! can't keep it disabled: slot %s would not boot with this data.\n", upd.c_str());
++					if (PartitionManager.Restore_Boot_Slot(cur)) {
++						gui_print_color("warning", "The update was installed to slot %s but NOT activated:\n"
++							"the phone keeps booting slot %s, as before.\n", upd.c_str(), cur.c_str());
++					} else {
++						gui_print_color("error", "!! Could not switch back to slot %s. Do NOT boot Android:\n"
++							"!! use Reboot > Slot %s first.\n", cur.c_str(), cur.c_str());
++					}
++					gui_print_color("warning", "To update: Advanced > Re-enable encryption (wipes data),\n"
++						"then install the update again.\n");
++				}
  			}
  		} else {
  			std::string binary_name("ui.xml");
