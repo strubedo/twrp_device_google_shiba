@@ -38,6 +38,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/system_properties.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -377,16 +378,20 @@ int main() {
         return 1;
     }
     LOG("listening on @%s", kSocketName);
+    // TWRP's blank timer stays awake while this is 1 (gui/blanktimer.cpp)
+    __system_property_set("twrp.remote.connected", "0");
     for (;;) {
         int c = accept4(srv, nullptr, nullptr, SOCK_CLOEXEC);
         if (c < 0) { if (errno == EINTR) continue; LOG("accept: %s", strerror(errno)); sleep(1); continue; }
         LOG("client connected");
+        __system_property_set("twrp.remote.connected", "1");
         // the touchscreen driver loads after we start (late-init): rescan
         // for anything still missing on every connect
         if (g_touch < 0 || g_keys < 0) find_input_devices();
         if (open_display()) serve(c);
         close(c);
         close_display();        // never keep card0 open while idle
+        __system_property_set("twrp.remote.connected", "0");
         LOG("client disconnected");
     }
 }

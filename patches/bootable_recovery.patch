@@ -154,6 +154,35 @@ index f47623da..2161fd20
  	DataManager::SetValue("tw_operation_state", 1);
  	DataManager::SetValue(TW_ACTION_BUSY, 0);
  	blankTimer.resetTimerAndUnblank();
+diff --git a/gui/blanktimer.cpp b/gui/blanktimer.cpp
+old mode 100755
+new mode 100644
+index 61356d34..50193a7c
+--- a/gui/blanktimer.cpp
++++ b/gui/blanktimer.cpp
+@@ -30,6 +30,7 @@ extern "C" {
+ #include "minuitwrp/minui.h"
+ #include "../twrp-functions.hpp"
+ #include "../variables.h"
++#include <cutils/properties.h>
+ 
+ blanktimer::blanktimer(void) {
+ 	pthread_mutex_init(&mutex, NULL);
+@@ -55,6 +56,14 @@ void blanktimer::setTimer(void) {
+ void blanktimer::checkForTimeout() {
+ #ifndef TW_NO_SCREEN_TIMEOUT
+ 	pthread_mutex_lock(&mutex);
++	// shiba: keep the screen awake while a PC remote (twrp_remote) is connected -
++	// TWRP stops redrawing once blanked, so the remote would freeze. Only the
++	// timeout is suppressed: the power key (toggleBlank) still blanks + locks.
++	if (state == kOn && property_get_bool("twrp.remote.connected", false)) {
++		setTimer();
++		pthread_mutex_unlock(&mutex);
++		return;
++	}
+ 	timespec curTime, diff;
+ 	clock_gettime(CLOCK_MONOTONIC, &curTime);
+ 	diff = TWFunc::timespec_diff(btimer, curTime);
 diff --git a/gui/button.cpp b/gui/button.cpp
 old mode 100755
 new mode 100644
