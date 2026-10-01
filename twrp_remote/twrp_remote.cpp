@@ -17,6 +17,7 @@
  *   PC -> phone  8-byte packets: u8 op, u8 0, u16 a, u16 b, u16 0
  *                  'D' touch down x=a y=b   'M' move x=a y=b   'U' touch up
  *                  'K' key code=a value=b (1 down, 0 up)
+ *                  'B' keyboard key code=a value=b (virtual uinput keyboard)
  *   (x, y in full-resolution panel pixels)
  */
 #include <dirent.h>
@@ -26,6 +27,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/input.h>
+#include <linux/uinput.h>
 #include <poll.h>
 #include <signal.h>
 #include <stddef.h>
@@ -242,6 +244,39 @@ static void key(int code, int value) {
     emit(g_keys, EV_SYN, SYN_REPORT, 0);
 }
 
+// A virtual keyboard: the PC's typing keys reach TWRP like a USB keyboard
+// (TWRP's hardwarekeyboard.cpp maps them to characters, Shift included).
+// Typing keys only - no power/volume, so it can't act as the phone's buttons.
+static int g_kbd = -1;
+
+static void create_keyboard() {
+    int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) { LOG("keyboard: /dev/uinput: %s", strerror(errno)); return; }
+    ioctl(fd, UI_SET_EVBIT, EV_KEY);
+    ioctl(fd, UI_SET_EVBIT, EV_SYN);
+    for (int k = KEY_ESC; k <= KEY_KPDOT; k++) ioctl(fd, UI_SET_KEYBIT, k);   // main block + keypad
+    for (int k = KEY_102ND; k <= KEY_F12; k++) ioctl(fd, UI_SET_KEYBIT, k);
+    for (int k = KEY_KPENTER; k <= KEY_DELETE; k++) ioctl(fd, UI_SET_KEYBIT, k); // arrows, home/end, ins/del
+    uinput_setup us{};
+    us.id.bustype = BUS_VIRTUAL;
+    us.id.vendor = 0x18d1;          // Google
+    us.id.product = 0x7277;         // "rw"
+    strncpy(us.name, "twrp_remote keyboard", UINPUT_MAX_NAME_SIZE - 1);
+    if (ioctl(fd, UI_DEV_SETUP, &us) || ioctl(fd, UI_DEV_CREATE)) {
+        LOG("keyboard: uinput setup: %s", strerror(errno));
+        close(fd);
+        return;
+    }
+    g_kbd = fd;
+    LOG("keyboard: virtual uinput keyboard created");
+}
+
+static void board(int code, int value) {
+    if (g_kbd < 0) return;
+    emit(g_kbd, EV_KEY, code, value);
+    emit(g_kbd, EV_SYN, SYN_REPORT, 0);
+}
+
 // ---------------------------------------------------------------- server
 
 static bool send_all(int fd, const void* buf, size_t len) {
@@ -282,6 +317,7 @@ static void serve(int client) {
                 have = 0;
                 int a = pkt[2] | pkt[3] << 8, b = pkt[4] | pkt[5] << 8;
                 if (pkt[0] == 'K') key(a, b);
+                else if (pkt[0] == 'B') board(a, b);
                 else touch(pkt[0], a, b);
             }
             continue;
@@ -329,6 +365,7 @@ static void close_display() {
 int main() {
     signal(SIGPIPE, SIG_IGN);
     find_input_devices();
+    create_keyboard();
 
     int srv = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     sockaddr_un addr{};
