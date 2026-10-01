@@ -140,6 +140,7 @@ gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres
 gate "Enable USB debugging: menu item + zip"     "grep -q 'twrp_tools/enable-adb.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_tools/enable-adb.zip >/dev/null"
 gate "twrp_remote daemon + service"               "test -x $R/system/bin/twrp_remote && grep -q 'start twrp.remote' $R/init.recovery.zuma.rc"
 gate "OTG module for kernel 6.1 (Android 15-17)"   "/bin/grep -a -q 'vermagic=6\.1\.' $R/lib/modules/6.1/otg_host_ready.ko"
+gate "our kernel modules carry no build paths"     "! /bin/grep -a -l '/home/' $R/lib/modules/5.15/otg_host_ready.ko $R/lib/modules/6.1/otg_host_ready.ko"
 gate "boot HAL built from source (no AR fuse blow)" "/bin/grep -a -q 'anti-rollback fuse blow skipped' $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel && test -f $R/system/etc/vintf/manifest/android.hardware.boot-service.default_recovery-pixel.xml && test -f $R/system/etc/init/android.hardware.boot-service.default_recovery-pixel.rc"
 gate "reinstall root after OTA (tickbox + script)" "grep -q 'tw_auto_reroot' $R/twres/portrait.xml && grep -q 'ACTION other' $R/system/bin/twrp_root.sh && /bin/grep -a -q 'Reinstalling root on the updated slot' $R/system/bin/recovery"
 
