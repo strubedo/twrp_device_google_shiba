@@ -147,9 +147,12 @@ step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"
 
 if [[ "${1:-}" == "--flash" ]]; then
-    step "Flashing vendor_boot_a and booting recovery"
     adb reboot bootloader
-    fastboot flash vendor_boot_a "$HOME/shiba-stock/twrp_vendor_boot.img"
+    # flash the slot the phone boots (after an OTA that's no longer always _a)
+    slot="$(fastboot getvar current-slot 2>&1 | sed -n 's/^current-slot: *\([ab]\).*/\1/p')"
+    [[ "$slot" == a || "$slot" == b ]] || { echo "FAIL: cannot read the current slot from fastboot"; exit 1; }
+    step "Flashing vendor_boot_$slot (current slot) and booting recovery"
+    fastboot flash "vendor_boot_$slot" "$HOME/shiba-stock/twrp_vendor_boot.img"
     fastboot reboot recovery
     adb wait-for-recovery
     # ro.twrp.version is set as TWRP starts, a moment after adbd comes up
