@@ -39,12 +39,13 @@ PRODUCT_PACKAGES += \
 # (same missing-dependency class as task_profiles.json), see build command.
 
 # Boot control HAL (slot switching in TWRP, fastboot set_active/current-slot).
-# TEMPORARY: the HAL binary, .rc and VINTF fragment in recovery/root are
-# Google's prebuilts from the AP2A factory recovery ramdisk. Before publishing,
-# build android.hardware.boot-service.default_recovery-pixel from
-# device/google/gs-common/bootctrl/aidl instead.
-# libtrusty (its only dependency missing from the ramdisk) is built from source.
+# Built from source: device/google/shiba/bootctrl = gs-common/bootctrl/aidl at
+# android-14.0.0_r75 (recovery variant only; markBootSuccessful never blows the
+# anti-rollback fuses in recovery). Replaces Google's prebuilt from the AP2A
+# factory recovery ramdisk. libtrusty (its one dependency missing from the
+# ramdisk) is built from source too.
 PRODUCT_PACKAGES += \
+    android.hardware.boot-service.default_recovery-pixel \
     libtrusty.recovery
 
 # Trusty secure-storage proxy for recovery, built from AOSP source with the
