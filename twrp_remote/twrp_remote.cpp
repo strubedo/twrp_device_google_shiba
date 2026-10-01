@@ -105,7 +105,11 @@ static bool map_fb(uint32_t id, Fb* f) {
         f->handle = old.handle;
     }
     f->id = id;
-    LOG("fb %u: %ux%u pitch %u format %.4s (0x%08x)", id, f->w, f->h, f->pitch, (const char*)&f->fmt, f->fmt);
+    static uint32_t logged_fmt = 0;
+    if (f->fmt != logged_fmt) {
+        LOG("screen %ux%u pitch %u format %.4s (0x%08x)", f->w, f->h, f->pitch, (const char*)&f->fmt, f->fmt);
+        logged_fmt = f->fmt;
+    }
     if (!f->handle) { LOG("fb %u: no GEM handle (needs CAP_SYS_ADMIN)", id); return false; }
     f->len = (size_t)f->pitch * f->h;
 
@@ -128,13 +132,15 @@ static bool map_fb(uint32_t id, Fb* f) {
     return false;
 }
 
-// byte positions of R, G, B inside a 32-bit little-endian pixel
+// byte positions of R, G, B inside a 32-bit pixel. Note: Tensor's DPU names
+// formats in Android's byte-order convention - its RGBA8888 ("RA24") is R,G,B,A
+// in memory, not DRM's A,B,G,R (verified: black showed red, blue showed teal).
 static bool channel_order(uint32_t fmt, int* r, int* g, int* b) {
     switch (fmt) {
         case DRM_FORMAT_ABGR8888: case DRM_FORMAT_XBGR8888: *r = 0; *g = 1; *b = 2; return true;
         case DRM_FORMAT_ARGB8888: case DRM_FORMAT_XRGB8888: *r = 2; *g = 1; *b = 0; return true;
-        case DRM_FORMAT_RGBA8888: case DRM_FORMAT_RGBX8888: *r = 3; *g = 2; *b = 1; return true;
-        case DRM_FORMAT_BGRA8888: case DRM_FORMAT_BGRX8888: *r = 1; *g = 2; *b = 3; return true;
+        case DRM_FORMAT_RGBA8888: case DRM_FORMAT_RGBX8888: *r = 0; *g = 1; *b = 2; return true;
+        case DRM_FORMAT_BGRA8888: case DRM_FORMAT_BGRX8888: *r = 2; *g = 1; *b = 0; return true;
     }
     return false;
 }
@@ -208,6 +214,7 @@ static void emit(int fd, uint16_t type, uint16_t code, int32_t value) {
 }
 
 static void touch(char op, int x, int y) {
+    if (g_touch < 0) find_input_devices();   // driver may have loaded since
     if (g_touch < 0) return;
     emit(g_touch, EV_ABS, ABS_MT_SLOT, 0);
     if (op == 'D') {
@@ -228,6 +235,8 @@ static void touch(char op, int x, int y) {
 }
 
 static void key(int code, int value) {
+    LOG("key %d %s", code, value ? "down" : "up");
+    if (g_keys < 0) find_input_devices();
     if (g_keys < 0) return;
     emit(g_keys, EV_KEY, code, value);
     emit(g_keys, EV_SYN, SYN_REPORT, 0);
@@ -263,11 +272,11 @@ static void serve(int client) {
         long wait = next - now_ms();
         pollfd p{client, POLLIN, 0};
         int r = poll(&p, 1, wait > 0 ? (int)wait : 0);
-        if (r < 0 && errno != EINTR) return;
+        if (r < 0 && errno != EINTR) { LOG("end: poll: %s", strerror(errno)); return; }
         if (r > 0) {
-            if (p.revents & (POLLHUP | POLLERR)) return;
+            if (p.revents & (POLLHUP | POLLERR)) { LOG("end: poll revents 0x%x", p.revents); return; }
             ssize_t n = recv(client, pkt + have, sizeof(pkt) - have, 0);
-            if (n <= 0) return;
+            if (n <= 0) { LOG("end: recv %zd: %s", n, n ? strerror(errno) : "peer closed"); return; }
             have += n;
             if (have == sizeof(pkt)) {
                 have = 0;
@@ -290,16 +299,35 @@ static void serve(int client) {
         memcpy(hdr + 4, dims, 8);
         uint32_t zl = (uint32_t)zlen;
         memcpy(hdr + 12, &zl, 4);
-        if (!send_all(client, hdr, sizeof(hdr)) || !send_all(client, z.data(), zlen)) return;
+        if (!send_all(client, hdr, sizeof(hdr)) || !send_all(client, z.data(), zlen)) {
+            LOG("end: send: %s", strerror(errno));
+            return;
+        }
         last_sum = sum;
         sent_any = true;
     }
 }
 
+// The display is opened only while a client is connected, and DRM master is
+// dropped at once: the first opener of card0 becomes master, and if that were
+// us (we start at late-init, before TWRP's GUI) TWRP could not set its mode -
+// the boot stopped on the Google logo. Reading framebuffers needs no master.
+static bool open_display() {
+    if (g_drm >= 0) return true;
+    g_drm = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
+    if (g_drm < 0) { LOG("open /dev/dri/card0: %s", strerror(errno)); return false; }
+    ioctl(g_drm, DRM_IOCTL_DROP_MASTER, 0);   // EINVAL if TWRP is master: fine
+    return true;
+}
+
+static void close_display() {
+    release_fb(&g_fb);
+    if (g_drm >= 0) close(g_drm);
+    g_drm = -1;
+}
+
 int main() {
     signal(SIGPIPE, SIG_IGN);
-    g_drm = open("/dev/dri/card0", O_RDWR | O_CLOEXEC);
-    if (g_drm < 0) { LOG("open /dev/dri/card0: %s", strerror(errno)); return 1; }
     find_input_devices();
 
     int srv = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -316,9 +344,12 @@ int main() {
         int c = accept4(srv, nullptr, nullptr, SOCK_CLOEXEC);
         if (c < 0) { if (errno == EINTR) continue; LOG("accept: %s", strerror(errno)); sleep(1); continue; }
         LOG("client connected");
-        serve(c);
+        // the touchscreen driver loads after we start (late-init): rescan
+        // for anything still missing on every connect
+        if (g_touch < 0 || g_keys < 0) find_input_devices();
+        if (open_display()) serve(c);
         close(c);
-        release_fb(&g_fb);      // remap fresh for the next client
+        close_display();        // never keep card0 open while idle
         LOG("client disconnected");
     }
 }

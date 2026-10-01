@@ -57,7 +57,8 @@ PRODUCT_PACKAGES += \
 # phone ("Install TWRP to slot", e.g. after an OTA). Same tool as repack.sh
 # on the host. See device/google/shiba/vbgraft.
 PRODUCT_PACKAGES += \
-    vbgraft.recovery
+    vbgraft.recovery \
+    twrp_remote.recovery
 
 # Timezone database for recovery (TWRP's clock, and `date` in scripts: without
 # it every TZ-aware call prints tzdata/posixrules errors). TWRP's tzdata_twrp
