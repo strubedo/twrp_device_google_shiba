@@ -49,6 +49,7 @@ TILE_ICONS = {
 PIN_IMAGES = {"pin_keypad": False, "pin_lock": True}     # name: retainaspect
 FRAME_IMAGES = {"navbar_bg": False, "chip_slot": True, "chip_decrypted": True,
                 "chip_locked": True, "chip_plain": True,
+                "chip_ksu": True, "chip_magisk": True, "chip_noroot": True,
                 "main_button_accent": False}             # Install = primary (blue) tile
 NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES) | {"tile_install"}
 # primary tile style: blue image, black label (button parts resolve node-first,
@@ -203,6 +204,35 @@ MAIN_HEADER = '''<text color="%text_color%">
      '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
 ])
 MAIN_HEADER = MAIN_HEADER.replace("\\u00b7", "\u00b7")
+
+# Root chip (tw_root_state, set by TWRP from twrp_root.sh status) after the
+# data chip - whose width depends on its state, so one placement per pair.
+_DATA_CHIPS = [   # data chip conditions, x where that chip ends (322 + width)
+    ('<condition var1="tw_is_fbe" var2="0"/>', 322 + 320),
+    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>', 322 + 310),
+    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 322 + 256),
+]
+_ROOT_CHIPS = [   # image, label, text offset (after dot 52, plain 28), tw_root_state
+    ("chip_ksu", "KernelSU", 52, "KERNELSU"),
+    ("chip_magisk", "Magisk", 52, "MAGISK"),
+    ("chip_noroot", "Not rooted", 28, "STOCK"),
+]
+for _dc, _end in _DATA_CHIPS:
+    for _img, _label, _off, _val in _ROOT_CHIPS:
+        _c = _dc + f'<condition var1="tw_root_state" var2="{_val}"/>'
+        MAIN_HEADER += f'''
+			<image>
+				<conditions>{_c}</conditions>
+				<image resource="{_img}"/>
+				<placement x="{_end + 16}" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions>{_c}</conditions>
+				<font resource="font_s"/>
+				<placement x="{_end + 16 + _off}" y="204"/>
+				<text>{_label}</text>
+			</text>
+'''
 
 # Graphite decrypt_pin page (mockup: lock tile, title, subtitle, dots, note,
 # skip, keypad). Functional parts kept from TWRP's page: the masked input on

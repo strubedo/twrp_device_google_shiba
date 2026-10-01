@@ -160,6 +160,10 @@ IMAGES = {
     "chip_decrypted": (310, 64, lambda: rrect(0, 0, 310, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
     "chip_locked":    (256, 64, lambda: rrect(0, 0, 256, 64, 32, TRACK) + ellipse(34, 32, 6, fill=WARN)),
     "chip_plain":     (320, 64, lambda: rrect(0, 0, 320, 64, 32, TRACK)),
+    # root chip (tw_root_state): measured Plex Sans 33 KernelSU 138, Magisk 104, Not rooted 159
+    "chip_ksu":       (220, 64, lambda: rrect(0, 0, 220, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_magisk":    (186, 64, lambda: rrect(0, 0, 186, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_noroot":    (216, 64, lambda: rrect(0, 0, 216, 64, 32, TRACK)),
     # splash (replaces TeamWin's art; splash.xml declares both retainaspect)
     "splashlogo":    (500, 500, lambda: (
         '<text x="232" y="305" text-anchor="middle" font-family="Space Grotesk" '

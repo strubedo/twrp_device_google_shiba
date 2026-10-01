@@ -104,6 +104,20 @@ index fa626624..a7abe6a2 100644
      writepid /dev/cpuset/foreground/tasks
      seclabel u:r:recovery:s0
 +    disabled
+diff --git a/gui/action.cpp b/gui/action.cpp
+old mode 100755
+new mode 100644
+index f47623da..2161fd20
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -541,6 +541,7 @@ void GUIAction::operation_end(const int operation_status)
+ 			DataManager::SetValue("tw_operation_status", 0);
+ 		}
+ 	}
++	TWFunc::Update_Root_State();	// shiba: root install/remove changes the main page chip
+ 	DataManager::SetValue("tw_operation_state", 1);
+ 	DataManager::SetValue(TW_ACTION_BUSY, 0);
+ 	blankTimer.resetTimerAndUnblank();
 diff --git a/gui/button.cpp b/gui/button.cpp
 old mode 100755
 new mode 100644
@@ -1293,7 +1307,7 @@ index 171feccf..13ac68d2
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index cccb1e78..8709daae 100644
+index cccb1e78..a4b881aa 100644
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -1341,6 +1341,15 @@ bool TWFunc::Is_TWRP_App_In_System() {
@@ -1312,8 +1326,43 @@ index cccb1e78..8709daae 100644
  	string sdkverstr = System_Property_Get("ro.build.version.sdk");
  	int sdkver = 0;
  	if (!sdkverstr.empty()) {
+@@ -1655,4 +1664,22 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+ 	return ret;
+ }
+ 
++// shiba: root state of the active slot's init_boot for the main page chip.
++// twrp_root.sh status prints STOCK | KERNELSU | MAGISK | UNKNOWN (~0.1 s).
++// Called at startup and after every GUI operation (root install/remove).
++void TWFunc::Update_Root_State() {
++	const char* script = "/system/bin/twrp_root.sh";
++	std::string out, state = "UNKNOWN";
++	if (Path_Exists(script) && Exec_Cmd(std::string(script) + " status", out, false) == 0) {
++		size_t end = out.find_last_not_of(" \r\n\t");
++		if (end != std::string::npos) {
++			size_t start = out.find_last_of('\n', end);
++			state = out.substr(start == std::string::npos ? 0 : start + 1, end - (start == std::string::npos ? 0 : start + 1) + 1);
++		}
++	}
++	if (state != "KERNELSU" && state != "MAGISK" && state != "STOCK")
++		state = "UNKNOWN";
++	DataManager::SetValue("tw_root_state", state);
++}
++
+ #endif // ndef BUILD_TWRPTAR_MAIN
+diff --git a/twrp-functions.hpp b/twrp-functions.hpp
+index 203638a6..92c6ed92 100644
+--- a/twrp-functions.hpp
++++ b/twrp-functions.hpp
+@@ -60,6 +60,7 @@ public:
+ 	static string Get_Path(const string& Path);                                 // Trims everything after the last / in the string
+ 	static string Get_Filename(const string& Path);                             // Trims the path off of a filename
+ 
++	static void Update_Root_State();                                            // shiba: tw_root_state = twrp_root.sh status (main page chip)
+ 	static int Exec_Cmd(const string& cmd, string &result, bool combine_stderr);     //execute a command and return the result as a string by reference, set combined_stderror to add stderr
+ 	static int Exec_Cmd(const string& cmd, bool Show_Errors = true);            //execute a command, displays an error to the GUI if Show_Errors is true, Show_Errors is true by default
+ 	static int Wait_For_Child(pid_t pid, int *status, string Child_Name, bool Show_Errors = true); // Waits for pid to exit and checks exit status, displays an error to the GUI if Show_Errors is true which is the default
 diff --git a/twrp.cpp b/twrp.cpp
-index b257780d..5d6eff50 100644
+index b257780d..e6d5deeb 100644
 --- a/twrp.cpp
 +++ b/twrp.cpp
 @@ -51,6 +51,8 @@ extern "C" {
@@ -1355,6 +1404,14 @@ index b257780d..5d6eff50 100644
  	signal(SIGPIPE, SIG_IGN);
  
  	// Handle ADB sideload
+@@ -414,6 +432,7 @@ int main(int argc, char **argv) {
+ 	gui_init();
+ 
+ 	if (!startup.Get_Fastboot_Mode()) PartitionManager.Setup_Fstab_Partitions(true);
++	if (!startup.Get_Fastboot_Mode()) TWFunc::Update_Root_State();	// shiba: main page root chip
+ 
+ 	// Load up all the resources
+ 	gui_loadResources();
 diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
 old mode 100755
 new mode 100644
