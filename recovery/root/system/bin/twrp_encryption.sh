@@ -21,6 +21,9 @@
 #   enable      remove DFE's fstab line from this slot's vendor_boot
 #               (magiskboot_28, verified) and delete neo_inject_<slot>.
 #               The GUI then formats /data so Android re-encrypts it.
+#   dfe-active  read-only: prints DFE_ACTIVE (exit 0) if this slot boots with
+#               DFE, else DFE_INACTIVE (exit 1). Used by the OTA guard
+#               (twinstall.cpp): an OTA can't carry DFE to the new slot.
 # Log: /tmp/twrp_encryption.log
 
 set -o pipefail
@@ -224,6 +227,15 @@ do_enable() {
     say "== DFE removed. TWRP will now format /data so Android re-encrypts it."
 }
 
+do_dfe_active() {
+    prepare >/dev/null 2>&1
+    dd if="$VB" of="$WORK/vb.img" bs=1M 2>/dev/null
+    if { unpack_vb "$WORK/vb.img" && fst="$(first_stage_fstab)" && grep -q neo_inject "$fst"; } || neo_in_super; then
+        echo DFE_ACTIVE; exit 0
+    fi
+    echo DFE_INACTIVE; exit 1
+}
+
 : > "$LOG.tmp" 2>/dev/null; rm -f "$LOG.tmp"
 case "$1" in
     status)     do_status ;;
@@ -232,5 +244,6 @@ case "$1" in
     disable)    do_disable ;;
     postformat) do_postformat ;;
     enable)     do_enable ;;
-    *)          echo "usage: $0 status|dryrun|disable|postformat|enable"; exit 1 ;;
+    dfe-active) do_dfe_active ;;
+    *)          echo "usage: $0 status|dryrun|disable|postformat|enable|dfe-active"; exit 1 ;;
 esac
