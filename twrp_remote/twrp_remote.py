@@ -1,36 +1,49 @@
 #!/usr/bin/env python3
-"""twrp_remote.py - view and control TWRP on the Pixel 8 (shiba) from this PC.
+"""twrp_remote.py - view and control TWRP on the Pixel 8 (shiba) from a PC.
+Runs on Linux and Windows.
 
 The phone side is /system/bin/twrp_remote (device/google/shiba/twrp_remote),
-reached through `adb forward` - USB only, nothing on the network.
+reached through `adb forward` - USB only, nothing on the network. When the
+phone is in Android instead, scrcpy is started for it (unless --no-scrcpy).
 
-  python3 twrp_remote.py [--scale 0.4]
+  python3 twrp_remote.py [--scale 0.4] [--adb PATH] [--no-scrcpy] [--debug-keys]
 
 Mouse = finger: click to tap, drag to swipe; scroll wheel swipes lists.
 Keyboard: while the window has focus, typing goes to TWRP (virtual keyboard).
-Side buttons: Power, Screenshot (saved to ~/), and a Reboot menu like TWRP's.
-Needs adb, Pillow and Tk (sudo apt install python3-tk python3-pil.imagetk).
+Side buttons: Power, Screenshot (saved to your home folder), and a Reboot menu.
+
+Needs adb (Android platform-tools) and Pillow; Tk comes with Python on Windows
+(Linux: sudo apt install python3-tk python3-pil.imagetk). Optional: scrcpy.
 """
 import argparse
 import os
 import queue
+import shutil
 import socket
 import struct
 import subprocess
+import sys
 import threading
 import time
 import tkinter as tk
 import zlib
 from tkinter import messagebox
 
-from PIL import Image, ImageTk
+from PIL import Image, ImageEnhance, ImageTk
 
+WINDOWS = sys.platform == "win32"
 PORT = 27183
 KEY_POWER = 116
-# TWRP's hardwarekeyboard.cpp only turns main-block keys into characters, so
-# numpad keys are sent as their main-block equivalents (by Tk keysym, which
-# also follows Num Lock). Tuples are pressed in order: Shift first for * and +.
-KEYPAD = {
+BG, SURFACE, TEXT, MUTED, ACCENT = "#000000", "#121212", "#EDEDED", "#A1A1A1", "#0090CA"
+
+# ------------------------------------------------------------------ key maps
+# The phone gets Linux key codes. TWRP's hardwarekeyboard.cpp only turns
+# main-block keys into characters, so numpad keys are sent as main-block keys.
+# Tuples are pressed in order (Shift first for * and +).
+
+# Linux/X11 (also XWayland): keycode - 8 is the Linux code; the numpad goes by
+# keysym, which follows Num Lock.
+X11_KEYPAD = {
     "KP_0": (11,), "KP_1": (2,), "KP_2": (3,), "KP_3": (4,), "KP_4": (5,),
     "KP_5": (6,), "KP_6": (7,), "KP_7": (8,), "KP_8": (9,), "KP_9": (10,),
     "KP_Decimal": (52,), "KP_Enter": (28,), "KP_Subtract": (12,), "KP_Divide": (53,),
@@ -39,27 +52,92 @@ KEYPAD = {
     "KP_Right": (106,), "KP_End": (107,), "KP_Down": (108,), "KP_Next": (109,),
     "KP_Insert": (110,), "KP_Delete": (111,),
 }
-BG, SURFACE, TEXT, MUTED, ACCENT = "#000000", "#121212", "#EDEDED", "#A1A1A1", "#0090CA"
+
+# Windows: Tk keycodes are virtual-key codes (US layout punctuation).
+_LETTERS = {"Q": 16, "W": 17, "E": 18, "R": 19, "T": 20, "Y": 21, "U": 22, "I": 23,
+            "O": 24, "P": 25, "A": 30, "S": 31, "D": 32, "F": 33, "G": 34, "H": 35,
+            "J": 36, "K": 37, "L": 38, "Z": 44, "X": 45, "C": 46, "V": 47, "B": 48,
+            "N": 49, "M": 50}
+WIN_VK = {ord(ch): (code,) for ch, code in _LETTERS.items()}
+WIN_VK.update({0x30: (11,)})                                       # 0
+WIN_VK.update({0x31 + i: (2 + i,) for i in range(9)})              # 1-9
+WIN_VK.update({0x60: (11,)})                                       # numpad 0
+WIN_VK.update({0x61 + i: (2 + i,) for i in range(9)})              # numpad 1-9
+WIN_VK.update({0x70 + i: (59 + i,) for i in range(10)})            # F1-F10
+WIN_VK.update({
+    0x7A: (87,), 0x7B: (88,),                                      # F11 F12
+    0x08: (14,), 0x09: (15,), 0x0D: (28,), 0x10: (42,), 0x11: (29,), 0x12: (56,),
+    0x14: (58,), 0x1B: (1,), 0x20: (57,),                          # bksp tab enter shift ctrl alt caps esc space
+    0x21: (104,), 0x22: (109,), 0x23: (107,), 0x24: (102,),        # pgup pgdn end home
+    0x25: (105,), 0x26: (103,), 0x27: (106,), 0x28: (108,),        # left up right down
+    0x2D: (110,), 0x2E: (111,),                                    # insert delete
+    0xBA: (39,), 0xBB: (13,), 0xBC: (51,), 0xBD: (12,), 0xBE: (52,), 0xBF: (53,),  # ; = , - . /
+    0xC0: (41,), 0xDB: (26,), 0xDC: (43,), 0xDD: (27,), 0xDE: (40,),              # ` [ \ ] '
+    0x6A: (42, 9), 0x6B: (42, 13), 0x6D: (12,), 0x6E: (52,), 0x6F: (53,),       # numpad * + - . /
+})
 
 
+# ------------------------------------------------------------------ tools
+def here(*parts):
+    """A file next to this program (inside the .exe when frozen)."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
+def find_tool(name, explicit=None, env=None):
+    """explicit path, then $ENV, then PATH, then the usual places."""
+    exe = name + (".exe" if WINDOWS else "")
+    candidates = [explicit, os.environ.get(env) if env else None, shutil.which(name)]
+    exe_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
+    candidates += [os.path.join(exe_dir, exe), os.path.join(exe_dir, "platform-tools", exe)]
+    if WINDOWS:
+        local = os.environ.get("LOCALAPPDATA", "")
+        home = os.path.expanduser("~")
+        candidates += [os.path.join(local, "Android", "Sdk", "platform-tools", exe),
+                       os.path.join("C:\\", "platform-tools", exe),
+                       os.path.join(home, "platform-tools", exe),
+                       os.path.join("C:\\", "scrcpy", exe),
+                       os.path.join(home, "scrcpy", exe)]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+NO_WINDOW = 0x08000000 if WINDOWS else 0        # CREATE_NO_WINDOW: no console flashes
+
+
+def run(cmd, timeout=10):
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                          creationflags=NO_WINDOW)
+
+
+# ------------------------------------------------------------------ app
 class Remote:
-    def __init__(self, scale, debug_keys=False):
+    def __init__(self, scale=None, adb=None, scrcpy=True, debug_keys=False):
+        self.adb = adb
+        self.scrcpy_path = find_tool("scrcpy") if scrcpy else None
+        self.scrcpy_enabled = scrcpy
+        self.scrcpy_proc = None
         self.debug_keys = debug_keys
         self.sock = None               # owned by the link thread; None while down
         self.send_lock = threading.Lock()
         self.frames = queue.Queue(maxsize=1)
         self.link_status = "connecting\u2026"
-        self.scale = scale
         self.src = (1080, 2400)        # panel size; updated from each frame
         self.last = None               # last frame (half resolution) for screenshots
         self.frame_count = 0
+        self.pressed = {}              # physical keycode -> codes sent on press
+        self.dimmed = False            # last frame shown dimmed (not live)
 
         self.root = tk.Tk(className="TWRPRemote")   # WM_CLASS = StartupWMClass in the .desktop file
         self.root.title("TWRP remote \u00b7 Pixel 8")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         self.set_icon()
-        self.canvas = tk.Canvas(self.root, width=int(1080 * scale), height=int(2400 * scale),
+        # default size: fit the screen (taskbar and title bar included)
+        self.scale = scale or min(0.45, (self.root.winfo_screenheight() - 160) / 2400)
+        self.canvas = tk.Canvas(self.root, width=int(1080 * self.scale), height=int(2400 * self.scale),
                                 bg=BG, highlightthickness=0, cursor="hand2")
         self.canvas.pack(side="left")
         self.item = self.canvas.create_image(0, 0, anchor="nw")
@@ -73,7 +151,6 @@ class Remote:
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
                            ("Screenshot", self.screenshot)):
             button(label, cmd)
-        # Reboot menu like TWRP's (sync + adb reboot, see reboot())
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
         for label, target in (("System", "system"), ("Recovery", "recovery"),
                               ("Bootloader", "bootloader"), ("Fastboot", "fastboot"),
@@ -88,9 +165,6 @@ class Remote:
         self.canvas.bind("<Button-4>", lambda e: self.wheel(e, +1))   # X11 wheel up
         self.canvas.bind("<Button-5>", lambda e: self.wheel(e, -1))   # X11 wheel down
         self.canvas.bind("<MouseWheel>", lambda e: self.wheel(e, 1 if e.delta > 0 else -1))
-        # typing -> the phone's virtual keyboard. X11/XWayland keycodes are
-        # Linux key codes + 8, so no keysym table is needed.
-        self.pressed = {}                  # physical keycode -> codes sent on press
         self.root.bind("<KeyPress>", lambda e: self.board(e, 1))
         self.root.bind("<KeyRelease>", lambda e: self.board(e, 0))
         self.root.bind("<FocusOut>", lambda e: self.release_keys())
@@ -99,41 +173,74 @@ class Remote:
         self.root.after(15, self.pump)
 
     def set_icon(self):
-        # window icon: the Graphite splash wordmark ("TWRP.") on black
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "..", "theme", "graphite", "images", "splashlogo.png")
-        if not os.path.exists(path):
-            return
-        mark = Image.open(path).convert("RGBA")
-        mark = mark.crop(mark.getbbox())
-        mark.thumbnail((112, 112))
-        icon = Image.new("RGBA", (128, 128), (0, 0, 0, 255))
-        icon.paste(mark, ((128 - mark.width) // 2, (128 - mark.height) // 2), mark)
-        self.icon = ImageTk.PhotoImage(icon)
-        self.root.iconphoto(True, self.icon)
+        # shipped icon (next to the program / inside the .exe), else the theme
+        for path in (here("twrp_remote.png"),
+                     here("..", "theme", "graphite", "images", "splashlogo.png")):
+            if os.path.exists(path):
+                img = Image.open(path).convert("RGBA")
+                if img.size != (256, 256):          # theme wordmark: put it on a tile
+                    mark = img.crop(img.getbbox())
+                    mark.thumbnail((112, 112))
+                    img = Image.new("RGBA", (128, 128), (0, 0, 0, 255))
+                    img.paste(mark, ((128 - mark.width) // 2, (128 - mark.height) // 2), mark)
+                self.icon = ImageTk.PhotoImage(img)
+                self.root.iconphoto(True, self.icon)
+                return
 
     # -------------------------------------------------------------- phone -> PC
+    def adb_state(self):
+        try:
+            r = run([self.adb, "get-state"], timeout=5)
+            if r.returncode == 0:
+                return r.stdout.strip()
+            return "unauthorized" if "unauthorized" in r.stderr else None
+        except Exception:
+            return None
+
+    def android_mode(self):
+        """Phone booted to Android: hand over to scrcpy (once per boot)."""
+        if not self.scrcpy_enabled:
+            self.link_status = "phone is in Android\n(scrcpy disabled)"
+        elif not self.scrcpy_path:
+            self.link_status = "phone is in Android\ninstall scrcpy to\nview it here"
+        else:
+            if self.scrcpy_proc is None:
+                env = dict(os.environ, ADB=self.adb)          # scrcpy uses the same adb
+                self.scrcpy_proc = subprocess.Popen([self.scrcpy_path], env=env,
+                                                    creationflags=NO_WINDOW)
+            self.link_status = "phone is in Android\nshowing it in scrcpy"
+
     def link(self):
         """Connect, read frames, and on any drop (reboot, unplug) retry every
         second - adb removes forwards when the device goes away, so redo it."""
         while True:
-            try:
-                subprocess.run(["adb", "forward", f"tcp:{PORT}", "localabstract:twrp_remote"],
-                               check=True, capture_output=True, timeout=5)
-                s = socket.create_connection(("127.0.0.1", PORT), timeout=3)
-                s.settimeout(None)
-                self.sock = s
-                self.reader(s)
-            except Exception:
-                pass
-            with self.send_lock:
-                if self.sock:
-                    try:
-                        self.sock.close()
-                    except OSError:
-                        pass
-                self.sock = None
-            self.link_status = "waiting for TWRP\u2026"
+            state = self.adb_state()
+            if state == "device":
+                self.android_mode()
+                time.sleep(2)
+                continue
+            self.scrcpy_proc = None                           # left Android: next boot may relaunch
+            if state == "recovery":
+                try:
+                    r = run([self.adb, "forward", f"tcp:{PORT}", "localabstract:twrp_remote"], timeout=5)
+                    if r.returncode == 0:
+                        s = socket.create_connection(("127.0.0.1", PORT), timeout=3)
+                        s.settimeout(None)
+                        self.sock = s
+                        self.reader(s)
+                except Exception:
+                    pass
+                with self.send_lock:
+                    if self.sock:
+                        try:
+                            self.sock.close()
+                        except OSError:
+                            pass
+                    self.sock = None
+            self.link_status = {"bootloader": "phone is in the bootloader",
+                                "sideload": "phone is in sideload mode",
+                                "unauthorized": "phone is in Android\nunlock it and allow\nUSB debugging"
+                                }.get(state, "waiting for TWRP\u2026")
             time.sleep(1)
 
     def recv_exact(self, s, n):
@@ -167,14 +274,21 @@ class Remote:
             img, sw, sh = item
             self.src, self.last = (sw, sh), img
             self.frame_count += 1
-            size = (int(sw * self.scale), int(sh * self.scale))
-            self.photo = ImageTk.PhotoImage(img.resize(size, Image.BILINEAR))
-            self.canvas.itemconfig(self.item, image=self.photo)
+            self.show(img)
+            self.dimmed = False
         if self.link_status:
             self.status.config(text=self.link_status)
+            if self.last is not None and not self.dimmed:   # not live: dim the last frame
+                self.show(ImageEnhance.Brightness(self.last).enhance(0.3))
+                self.dimmed = True
         else:
             self.status.config(text=f"{self.src[0]}\u00d7{self.src[1]}\nframes: {self.frame_count}")
         self.root.after(15, self.pump)
+
+    def show(self, img):
+        size = (int(self.src[0] * self.scale), int(self.src[1] * self.scale))
+        self.photo = ImageTk.PhotoImage(img.resize(size, Image.BILINEAR))
+        self.canvas.itemconfig(self.item, image=self.photo)
 
     # -------------------------------------------------------------- PC -> phone
     def send(self, op, a=0, b=0):
@@ -198,14 +312,19 @@ class Remote:
         self.send("K", code, 1)
         self.root.after(hold_ms, lambda: self.send("K", code, 0))
 
+    def key_codes(self, e):
+        if WINDOWS:
+            return WIN_VK.get(e.keycode)
+        codes = X11_KEYPAD.get(e.keysym)
+        if codes is None and 0 < e.keycode - 8 < 256:
+            codes = (e.keycode - 8,)
+        return codes
+
     def board(self, e, down):
         if down:
-            codes = KEYPAD.get(e.keysym)
+            codes = self.key_codes(e)
             if codes is None:
-                code = e.keycode - 8
-                if not 0 < code < 256:
-                    return
-                codes = (code,)
+                return
             # repeats arrive as more presses: release what's down first
             if e.keycode in self.pressed:
                 for code in reversed(self.pressed[e.keycode]):
@@ -248,33 +367,54 @@ class Remote:
         # runs as a recovery script instead: it shows TWRP's script page and
         # fails to save settings ("Unable to find partition for path '/.twrps'")
         if target == "poweroff":
-            cmd = [["adb", "shell", "sync"], ["adb", "shell", "reboot", "-p"]]
+            cmds = [[self.adb, "shell", "sync"], [self.adb, "shell", "reboot", "-p"]]
         elif target == "system":
-            cmd = [["adb", "shell", "sync"], ["adb", "reboot"]]
+            cmds = [[self.adb, "shell", "sync"], [self.adb, "reboot"]]
         else:
-            cmd = [["adb", "shell", "sync"], ["adb", "reboot", target]]
-        def run():
-            for c in cmd:
-                subprocess.run(c, capture_output=True)
-        threading.Thread(target=run, daemon=True).start()
+            cmds = [[self.adb, "shell", "sync"], [self.adb, "reboot", target]]
+        def go():
+            for c in cmds:
+                try:
+                    run(c, timeout=20)
+                except Exception:
+                    pass
+        threading.Thread(target=go, daemon=True).start()
         self.status.config(text=f"{verb}\u2026")
 
     def screenshot(self):
         if self.last is None:
             return
-        path = os.path.expanduser(time.strftime("~/twrp_remote_%Y%m%d-%H%M%S.png"))
+        path = os.path.join(os.path.expanduser("~"), time.strftime("twrp_remote_%Y%m%d-%H%M%S.png"))
         self.last.save(path)
         self.status.config(text=f"saved\n{os.path.basename(path)}")
 
 
 def main():
     ap = argparse.ArgumentParser(description="View and control TWRP on the Pixel 8 over adb.")
-    ap.add_argument("--scale", type=float, default=0.4,
-                    help="window size relative to the 1080x2400 panel (default 0.4)")
+    ap.add_argument("--scale", type=float, default=None,
+                    help="window size relative to the 1080x2400 panel (default: fit the screen)")
+    ap.add_argument("--adb", help="path to adb (default: $ADB, PATH, or the usual install places)")
+    ap.add_argument("--no-scrcpy", action="store_true",
+                    help="don't start scrcpy when the phone is in Android")
     ap.add_argument("--debug-keys", action="store_true",
                     help="print each key's keysym/keycode and the codes sent")
     args = ap.parse_args()
-    Remote(args.scale, args.debug_keys).root.mainloop()
+
+    if WINDOWS:
+        try:                                    # sharp on high-DPI displays (no bitmap scaling)
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
+    adb = find_tool("adb", args.adb, "ADB")
+    if not adb:
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("TWRP remote",
+                             "adb was not found.\n\nInstall Android platform-tools and put adb on your "
+                             "PATH, or start with --adb C:\\path\\to\\adb.exe")
+        return
+    Remote(args.scale, adb, not args.no_scrcpy, args.debug_keys).root.mainloop()
 
 
 if __name__ == "__main__":
