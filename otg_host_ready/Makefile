@@ -10,6 +10,9 @@ AOC   ?= /tmp/aoc_usb_driver.ko
 all: extra.symvers
 	PATH=$(CLANG):$$PATH $(MAKE) -C $(KDIR) M=$(CURDIR) ARCH=arm64 LLVM=1 LLVM_IAS=1 \
 		KBUILD_EXTRA_SYMBOLS=$(CURDIR)/extra.symvers KBUILD_MODPOST_WARN=1 modules
+	# drop DWARF: it embeds build paths (/home/...) and is ~90% of the file;
+	# vermagic, __versions CRCs and .gnu.linkonce.this_module are untouched
+	$(CLANG)/llvm-strip --strip-debug otg_host_ready.ko
 
 extra.symvers: $(AOC) gen_symvers.py
 	PATH=$(CLANG):$$PATH python3 gen_symvers.py $(AOC) $@
