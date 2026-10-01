@@ -1,0 +1,39 @@
+// Pixel AIDL boot control HAL for recovery (slot switching in TWRP, fastbootd
+// set_active/current-slot, BootControlClient in partitionmanager.cpp).
+//
+// Source: device/google/gs-common/bootctrl/aidl at android-14.0.0_r75
+// (Apache-2.0, headers kept), built here instead of shipping Google's prebuilt
+// from the factory recovery ramdisk. Only the recovery variant; the
+// hardware/google/pixel namespace import and the gs-common license reference
+// of the original Android.bp are dropped (neither exists in TWRP's tree and
+// the sources don't use them).
+// Local change: in recovery markBootSuccessful() does not blow the
+// anti-rollback OTP fuses (see SHIBA_RECOVERY in BootControl.cpp).
+
+cc_binary {
+    name: "android.hardware.boot-service.default_recovery-pixel",
+    relative_install_path: "hw",
+    recovery: true,
+    defaults: ["libboot_control_defaults"],
+    shared_libs: [
+        "libbase",
+        "libbinder_ndk",
+        "libcutils",
+        "libz",
+        "libtrusty",
+        "android.hardware.boot@1.1",
+        "android.hardware.boot-V1-ndk",
+    ],
+    static_libs: [
+        "libboot_control",
+        "libbootloader_message_vendor",
+    ],
+    srcs: [
+        "BootControl.cpp",
+        "GptUtils.cpp",
+        "service.cpp",
+    ],
+    cflags: ["-DSHIBA_RECOVERY"],
+    vintf_fragments: ["android.hardware.boot-service.default_recovery-pixel.xml"],
+    init_rc: ["android.hardware.boot-service.default_recovery-pixel.rc"],
+}
