@@ -38,6 +38,14 @@ subdirectories by basename, metadata timeout 30->120).
   LeeGar), **research-grade, never verified on a real A17 phone**. Highest risk.
 
 ### 4. KeyMint / HAL loading
+**Checked 2026-10-01 with `check_vendor_compat.py`** (A15 BP1A.250405.007.B1, A16
+CP1A.260505.005, A17 CP3A.260905.009 vendor trees vs our current ramdisk):
+Rust KeyMint, Gatekeeper, Weaver (citadel) and citadeld are **OK on all three** -
+every NEEDED lib found, every versioned symbol resolved (only weak ones absent).
+The C++ KeyMint is not shipped on any of them.
+**VINTF manifest schema is 9.0 on A15, A16 and A17** -> the schema guard
+(bind-mount our schema-8 manifest) is needed from Android 15 on; forced-tested on
+A14 only so far. /data encryption options are identical on all four versions.
 - zuma uses the **Rust** Trusty KeyMint (v5 + RPC v3) - our A16 prep already
   covers it: libbinder_ndk NDK36 no-op export, schema-8 VINTF bind-mount
   (A16 ships schema 9; recovery libvintf max 8.0). Matches LeeGar's notes.
@@ -70,11 +78,14 @@ A15 builds before May 2025 are safe to try; A16/A17 on the phone are one-way.
 
 ## Next steps (in order)
 1. ~~Phone checks~~ DONE: no zoned_device; KMIs above; KernelSU covers all.
-2. Build **otg_host_ready.ko for android14-6.1** (GKI source tag matching 6.1.x +
-   vendor CRCs from the A15/A16/A17 vendor_dlkm `aoc_usb_driver.ko`).
-3. Extract the A15 + A17 vendor trees; run `check_vendor_compat.py` on their
-   KeyMint/Gatekeeper/Weaver/citadeld; read their fstab.zuma.
-4. Android 15 BP1A.250405.007.B1 (Apr 2025, pre-anti-rollback) real-device test:
-   decrypt, OTG, root, OTA path - and the first test of TWRP on the 6.1 kernel.
+2. ~~OTG for 6.1~~ DONE (5d9af15): lib/modules/6.1/otg_host_ready.ko, CRCs and
+   struct module layout verified against A15/A16/A17.
+3. ~~Vendor HAL check~~ DONE: decryption stack OK on A15/A16/A17; VINTF 9.0 everywhere.
+4. **Android 15 BP1A.250405.007.B1 real-device test** (pre-anti-rollback, safe):
+   first real run of TWRP on kernel 6.1, the VINTF schema guard on a real schema-9
+   vendor, decryption with A15's data, the 6.1 OTG module, KernelSU android14-6.1,
+   and the OTA path (A14 -> A15 via TWRP with reflash + re-root tickboxes).
    Downloaded + SHA-256 verified: factory `e3f1e44d...`, OTA `1e0873e1...`.
-5. Only then A16/A17 on the phone (one-way).
+   Remaining unknowns only a real device answers: kernel-6.1 behaviour of TWRP
+   itself (display/touch modules come from the firmware), the guard, the module.
+5. Only then A16/A17 on the phone (one-way). Biggest A17 unknown: spblob v4 KDF.
