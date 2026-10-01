@@ -249,6 +249,114 @@
 				<text>Data locked</text>
 			</text>
 
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<image resource="chip_ksu"/>
+				<placement x="658" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<font resource="font_s"/>
+				<placement x="710" y="204"/>
+				<text>KernelSU</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<image resource="chip_magisk"/>
+				<placement x="658" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="710" y="204"/>
+				<text>Magisk</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<image resource="chip_noroot"/>
+				<placement x="658" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="686" y="204"/>
+				<text>Not rooted</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<image resource="chip_ksu"/>
+				<placement x="648" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<font resource="font_s"/>
+				<placement x="700" y="204"/>
+				<text>KernelSU</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<image resource="chip_magisk"/>
+				<placement x="648" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="700" y="204"/>
+				<text>Magisk</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<image resource="chip_noroot"/>
+				<placement x="648" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="676" y="204"/>
+				<text>Not rooted</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<image resource="chip_ksu"/>
+				<placement x="594" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
+				<font resource="font_s"/>
+				<placement x="646" y="204"/>
+				<text>KernelSU</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<image resource="chip_magisk"/>
+				<placement x="594" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="646" y="204"/>
+				<text>Magisk</text>
+			</text>
+
+			<image>
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<image resource="chip_noroot"/>
+				<placement x="594" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
+				<font resource="font_s"/>
+				<placement x="622" y="204"/>
+				<text>Not rooted</text>
+			</text>
+
 
 			<button style="main_button_accent">
 				<placement x="%indent%" y="%row2a_y%"/>

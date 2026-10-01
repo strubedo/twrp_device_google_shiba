@@ -43,6 +43,9 @@
 		<image name="chip_decrypted" filename="chip_decrypted" retainaspect="1"/>
 		<image name="chip_locked" filename="chip_locked" retainaspect="1"/>
 		<image name="chip_plain" filename="chip_plain" retainaspect="1"/>
+		<image name="chip_ksu" filename="chip_ksu" retainaspect="1"/>
+		<image name="chip_magisk" filename="chip_magisk" retainaspect="1"/>
+		<image name="chip_noroot" filename="chip_noroot" retainaspect="1"/>
 		<image name="main_button_accent" filename="main_button_accent"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>

@@ -105,6 +105,15 @@ def find_tool(name, explicit=None, env=None):
 
 
 NO_WINDOW = 0x08000000 if WINDOWS else 0        # CREATE_NO_WINDOW: no console flashes
+MODULE = "/data/adb/modules/enable_adb"         # installed by TWRP: Advanced > Enable USB debugging
+
+
+def adb_pubkey_path():
+    """This PC's ADB public key, where adb itself keeps it."""
+    if os.environ.get("ANDROID_USER_HOME"):
+        return os.path.join(os.environ["ANDROID_USER_HOME"], "adbkey.pub")
+    base = os.environ.get("ANDROID_SDK_HOME") or os.path.expanduser("~")
+    return os.path.join(base, ".android", "adbkey.pub")
 
 
 def run(cmd, timeout=10):
@@ -149,7 +158,8 @@ class Remote:
                       bg="#1A1A1A", fg=TEXT, activebackground=ACCENT, activeforeground=BG,
                       padx=6, pady=8).pack(padx=10, pady=(top or 10, 0))
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
-                           ("Screenshot", self.screenshot)):
+                           ("Screenshot", self.screenshot),
+                           ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
         for label, target in (("System", "system"), ("Recovery", "recovery"),
@@ -380,6 +390,57 @@ class Remote:
                     pass
         threading.Thread(target=go, daemon=True).start()
         self.status.config(text=f"{verb}\u2026")
+
+    def authorize_pc(self):
+        """Add this PC's ADB key to the enable_adb module, so Android trusts
+        this PC at the next boot without the 'Allow USB debugging?' prompt."""
+        if not messagebox.askyesno(
+                "TWRP remote",
+                "Authorize this PC for USB debugging?\n\nIts ADB key is added to the enable_adb module; "
+                "from the next Android boot this PC connects without the 'Allow' prompt.",
+                parent=self.root):
+            return
+        def done(ok, msg):
+            self.root.after(0, lambda: (messagebox.showinfo if ok else messagebox.showerror)(
+                "TWRP remote", msg, parent=self.root))
+        def go():
+            try:
+                if self.adb_state() != "recovery":
+                    return done(False, "Boot the phone into TWRP first.")
+                path = adb_pubkey_path()
+                try:
+                    key = open(path, encoding="utf-8").read().strip()
+                except OSError:
+                    key = ""
+                if not key:
+                    return done(False, f"This PC has no ADB key yet ({path}).\nRun 'adb devices' once, then retry.")
+                r = run([self.adb, "shell", f"test -d {MODULE} && echo yes"])
+                if r.stdout.strip() != "yes":
+                    return done(False, "The enable_adb module isn't installed.\n\nIn TWRP: decrypt data, then "
+                                       "Advanced > Enable USB debugging (needs KernelSU, Magisk or APatch).")
+                old = run([self.adb, "shell", f"cat {MODULE}/adb_keys 2>/dev/null"]).stdout.splitlines()
+                old = [k.strip() for k in old if k.strip()]
+                if any(k.split()[0] == key.split()[0] for k in old):
+                    return done(True, "This PC is already authorized.")
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".pub", delete=False, newline="\n") as f:
+                    f.write("\n".join(old + [key]) + "\n")
+                    tmp = f.name
+                try:
+                    r = run([self.adb, "push", tmp, f"{MODULE}/adb_keys"], timeout=20)
+                finally:
+                    os.unlink(tmp)
+                if r.returncode != 0:
+                    return done(False, f"Copying the key failed:\n{r.stderr.strip()}")
+                # same owner, mode and SELinux label as the TWRP installer sets
+                run([self.adb, "shell",
+                     f"F={MODULE}/adb_keys; chown 0:0 $F; chmod 0600 $F; "
+                     f"C=$(ls -Zd /data/adb/modules | awk '{{print $1}}'); chcon \"$C\" $F; sync"])
+                done(True, "This PC is authorized.\n\nFrom the next Android boot it connects "
+                           "without the 'Allow USB debugging?' prompt.")
+            except Exception as ex:
+                done(False, f"Authorizing failed: {ex}")
+        threading.Thread(target=go, daemon=True).start()
 
     def screenshot(self):
         if self.last is None:
