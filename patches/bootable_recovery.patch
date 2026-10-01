@@ -64,10 +64,38 @@ index 78b94308..fb23b48b
  TWRP_REQUIRED_MODULES += \
      tzdata_twrp
 diff --git a/data.cpp b/data.cpp
-index c19fe4c2..aecee2b5 100644
+index c19fe4c2..79bdb0b1 100644
 --- a/data.cpp
 +++ b/data.cpp
-@@ -764,6 +764,7 @@ void DataManager::SetDefaultValues()
+@@ -417,11 +417,14 @@ int DataManager::SetValue(const string& varName, const string& value, const int
+ 		return -1;
+ 	}
+ 
++	bool save = false;	// shiba: a persistent setting actually changed
+ 	if (persist) {
++		save = mPersist.GetValue(varName, test) != 0 || test != value;
+ 		mPersist.SetValue(varName, value);
+ 	} else {
+ 		int persistChk = mPersist.GetValue(varName, test);
+ 		if (persistChk == 0) {
++			save = test != value;
+ 			mPersist.SetValue(varName, value);
+ 		} else {
+ 			mData.SetValue(varName, value);
+@@ -430,6 +433,12 @@ int DataManager::SetValue(const string& varName, const string& value, const int
+ 
+ 	pthread_mutex_unlock(&m_valuesLock);
+ 
++	// shiba: save a changed setting right away. TWRP otherwise writes settings
++	// only on Flush() (its own reboot path and a few actions), so a reboot that
++	// bypasses it - adb reboot, the remote's Reboot menu - lost the change.
++	if (save && mInitialized && !mBackingFile.empty())
++		SaveValues();
++
+ #ifndef TW_NO_SCREEN_TIMEOUT
+ 	if (varName == "tw_screen_timeout_secs") {
+ 		blankTimer.setTime(atoi(value.c_str()));
+@@ -764,6 +773,7 @@ void DataManager::SetDefaultValues()
  	mPersist.SetValue(TW_TIME_ZONE_GUIOFFSET, "0");
  	mPersist.SetValue(TW_TIME_ZONE_GUIDST, "1");
  	mPersist.SetValue(TW_AUTO_REFLASHTWRP_VAR, "0");
@@ -75,7 +103,7 @@ index c19fe4c2..aecee2b5 100644
  #ifdef TW_NO_FLASH_CURRENT_TWRP
  	mConst.SetValue("tw_no_flash_current_twrp", "1");
  #else
-@@ -1028,7 +1029,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+@@ -1028,7 +1038,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
  				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
  			cpuSecCheck = curTime.tv_sec + 5;
  		}
@@ -436,7 +464,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..890519c7
+index 99eeef6c..20d79d2b
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -465,7 +493,7 @@ index 99eeef6c..890519c7
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
  				</listitem>
-+				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
++				<listitem name="Reinstall root after flashing an OTA">
 +					<condition var1="tw_has_boot_slots" var2="1"/>
 +					<data variable="tw_auto_reroot"/>
 +				</listitem>
@@ -734,7 +762,7 @@ index 99eeef6c..890519c7
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
  				</listitem>
-+				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
++				<listitem name="Reinstall root after flashing an OTA">
 +					<condition var1="tw_has_boot_slots" var2="1"/>
 +					<data variable="tw_auto_reroot"/>
 +				</listitem>
@@ -1207,10 +1235,18 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..018ff67c
+index 171feccf..8f87bbef
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
-@@ -586,6 +586,13 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -114,6 +114,7 @@ extern "C" {
+ 
+ #ifdef AB_OTA_UPDATER
+ #include <android/hardware/boot/1.0/IBootControl.h>
++#include <BootControlClient.h>	// shiba: AIDL-or-HIDL boot control (Pixel's HAL is AIDL)
+ using android::hardware::boot::V1_0::CommandResult;
+ using android::hardware::boot::V1_0::IBootControl;
+ #endif
+@@ -586,6 +587,13 @@ void TWPartitionManager::Decrypt_Data() {
  	#ifdef TW_INCLUDE_CRYPTO
  	TWPartition* Decrypt_Data = Find_Partition_By_Path("/data");
  	if (Decrypt_Data && Decrypt_Data->Is_Encrypted && !Decrypt_Data->Is_Decrypted) {
@@ -1224,7 +1260,7 @@ index 171feccf..018ff67c
  		Set_Crypto_State();
  		TWPartition* Key_Directory_Partition = Find_Partition_By_Path(Decrypt_Data->Key_Directory);
  		if (Key_Directory_Partition != nullptr)
-@@ -595,7 +602,12 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -595,7 +603,12 @@ void TWPartitionManager::Decrypt_Data() {
  			Set_Crypto_Type("file");
  #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
  #ifdef USE_FSCRYPT
@@ -1238,7 +1274,7 @@ index 171feccf..018ff67c
  				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
  				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
  				LOGINFO("Successfully decrypted metadata encrypted data partition with new block device: '%s'\n", crypto_blkdev.c_str());
-@@ -629,22 +641,9 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -629,22 +642,9 @@ void TWPartitionManager::Decrypt_Data() {
  				}
  			}
  		} else {
@@ -1264,7 +1300,7 @@ index 171feccf..018ff67c
  		}
  	}
  	if (Decrypt_Data && (!Decrypt_Data->Is_Encrypted || Decrypt_Data->Is_Decrypted)) {
-@@ -1089,6 +1088,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
+@@ -1089,6 +1089,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
  	part_settings.adbbackup = adbbackup;
  	time(&total_start);
  
@@ -1274,7 +1310,7 @@ index 171feccf..018ff67c
  	Update_System_Details();
  
  	if (!Mount_Current_Storage(true))
-@@ -1964,6 +1966,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+@@ -1964,6 +1967,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
  
  		DataManager::SetValue(TW_IS_DECRYPTED, 1);
  		dat->Is_Decrypted = true;
@@ -1302,7 +1338,7 @@ index 171feccf..018ff67c
  		if (!Block_Device.empty()) {
  			dat->Decrypted_Block_Device = Block_Device;
  			gui_msg(Msg("decrypt_success_dev=Data successfully decrypted, new block device: '{1}'")(Block_Device));
-@@ -2176,24 +2199,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -2176,24 +2200,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
@@ -1330,31 +1366,71 @@ index 171feccf..018ff67c
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3314,6 +3322,28 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3292,19 +3301,11 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+ 	LOGINFO("Setting active slot %s\n", Slot.c_str());
+ #ifdef AB_OTA_UPDATER
+ 	if (!Active_Slot_Display.empty()) {
+-		android::sp<IBootControl> module = IBootControl::getService();
+-		if (module == nullptr) {
+-			LOGERR("Error getting bootctrl module.\n");
+-		} else {
+-			uint32_t slot_number = 0;
+-			if (Slot == "B")
+-				slot_number = 1;
+-			CommandResult result;
+-			auto ret = module->setActiveBootSlot(slot_number, [&result]
+-					(const CommandResult &cb_result) { result = cb_result; });
+-			if (!ret.isOk() || !result.success)
+-				gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
+-		}
++		// shiba: through BootControlClient - IBootControl::getService() (HIDL)
++		// returns null on Pixel's AIDL boot HAL, so the switch silently didn't
++		// happen ("Error getting bootctrl module", page still said Successful)
++		if (!Shiba_Set_Boot_Slot(Slot == "B" ? 1 : 0))
++			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
+ 		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
+ 	}
+ #else
+@@ -3314,6 +3315,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
++
++// shiba: set the bootloader's active slot with BootControlClient (AIDL or HIDL)
++// and read it back, so success means the bootloader really points there.
++bool TWPartitionManager::Shiba_Set_Boot_Slot(int32_t slot) {
++#ifdef AB_OTA_UPDATER
++	auto client = android::hal::BootControlClient::WaitForService();
++	if (!client) {
++		LOGERR("Error getting the boot control HAL.\n");
++		return false;
++	}
++	auto result = client->SetActiveBootSlot(slot);
++	if (!result.success) {
++		LOGERR("SetActiveBootSlot(%d) failed: %s\n", slot, result.errMsg.c_str());
++		return false;
++	}
++	int32_t active = client->GetActiveBootSlot();	// negative = HAL couldn't say
++	if (active >= 0 && active != slot) {
++		LOGERR("SetActiveBootSlot(%d): bootloader reports slot %d\n", slot, active);
++		return false;
++	}
++	LOGINFO("Bootloader active slot set to %c\n", slot ? 'B' : 'A');
++	return true;
++#else
++	(void)slot;
++	return false;
++#endif
++}
 +
 +// shiba: point the bootloader at Slot through the boot HAL. Unlike
 +// Set_Active_Slot() this never returns early on TWRP's cached slot - after an
 +// A/B OTA the cache still names the running slot while the bootloader already
 +// points at the updated one (used by the DFE OTA guard in twinstall.cpp).
 +bool TWPartitionManager::Restore_Boot_Slot(const string& Slot) {
-+#ifdef AB_OTA_UPDATER
 +	if (Slot != "A" && Slot != "B")
 +		return false;
-+	android::sp<IBootControl> module = IBootControl::getService();
-+	if (module == nullptr) {
-+		LOGERR("Error getting bootctrl module.\n");
-+		return false;
-+	}
-+	CommandResult result;
-+	auto ret = module->setActiveBootSlot(Slot == "B" ? 1 : 0, [&result]
-+			(const CommandResult &cb_result) { result = cb_result; });
-+	return ret.isOk() && result.success;
-+#else
-+	return false;
-+#endif
++	return Shiba_Set_Boot_Slot(Slot == "B" ? 1 : 0);
 +}
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
@@ -1362,14 +1438,15 @@ index 171feccf..018ff67c
 diff --git a/partitions.hpp b/partitions.hpp
 old mode 100755
 new mode 100644
-index 8c686edd..63613712
+index 8c686edd..3b80f801
 --- a/partitions.hpp
 +++ b/partitions.hpp
-@@ -386,6 +386,7 @@ public:
+@@ -386,6 +386,8 @@ public:
  	TWAtomicInt stop_backup;
  	void Override_Active_Slot(const string& Slot);                            // Override the active slot for repacking
  	void Set_Active_Slot(const string& Slot);                                 // Sets the active slot to A or B
 +	bool Restore_Boot_Slot(const string& Slot);                               // shiba: set the bootloader's slot via the HAL, no cache shortcut (OTA guard)
++	bool Shiba_Set_Boot_Slot(int32_t slot);                                   // shiba: BootControlClient (AIDL/HIDL) set + read-back
  	string Get_Active_Slot_Suffix();                                          // Returns active slot _a or _b
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
