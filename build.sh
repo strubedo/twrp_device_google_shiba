@@ -139,6 +139,7 @@ gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-
 gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres/ui.xml || grep -q 'name=\"font_l\" type=\"fontoverride\" filename=\"SpaceGrotesk-SemiBold.ttf\"' $R/twres/languages/en.xml"
 gate "Enable USB debugging: menu item + zip"     "grep -q 'twrp_tools/enable-adb.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_tools/enable-adb.zip >/dev/null"
 gate "twrp_remote daemon + service"               "test -x $R/system/bin/twrp_remote && grep -q 'start twrp.remote' $R/init.recovery.zuma.rc"
+gate "reinstall root after OTA (tickbox + script)" "grep -q 'tw_auto_reroot' $R/twres/portrait.xml && grep -q 'ACTION other' $R/system/bin/twrp_root.sh && /bin/grep -a -q 'Reinstalling root on the updated slot' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }

@@ -64,10 +64,18 @@ index 78b94308..fb23b48b
  TWRP_REQUIRED_MODULES += \
      tzdata_twrp
 diff --git a/data.cpp b/data.cpp
-index c19fe4c2..33ffd60a 100644
+index c19fe4c2..aecee2b5 100644
 --- a/data.cpp
 +++ b/data.cpp
-@@ -1028,7 +1028,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+@@ -764,6 +764,7 @@ void DataManager::SetDefaultValues()
+ 	mPersist.SetValue(TW_TIME_ZONE_GUIOFFSET, "0");
+ 	mPersist.SetValue(TW_TIME_ZONE_GUIDST, "1");
+ 	mPersist.SetValue(TW_AUTO_REFLASHTWRP_VAR, "0");
++	mPersist.SetValue("tw_auto_reroot", "0");	// shiba: reinstall root on the updated slot after an OTA
+ #ifdef TW_NO_FLASH_CURRENT_TWRP
+ 	mConst.SetValue("tw_no_flash_current_twrp", "1");
+ #else
+@@ -1028,7 +1029,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
  				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
  			cpuSecCheck = curTime.tv_sec + 5;
  		}
@@ -428,7 +436,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..e3232391
+index 99eeef6c..890519c7
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -446,7 +454,7 @@ index 99eeef6c..e3232391
  			</button>
  
  			<button style="main_button">
-@@ -415,7 +421,8 @@
+@@ -415,11 +421,16 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -456,7 +464,15 @@ index 99eeef6c..e3232391
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
-@@ -1201,6 +1208,243 @@
+ 				</listitem>
++				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
++					<condition var1="tw_has_boot_slots" var2="1"/>
++					<data variable="tw_auto_reroot"/>
++				</listitem>
+ 				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
+ 					<data variable="tw_install_reboot"/>
+ 				</listitem>
+@@ -1201,6 +1212,243 @@
  			</action>
  		</page>
  
@@ -700,7 +716,7 @@ index 99eeef6c..e3232391
  		<page name="formatdata">
  			<template name="page"/>
  
-@@ -1714,6 +1958,7 @@
+@@ -1714,6 +1962,7 @@
  				<placement x="%center_x%" y="%row18a_y%"/>
  				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
  				<actions>
@@ -708,7 +724,7 @@ index 99eeef6c..e3232391
  					<action function="refreshsizes"/>
  					<action function="page">backup</action>
  				</actions>
-@@ -3473,7 +3718,7 @@
+@@ -3473,11 +3722,15 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -717,7 +733,15 @@ index 99eeef6c..e3232391
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
-@@ -3878,6 +4123,99 @@
+ 				</listitem>
++				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
++					<condition var1="tw_has_boot_slots" var2="1"/>
++					<data variable="tw_auto_reroot"/>
++				</listitem>
+ 			</listbox>
+ 
+ 			<button style="main_button_half_height">
+@@ -3878,6 +4131,99 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -817,7 +841,7 @@ index 99eeef6c..e3232391
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4244,8 @@
+@@ -3906,6 +4252,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -826,7 +850,7 @@ index 99eeef6c..e3232391
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4256,8 @@
+@@ -3916,6 +4264,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -835,7 +859,7 @@ index 99eeef6c..e3232391
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4275,8 @@
+@@ -3933,6 +4283,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -844,7 +868,7 @@ index 99eeef6c..e3232391
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4287,8 @@
+@@ -3943,6 +4295,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
@@ -1506,10 +1530,10 @@ index 1da19e26..b29d1543
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
 old mode 100755
 new mode 100644
-index 6abccea7..67b109aa
+index 6abccea7..ebbc0da4
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
-@@ -348,9 +348,36 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -348,9 +348,69 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  			}
  			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
  			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
@@ -1526,10 +1550,12 @@ index 6abccea7..67b109aa
 +			// to the new slot - its vendor_boot and vendor are new - and booting
 +			// it with unencrypted /data bootloops or forces a wipe. So keep
 +			// booting the current slot (a normal rollback for update_engine).
++			bool dfe_guarded = false;
 +			if (ret_val == INSTALL_SUCCESS && TWFunc::Path_Exists("/system/bin/twrp_encryption.sh")) {
 +				std::string dfe;
 +				TWFunc::Exec_Cmd("/system/bin/twrp_encryption.sh dfe-active", dfe, false);
 +				if (dfe.find("DFE_ACTIVE") != std::string::npos) {
++					dfe_guarded = true;
 +					std::string cur = PartitionManager.Get_Active_Slot_Display();
 +					std::string upd = cur == "A" ? "B" : "A";
 +					gui_print_color("error", "\n!! Encryption is disabled (DFE) on this phone, and an update\n"
@@ -1543,6 +1569,37 @@ index 6abccea7..67b109aa
 +					}
 +					gui_print_color("warning", "To update: Advanced > Re-enable encryption (wipes data),\n"
 +						"then install the update again.\n");
++				}
++			}
++			// shiba: "Reinstall root after OTA" - put the same root tool the running
++			// slot has (KernelSU / Magisk) on the updated slot's init_boot, with
++			// twrp_root.sh's checks (KMI of the NEW slot's kernel), backup, verify.
++			int reroot = 0;
++			DataManager::GetValue("tw_auto_reroot", reroot);
++			if (reroot && ret_val == INSTALL_SUCCESS && !dfe_guarded
++					&& TWFunc::Path_Exists("/system/bin/twrp_root.sh")) {
++				std::string st;
++				TWFunc::Exec_Cmd("/system/bin/twrp_root.sh status", st, false);
++				const char* action = NULL;
++				if (st.find("KERNELSU") != std::string::npos) action = "install-ksu";
++				else if (st.find("MAGISK") != std::string::npos) action = "install-magisk";
++				if (!action) {
++					gui_print("- Reinstall root: this slot isn't rooted - nothing to reinstall.\n");
++				} else {
++					gui_print("- Reinstalling root on the updated slot (%s)\n",
++						strcmp(action, "install-ksu") == 0 ? "KernelSU" : "Magisk");
++					std::string cmd = std::string("/system/bin/twrp_root.sh ") + action + " other 2>&1";
++					FILE* fp = popen(cmd.c_str(), "r");
++					int rc = -1;
++					if (fp) {
++						char line[512];
++						while (fgets(line, sizeof(line), fp))
++							gui_print("   %s", line);
++						rc = pclose(fp);
++					}
++					if (rc != 0)
++						gui_print_color("error", "!! Root was NOT reinstalled on the updated slot - after its\n"
++							"!! first boot, use Advanced > Root in TWRP.\n");
 +				}
  			}
  		} else {

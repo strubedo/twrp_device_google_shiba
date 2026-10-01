@@ -5,6 +5,9 @@
 #   twrp_root.sh install-ksu     KernelSU (LKM) via bundled ksud
 #   twrp_root.sh install-magisk  Magisk via its own boot_patch.sh
 #   twrp_root.sh remove          restore stock init_boot (either tool)
+#   ... ACTION other             act on the slot we are NOT running (after an
+#                                OTA: "Reinstall root after OTA", twinstall.cpp);
+#                                the KMI then comes from that slot's boot image
 #
 # Safety rules, applied to every write:
 #   1. detect the current state first; installs require STOCK (never layer
@@ -24,7 +27,11 @@ TOOLS=/system/etc/twrp_root
 MAGISKBOOT=/system/bin/magiskboot
 KSUD=/system/bin/ksud
 W=/tmp/twrp_root
-SLOT="$(getprop ro.boot.slot_suffix)"
+RUN_SLOT="$(getprop ro.boot.slot_suffix)"
+SLOT="$RUN_SLOT"
+if [[ "${2:-}" == other ]]; then
+    case "$RUN_SLOT" in _a) SLOT=_b ;; _b) SLOT=_a ;; *) SLOT="" ;; esac
+fi
 PART="/dev/block/by-name/init_boot${SLOT}"
 
 say()  { echo "$*"; }
@@ -51,9 +58,22 @@ state_of() {
 # dump the partition to a file
 read_part() { dd if="$PART" of="$1" bs=1M 2>/dev/null; }
 
-# kmi_of_running_kernel -> e.g. android14-5.15  (from 5.15.137-android14-11-g...)
+# kmi -> e.g. android14-5.15  (from 5.15.137-android14-11-g...). For the running
+# slot that's the running kernel; for the other slot (after an OTA it may carry
+# a different kernel, e.g. android15-6.1) it's read from that slot's boot image.
 kmi() {
-    local r; r="$(uname -r)"
+    local r
+    if [[ "$SLOT" == "$RUN_SLOT" ]]; then
+        r="$(uname -r)"
+    else
+        local d="$W/kboot"; rm -rf "$d"; mkdir -p "$d"
+        dd if="/dev/block/by-name/boot${SLOT}" of="$d/boot.img" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
+        ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) || die "cannot unpack boot${SLOT}"
+        # grep the binary itself (-a): with pipefail, `strings | grep -m1` dies of
+        # SIGPIPE (exit 141) when grep stops at the first match
+        r="$(grep -a -m1 -o 'Linux version [^ ]*' "$d/kernel" | awk '{print $3}')"
+        [[ -n "$r" ]] || die "cannot read the kernel version in boot${SLOT}"
+    fi
     local ver="${r%%.*}.$(echo "$r" | cut -d. -f2)"
     local rel; rel="$(echo "$r" | grep -o 'android[0-9]*' | head -1)"
     [[ -n "$rel" ]] || die "cannot derive KMI from kernel '$r'"
@@ -103,7 +123,7 @@ do_install_ksu() {
     local kmis; kmis="$("$KSUD" boot-info supported-kmis 2>/dev/null)"
     [[ -n "$kmis" ]] || die "ksud reports no supported KMIs - bundled ksud is broken. Nothing was changed."
     if ! grep -qx "$k" <<< "$kmis"; then
-        say "! This kernel's KMI is $k ($(uname -r))"
+        say "! The kernel on slot ${SLOT#_} has KMI $k"
         say "! The bundled KernelSU supports: $(tr '\n' ' ' <<< "$kmis")"
         die "KernelSU can't root this kernel. Use Install Magisk, or a TWRP with a newer ksud. Nothing was changed."
     fi
@@ -166,6 +186,7 @@ do_remove() {
 
 case "${1:-}" in
     status)         do_status ;;
+    kmi)            kmi ;;          # read-only: KMI of the (other) slot's kernel
     detect)         [[ -f "${2:-}" ]] || die "usage: $0 detect IMAGE"; state_of "$(realpath "$2")" ;;
     install-ksu)    do_install_ksu ;;
     install-magisk) do_install_magisk ;;
