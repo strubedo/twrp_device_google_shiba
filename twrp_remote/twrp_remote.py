@@ -40,7 +40,7 @@ class Remote:
         self.last = None               # last frame (half resolution) for screenshots
         self.frame_count = 0
 
-        self.root = tk.Tk()
+        self.root = tk.Tk(className="TWRPRemote")   # WM_CLASS = StartupWMClass in the .desktop file
         self.root.title("TWRP remote \u00b7 Pixel 8")
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
