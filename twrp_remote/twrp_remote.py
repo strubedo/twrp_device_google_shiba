@@ -138,6 +138,8 @@ class Remote:
         self.frame_count = 0
         self.pressed = {}              # physical keycode -> codes sent on press
         self.dimmed = False            # last frame shown dimmed (not live)
+        self.mode = None               # adb state: recovery | device (Android) | ...
+        self.note = ("", 0.0)          # short message (e.g. "saved") shown over the status until a time
 
         self.root = tk.Tk(className="TWRPRemote")   # WM_CLASS = StartupWMClass in the .desktop file
         self.root.title("TWRP remote \u00b7 Pixel 8")
@@ -225,6 +227,7 @@ class Remote:
         second - adb removes forwards when the device goes away, so redo it."""
         while True:
             state = self.adb_state()
+            self.mode = state
             if state == "device":
                 self.android_mode()
                 time.sleep(2)
@@ -286,7 +289,9 @@ class Remote:
             self.frame_count += 1
             self.show(img)
             self.dimmed = False
-        if self.link_status:
+        if self.note[0] and time.monotonic() < self.note[1]:
+            self.status.config(text=self.note[0])
+        elif self.link_status:
             self.status.config(text=self.link_status)
             if self.last is not None and not self.dimmed:   # not live: dim the last frame
                 self.show(ImageEnhance.Brightness(self.last).enhance(0.3))
@@ -389,7 +394,7 @@ class Remote:
                 except Exception:
                     pass
         threading.Thread(target=go, daemon=True).start()
-        self.status.config(text=f"{verb}\u2026")
+        self.notify(f"{verb}\u2026")
 
     def authorize_pc(self):
         """Add this PC's ADB key to the enable_adb module, so Android trusts
@@ -443,11 +448,32 @@ class Remote:
         threading.Thread(target=go, daemon=True).start()
 
     def screenshot(self):
-        if self.last is None:
-            return
         path = os.path.join(os.path.expanduser("~"), time.strftime("twrp_remote_%Y%m%d-%H%M%S.png"))
+        if self.mode == "device":
+            # Android (scrcpy): ask Android for the screen - full resolution
+            def go():
+                try:
+                    r = subprocess.run([self.adb, "exec-out", "screencap", "-p"], capture_output=True,
+                                       timeout=20, creationflags=NO_WINDOW)
+                    if r.returncode == 0 and r.stdout.startswith(b"\x89PNG"):
+                        with open(path, "wb") as f:
+                            f.write(r.stdout)
+                        msg = f"saved (Android)\n{os.path.basename(path)}"
+                    else:
+                        msg = "Android screenshot\nfailed"
+                except Exception:
+                    msg = "Android screenshot\nfailed"
+                self.root.after(0, lambda: self.notify(msg))
+            threading.Thread(target=go, daemon=True).start()
+            return
+        if self.last is None or self.link_status:
+            self.notify("no live TWRP screen\nto capture")
+            return
         self.last.save(path)
-        self.status.config(text=f"saved\n{os.path.basename(path)}")
+        self.notify(f"saved\n{os.path.basename(path)}")
+
+    def notify(self, text, seconds=4):
+        self.note = (text, time.monotonic() + seconds)
 
 
 def main():
