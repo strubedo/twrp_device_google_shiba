@@ -76,8 +76,19 @@ service twrp.otgwatch /system/bin/sh /system/bin/twrp_otg_watch.sh
     disabled
     seclabel u:r:recovery:s0
 
+# twrp_remote: view and control the recovery screen from a PC over adb
+# (device/google/shiba/twrp_remote; client twrp_remote.py). Listens on the
+# abstract socket @twrp_remote and stays idle until a client connects.
+service twrp.remote /system/bin/twrp_remote
+    user root
+    group root
+    disabled
+    stdio_to_kmsg
+    seclabel u:r:recovery:s0
+
 on late-init
     start twrp.otgwatch
+    start twrp.remote
 
 # --- MTP over FunctionFS (configfs) -------------------------------------------
 # TWRP's init.recovery.usb.rc only has legacy android_usb rules; the configfs
