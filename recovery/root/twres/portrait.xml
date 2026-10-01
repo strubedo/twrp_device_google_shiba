@@ -596,7 +596,7 @@
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
 				</listitem>
-				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
+				<listitem name="Reinstall root after flashing an OTA">
 					<condition var1="tw_has_boot_slots" var2="1"/>
 					<data variable="tw_auto_reroot"/>
 				</listitem>
@@ -3896,7 +3896,7 @@
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
 				</listitem>
-				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
+				<listitem name="Reinstall root after flashing an OTA">
 					<condition var1="tw_has_boot_slots" var2="1"/>
 					<data variable="tw_auto_reroot"/>
 				</listitem>
