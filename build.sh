@@ -152,5 +152,11 @@ if [[ "${1:-}" == "--flash" ]]; then
     fastboot flash vendor_boot_a "$HOME/shiba-stock/twrp_vendor_boot.img"
     fastboot reboot recovery
     adb wait-for-recovery
-    echo "TWRP is up."
+    # ro.twrp.version is set as TWRP starts, a moment after adbd comes up
+    v=""; for i in $(seq 30); do
+        v="$(adb shell getprop ro.twrp.version 2>/dev/null | tr -d '\r')"
+        [[ -n "$v" ]] && break; sleep 1
+    done
+    step "TWRP is back up: ${v:-version unknown}"
+    [[ "$v" == *"$SHIBA_VERSION"* ]] || step "WARNING: phone reports '${v:-nothing}', this build is $SHIBA_VERSION"
 fi
