@@ -596,6 +596,10 @@
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
 				</listitem>
+				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
+					<condition var1="tw_has_boot_slots" var2="1"/>
+					<data variable="tw_auto_reroot"/>
+				</listitem>
 				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
 					<data variable="tw_install_reboot"/>
 				</listitem>
@@ -3891,6 +3895,10 @@
 						<condition var1="tw_no_flash_current_twrp" var2="0"/>
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
+				</listitem>
+				<listitem name="Reinstall root after flashing an OTA (same tool as now)">
+					<condition var1="tw_has_boot_slots" var2="1"/>
+					<data variable="tw_auto_reroot"/>
 				</listitem>
 			</listbox>
 
