@@ -4,11 +4,14 @@ rem
 rem Needs: Python 3 from python.org (the "py" launcher). Everything else goes
 rem into a private venv here (.venv-win), nothing is installed system-wide.
 rem
-rem Copy these three files to one folder on the Windows PC and double-click:
+rem Copy these files to one folder on the Windows PC and double-click this one:
 rem     twrp_remote.py   twrp_remote.png   build_windows.bat
-rem Result: dist\TWRP Remote.exe  (single file, no console window)
+rem     install_windows.bat   install_windows.ps1
+rem Result: dist\TWRP Remote.exe  (single file, no console window). Then run
+rem install_windows.bat: it installs the program, gets adb (and optionally
+rem scrcpy) from their official sources, and adds a Start menu shortcut.
 rem
-rem To run it, the PC also needs:
+rem Without install_windows.bat, the PC also needs:
 rem   adb     - Android platform-tools: put the platform-tools folder next to the
 rem             .exe, or in C:\platform-tools, or on PATH
 rem   scrcpy  - optional, for the phone in Android: C:\scrcpy, next to the .exe,
@@ -37,4 +40,5 @@ echo === building TWRP Remote.exe
 
 echo.
 echo === done: dist\TWRP Remote.exe
+echo     Next: install_windows.bat (program + adb + Start menu shortcut)
 pause

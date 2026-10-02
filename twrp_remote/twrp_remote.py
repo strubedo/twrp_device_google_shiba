@@ -10,7 +10,8 @@ phone is in Android instead, scrcpy is started for it (unless --no-scrcpy).
 
 Mouse = finger: click to tap, drag to swipe; scroll wheel swipes lists.
 Keyboard: while the window has focus, typing goes to TWRP (virtual keyboard).
-Side buttons: Power, Screenshot (saved to your home folder), and a Reboot menu.
+Side buttons: Power, Screenshot (saved to Pictures/TWRP Remote), Screenshots
+(opens that folder), and a Reboot menu.
 
 Needs adb (Android platform-tools) and Pillow; Tk comes with Python on Windows
 (Linux: sudo apt install python3-tk python3-pil.imagetk). Optional: scrcpy.
@@ -89,7 +90,8 @@ def find_tool(name, explicit=None, env=None):
     exe = name + (".exe" if WINDOWS else "")
     candidates = [explicit, os.environ.get(env) if env else None, shutil.which(name)]
     exe_dir = os.path.dirname(sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__))
-    candidates += [os.path.join(exe_dir, exe), os.path.join(exe_dir, "platform-tools", exe)]
+    candidates += [os.path.join(exe_dir, exe), os.path.join(exe_dir, "platform-tools", exe),
+                   os.path.join(exe_dir, "scrcpy", exe)]      # install_windows.bat puts both here
     if WINDOWS:
         local = os.environ.get("LOCALAPPDATA", "")
         home = os.path.expanduser("~")
@@ -105,6 +107,37 @@ def find_tool(name, explicit=None, env=None):
 
 
 NO_WINDOW = 0x08000000 if WINDOWS else 0        # CREATE_NO_WINDOW: no console flashes
+
+
+def screenshot_dir():
+    """<Pictures>/TWRP Remote - the user's real Pictures folder (XDG on Linux, which
+    follows a renamed/localized one; the Pictures known folder's usual place on
+    Windows), created on first use."""
+    base = ""
+    if WINDOWS:
+        base = os.path.join(os.environ.get("USERPROFILE") or os.path.expanduser("~"), "Pictures")
+    else:
+        try:
+            base = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True,
+                                  text=True, timeout=3).stdout.strip()
+        except Exception:
+            base = ""
+        if not base or os.path.realpath(base) == os.path.realpath(os.path.expanduser("~")):
+            base = os.path.join(os.path.expanduser("~"), "Pictures")   # xdg-user-dir falls back to ~
+    d = os.path.join(base, "TWRP Remote")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def open_folder(path):
+    if WINDOWS:
+        os.startfile(path)                          # noqa - Windows only
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 MODULE = "/data/adb/modules/enable_adb"         # installed by TWRP: Advanced > Enable USB debugging
 
 
@@ -161,6 +194,7 @@ class Remote:
                       padx=6, pady=8).pack(padx=10, pady=(top or 10, 0))
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
                            ("Screenshot", self.screenshot),
+                           ("Screenshots", self.open_screenshots),
                            ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
@@ -448,7 +482,11 @@ class Remote:
         threading.Thread(target=go, daemon=True).start()
 
     def screenshot(self):
-        path = os.path.join(os.path.expanduser("~"), time.strftime("twrp_remote_%Y%m%d-%H%M%S.png"))
+        try:
+            path = os.path.join(screenshot_dir(), time.strftime("twrp_remote_%Y%m%d-%H%M%S.png"))
+        except OSError as ex:
+            self.notify(f"can't create the\nscreenshot folder:\n{ex.strerror}")
+            return
         if self.mode == "device":
             # Android (scrcpy): ask Android for the screen - full resolution
             def go():
@@ -471,6 +509,12 @@ class Remote:
             return
         self.last.save(path)
         self.notify(f"saved\n{os.path.basename(path)}")
+
+    def open_screenshots(self):
+        try:
+            open_folder(screenshot_dir())
+        except Exception as ex:
+            self.notify(f"can't open the\nscreenshot folder:\n{ex}")
 
     def notify(self, text, seconds=4):
         self.note = (text, time.monotonic() + seconds)

@@ -41,7 +41,8 @@ cp "$FRAG" "$OUT/recovery.cpio.lz4"
 cp install_twrp.py vbgraft/vbgraft.py README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 cp licenses/* "$OUT/licenses/"
 cp twrp_remote/twrp_remote.py twrp_remote/twrp_remote.png twrp_remote/install_linux.sh \
-   twrp_remote/build_windows.bat "$OUT/twrp_remote/"
+   twrp_remote/build_windows.bat twrp_remote/install_windows.bat twrp_remote/install_windows.ps1 \
+   "$OUT/twrp_remote/"
 cat > "$OUT/INSTALL.txt" <<EOF
 TWRP $VER for Google Pixel 8 (shiba) - unofficial
 
