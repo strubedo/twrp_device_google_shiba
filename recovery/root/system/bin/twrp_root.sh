@@ -113,6 +113,22 @@ require_state() {
 
 do_status() { read_part "$W/current.img"; state_of "$W/current.img"; }
 
+# A property of the RUNNING slot's installed system, read from its build.prop on a
+# read-only mount - right whether or not /data is encrypted (the crypto script's
+# live props only exist when it ran), and on a pending update's slot too (super
+# is then mapped with snapshots).   installed_prop PROP -> value or "?"
+installed_prop() {
+    local m="$W/sysmnt" v=""
+    mkdir -p "$m"
+    if mount -t ext4 -o ro "/dev/block/mapper/system${RUN_SLOT}" "$m" 2>/dev/null; then
+        v="$(grep -m1 "^$1=" "$m/system/build.prop" 2>/dev/null | cut -d= -f2 || true)"
+        umount "$m" 2>/dev/null || true
+    fi
+    echo "${v:-?}"
+}
+do_android() { installed_prop ro.build.version.release; }   # main-page root chip
+do_build()   { installed_prop ro.build.id; }                # build.sh --flash guard
+
 do_install_ksu() {
     read_part "$W/current.img"
     require_state STOCK "use Remove root first"
@@ -293,6 +309,8 @@ do_remove() {
 
 case "${1:-}" in
     status)         do_status ;;
+    android)        do_android ;;   # read-only: Android version of the running slot
+    build)          do_build ;;     # read-only: build ID of the running slot
     stage-app)      app_setup "${2:-}" ;;   # the app-install part of install-ksu/-magisk alone (testing)
     kmi)            kmi ;;          # read-only: KMI of the (other) slot's kernel
     detect)         [[ -f "${2:-}" ]] || die "usage: $0 detect IMAGE"; state_of "$(realpath "$2")" ;;

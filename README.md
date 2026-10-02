@@ -7,15 +7,16 @@ A from-scratch build of **TWRP 3.7.1** (twrp-14.1) for the **Google Pixel 8**
 updates**, built-in **root** and **encryption** tools, and a PC **remote
 control** for the recovery screen.
 
-**Status:** tested daily on Android 14. Android 15–17 support is prepared and
-checked offline (see `COMPAT_A14-A17.md`), not yet tested on a real phone.
+**Status:** tested on Android 14 and Android 15, including updating from 14 to 15
+with TWRP. Android 16 and 17 support is prepared and checked offline (see
+`COMPAT_A14-A17.md`); real-device testing is next.
 
 | Android | Firmware tested | Kernel | Status |
 |---|---|---|---|
 | 14 | AP2A.240605.024, AP2A.240905.003 | 5.15 | ✅ tested, incl. OTA updates from TWRP |
-| 15 | BP1A.250405.007.B1 (April 2025) | 6.1 | 🔧 prepared, real-device test pending |
-| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared, untested |
-| 17 | CP3A.260905.009 | 6.1 | 🔧 prepared, untested (new lock-screen format unverified) |
+| 15 | BP1A.250405.007.B1 (April 2025) | 6.1 | ✅ tested: OTA 14 → 15 from TWRP (TWRP + root kept), TWRP before and after the first boot, decryption with Android 15's own security services |
+| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared (image fits, checked offline), testing next |
+| 17 | CP3A.260905.009 | 6.1 | 🔧 prepared (image fits, checked offline), testing next; new lock-screen format unverified |
 
 ## Features
 
@@ -78,6 +79,13 @@ sudo apt install adb python3-tk python3-pil python3-pil.imagetk   # (scrcpy opti
   phone's anti-rollback level. Never flash older firmware than you have.
 - **Back up** your data. Disabling encryption formats `/data`.
 - Going from Android 14 to 15+ is one-way for your data (downgrading needs a wipe).
+- **After an update's first boot, the old slot is gone.** Pixels use virtual A/B:
+  once Android finishes merging the update in the background, the previous
+  slot's system is released. Test TWRP on the updated slot (Reboot → Recovery)
+  **before** booting Android if you want a way back.
+- On Android 15+, TWRP's install drops the `vendor_boot` part used only by the
+  developer option **"Boot with 16 KB page size"** (it doesn't fit next to
+  TWRP). That option needs the stock `vendor_boot`; normal booting is unaffected.
 - This is unofficial and comes with **no warranty**.
 
 ## Installation
