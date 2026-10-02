@@ -80,23 +80,38 @@ sudo apt install adb python3-tk python3-pil python3-pil.imagetk   # (scrcpy opti
 - Going from Android 14 to 15+ is one-way for your data (downgrading needs a wipe).
 - This is unofficial and comes with **no warranty**.
 
-## Installation — *TBD*
+## Installation
 
-TWRP lives in `vendor_boot`. Release images are built on the **stock
-`vendor_boot` of one firmware build** — flash only the image matching your
-firmware (`adb shell getprop ro.build.id`):
+> The installer is tested against simulated phones (fake adb/fastboot, real
+> vendor_boot layouts); its first real-phone run is pending.
+
+TWRP lives in `vendor_boot`. The release doesn't ship an image built for one
+firmware: **`install_twrp.py` grafts TWRP onto your phone's own `vendor_boot`**
+(the same operation as *Reflash TWRP after OTA*), keeps a backup of the
+original, and flashes it - so it works on **any firmware build**.
+
+Requirements: unlocked bootloader; Android platform-tools (`adb`, `fastboot`);
+Python 3 with `lz4` (`pip install lz4`); the phone in Android with USB debugging on.
+
+Your `vendor_boot` is read **from the phone** if it's rooted (KernelSU or Magisk:
+allow the Shell app root when asked). Otherwise download the **factory image for
+your exact build** (Settings → About phone → Build number) from
+<https://developers.google.com/android/images#shiba> into `Downloads/` - the
+installer finds it and refuses one for a different build.
 
 ```
-adb reboot bootloader
-fastboot flash vendor_boot twrp-shiba-<version>-<build id>.img
-fastboot reboot recovery
+python3 install_twrp.py --dry-run     # check everything, build + verify the image, flash nothing
+python3 install_twrp.py               # install
 ```
 
-Then in TWRP: **Advanced → KEEP TWRP → Install to both slots**.
-*(TBD: per-firmware images vs. an installer that grafts TWRP onto your own
-`vendor_boot`.)*
+Before flashing it re-checks in fastboot: product `shiba`, bootloader unlocked,
+same slot as Android, image fits the partition. Then in TWRP: enter your PIN,
+**Advanced → KEEP TWRP → Install to both slots**.
 
-To remove TWRP: flash your firmware's stock `vendor_boot`.
+To remove TWRP: flash the backup it printed (`fastboot flash vendor_boot_X <backup>`),
+or your firmware's stock `vendor_boot`.
+
+(Why not `fastboot fetch`? Stock fastbootd only allows it on debuggable builds.)
 
 ## Building
 
