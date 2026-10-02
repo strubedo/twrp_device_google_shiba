@@ -15,8 +15,8 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
 |---|---|---|---|
 | 14 | AP2A.240605.024, AP2A.240905.003 | 5.15 | ✅ tested, incl. OTA updates from TWRP |
 | 15 | BP1A.250405.007.B1 (April 2025) | 6.1 | ✅ tested: OTA 14 → 15 from TWRP (TWRP + root kept), TWRP before and after the first boot, decryption with Android 15's own security services |
-| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared (image fits, checked offline), testing next |
-| 17 | CP3A.260905.009 | 6.1 | 🔧 prepared (image fits, checked offline), testing next; new lock-screen format unverified |
+| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared (image fits; decryption services' library needs checked and covered), testing next |
+| 17 | CP3A.260905.009 | 6.1 | 🔧 prepared (image fits; decryption services' library needs checked and covered), testing next; new lock-screen format unverified |
 
 ## Features
 

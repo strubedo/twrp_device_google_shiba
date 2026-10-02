@@ -38,6 +38,9 @@ for f in "${FILES[@]}"; do
         [[ -n "$lib" ]] && "$NM" -D --defined-only "$lib" 2>/dev/null | awk '{print $NF}' | sed 's/@.*//' >> "$P"
     done
     sort -u -o "$T" "$P"
+    # libshiba_cxx_compat is preloaded into citadeld/Weaver (init.recovery.zuma.rc)
+    [[ -f "$R/libshiba_cxx_compat.so" ]] && "$NM" -D --defined-only "$R/libshiba_cxx_compat.so" 2>/dev/null \
+        | awk '{print $NF}' | sed 's/@.*//' >> "$T" && sort -u -o "$T" "$T"
     # C++ std (libc++), android::base, android:: (libutils/libbinder) - the
     # unversioned ones that come from our ramdisk unless the vendor ships them
     syms="$("$NM" -D --undefined-only "$p" 2>/dev/null | awk '{print $NF}' \

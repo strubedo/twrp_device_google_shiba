@@ -1,11 +1,21 @@
-// std::__libcpp_verbose_abort for Android 15+ vendor HALs (see verbose_abort.cpp).
-// stl "none": the library must not itself depend on libc++ - it stands in for a
-// libc++ symbol, and only needs libc.
+// libshiba_cxx_compat: symbols newer vendor HALs expect from newer libc++ /
+// libbinder than our recovery's (Android 14) - preloaded only into twrp.citadeld
+// and twrp.weaver (init.recovery.zuma.rc). Check with ./check_vendor_symbols.sh.
+//   Android 15+: std::__libcpp_verbose_abort (verbose_abort.cpp)
+//   Android 16+: std::__hash_memory (hash_memory.cpp, libc++'s own CityHash64),
+//                android::BBinder::setTransactionCodeMap (binder_compat.cpp, no-op)
+// stl libc++: hash_memory.cpp needs libc++'s headers (libc++.so is loaded in
+// these processes anyway); verbose_abort.cpp includes only C headers, so its
+// definition never meets libc++'s declaration of that function.
 cc_library_shared {
     name: "libshiba_cxx_compat",
     recovery: true,
-    srcs: ["verbose_abort.cpp"],
-    stl: "none",
+    srcs: [
+        "verbose_abort.cpp",
+        "hash_memory.cpp",
+        "binder_compat.cpp",
+    ],
+    stl: "libc++",
     cflags: [
         "-Wall",
         "-Werror",
