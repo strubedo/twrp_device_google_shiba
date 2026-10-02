@@ -94,7 +94,7 @@ gate "bootstrap/linker64 symlink in fragment" \
      "lz4 -dc $FRAG | cpio -tv 2>/dev/null | grep 'bootstrap/linker64 -> ../linker64' >/dev/null"
 gate "fastbootd present"                          "test -x $R/system/bin/fastbootd"
 gate "bash present"                               "test -x $R/system/bin/bash"
-gate "touch modules present"                      "test -f $R/lib/modules/5.15/goodix_brl_touch.ko"
+gate "touch modules requested (from firmware vendor_dlkm)" "/bin/grep -a -q 'goodix_brl_touch.ko' $R/system/bin/recovery && ! test -e $R/lib/modules/5.15/goodix_brl_touch.ko"
 gate "boot control HAL present"                   "test -x $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel"
 gate "libtrusty present"                          "test -f $R/system/lib64/libtrusty.so"
 gate "vendor VINTF base manifest present"        "grep -q IBootControl $R/vendor/etc/vintf/manifest.xml"
