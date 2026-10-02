@@ -134,7 +134,77 @@ do_install_ksu() {
     "$KSUD" boot-patch -b "$W/current.img" --kmi "$k" -o "$W" --out-name ksu_patched.img >/dev/null \
         || die "ksud boot-patch failed"
     flash_verified "$W/ksu_patched.img" KERNELSU "$backup"
-    say "- Done. Install/open the KernelSU manager app after booting."
+    ksu_manager_setup
+}
+
+# After Install KernelSU, on a phone where the KernelSU app was never installed,
+# put in place what the app normally provides, so it gets installed at the next
+# boot. Never fatal: root is already installed and verified at this point.
+ksu_manager_setup() {
+    if [[ ! -f /data/system/packages.xml ]]; then
+        say "- /data isn't decrypted: install the KernelSU app yourself after booting"
+        return 0
+    fi
+    if [[ "${FORCE_KSU_MANAGER:-}" != 1 ]] && grep -a -q "me.weishu.kernelsu" /data/system/packages.xml; then
+        say "- KernelSU app already installed"
+        return 0
+    fi
+    # The app comes from internal storage (too big to bundle: the bootloader
+    # can't load a larger recovery ramdisk). Highest version code among
+    # KernelSU_*_<code>-release.apk in Download/ or the top level, accepted only
+    # if it carries KernelSU's libksud.so. busybox must run from an executable
+    # copy named busybox (the image copy isn't +x; busybox picks its applet by name).
+    local bb="$W/tools/busybox" apk="" f
+    mkdir -p "$W/tools" && cp "$TOOLS/magisk/busybox" "$bb" && chmod 755 "$bb" \
+        || { say "! Could not prepare busybox - install the KernelSU app yourself after booting"; return 0; }
+    for f in $(for g in /data/media/0/Download/KernelSU*.apk /data/media/0/KernelSU*.apk; do
+                   [[ -f "$g" ]] && echo "$(sed -n 's/.*_\([0-9][0-9]*\)[-.].*/\1/p' <<< "${g##*/}"):$g"
+               done | sort -t: -k1,1nr | cut -d: -f2-); do
+        # plain grep (not -q): with pipefail, grep -q's early exit can SIGPIPE unzip
+        if "$bb" unzip -l "$f" 2>/dev/null | grep 'lib/arm64-v8a/libksud.so' >/dev/null; then
+            apk="$f"; break
+        fi
+    done
+    if [[ -z "$apk" ]]; then
+        say "- To have the KernelSU app installed automatically: download"
+        say "  KernelSU_*.apk (github.com/tiann/KernelSU/releases) to Download/"
+        say "  and run Install KernelSU again - or install the app from Android."
+        return 0
+    fi
+    say "- KernelSU app: ${apk#/data/media/0/}"
+    # ksud in /data/adb runs KernelSU's modules at boot; the app normally puts
+    # it there (and replaces it with its own build when it first runs).
+    # -f, not -x: /data is mounted noexec in recovery, so bash's [[ -x ]]
+    # (kernel access()) is false even for the app's own executable ksud.
+    if [[ ! -f /data/adb/ksud ]]; then
+        if cp "$KSUD" /data/adb/ksud && chown 0:0 /data/adb/ksud && chmod 0755 /data/adb/ksud \
+                && chcon u:object_r:ksu_file:s0 /data/adb/ksud; then
+            say "- Placed ksud in /data/adb"
+        else
+            say "! Could not place /data/adb/ksud - install the KernelSU app yourself after booting"
+            return 0
+        fi
+    fi
+    # one-shot module: installs that app at the next boot, then removes itself
+    local m=/data/adb/modules/twrp_ksu_manager
+    rm -rf "$m"
+    if mkdir -p "$m" && cp "$apk" "$m/manager.apk" \
+            && cp "$TOOLS/ksu-manager-service.sh" "$m/service.sh" \
+            && printf '%s\n' id=twrp_ksu_manager "name=KernelSU app installer (TWRP)" version=1 \
+                versionCode=1 "author=shiba TWRP" \
+                "description=Installs the KernelSU app at the next boot, then removes itself" > "$m/module.prop" \
+            && chown 0:0 /data/adb/modules && chown -R 0:0 "$m" && chmod 0755 /data/adb/modules "$m" "$m/service.sh" \
+            && chmod 0644 "$m/manager.apk" "$m/module.prop" \
+            && chcon u:object_r:adb_data_file:s0 /data/adb/modules && chcon -R u:object_r:adb_data_file:s0 "$m"; then
+        say "- The KernelSU app will be installed automatically at the next boot"
+        # test switch: reinstall over an installed app (pm install -r keeps its data)
+        [[ "${FORCE_KSU_MANAGER:-}" == 1 ]] && touch "$m/force" && chcon u:object_r:adb_data_file:s0 "$m/force" \
+            && say "- (forced: the installed app will be reinstalled in place)"
+        return 0
+    else
+        rm -rf "$m"
+        say "! Could not stage the KernelSU app - install it yourself after booting"
+    fi
 }
 
 do_install_magisk() {
@@ -186,6 +256,7 @@ do_remove() {
 
 case "${1:-}" in
     status)         do_status ;;
+    stage-ksu-manager) ksu_manager_setup ;;   # the app-install part of install-ksu alone (testing)
     kmi)            kmi ;;          # read-only: KMI of the (other) slot's kernel
     detect)         [[ -f "${2:-}" ]] || die "usage: $0 detect IMAGE"; state_of "$(realpath "$2")" ;;
     install-ksu)    do_install_ksu ;;
