@@ -95,11 +95,13 @@ class Phone:
         return out.strip() if rc == 0 else ""
 
     def getvar(self, var):
-        # fastboot prints "var: value" on stderr
+        # fastboot prints "var: value" on stderr. The var itself may contain a
+        # colon (partition-size:vendor_boot_a), so strip the exact prefix -
+        # splitting at the first colon returned "vendor_boot_a: 0x4000000".
         rc, out = self.run(self.fastboot, ["getvar", var], timeout=20)
         for line in out.splitlines():
             if line.startswith(var + ":"):
-                return line.split(":", 1)[1].strip()
+                return line[len(var) + 1:].strip()
         return ""
 
 
@@ -283,10 +285,11 @@ def main():
     if "_" + cur != slot:
         fail("fastboot's current slot (%s) differs from Android's (%s)" % (cur, slot))
     try:
-        if size and os.path.getsize(grafted) > int(size, 16):
-            fail("the image is larger than vendor_boot%s (%s)" % (slot, size))
+        psize = int(size, 16)
     except ValueError:
-        pass
+        fail("could not read the size of vendor_boot%s from fastboot ('%s')" % (slot, size))
+    if os.path.getsize(grafted) > psize:
+        fail("the image is larger than vendor_boot%s (%s)" % (slot, size))
     say("== Flashing vendor_boot%s" % slot)
     rc, out = phone.run(phone.fastboot, flash, timeout=180)
     say(out)

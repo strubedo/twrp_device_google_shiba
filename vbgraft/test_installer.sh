@@ -144,6 +144,8 @@ scenario flash_factory_slot_b ok   "Flashing vendor_boot_b"       FAKE_ROOT=0 FA
 scenario locked_bootloader    fail "bootloader is locked"         FAKE_ROOT=1 FAKE_FB_UNLOCKED=no --
 scenario slot_mismatch        fail "differs from Android"         FAKE_ROOT=1 FAKE_FB_CURRENT_SLOT=b --
 scenario wrong_product_fb     fail "fastboot reports product"     FAKE_ROOT=1 FAKE_FB_PRODUCT=akita --
+scenario partition_too_small  fail "larger than vendor_boot_a"    FAKE_ROOT=1 FAKE_FB_PARTITION_SIZE_VENDOR_BOOT_A=0x1000 --
+scenario partition_size_blank fail "could not read the size"      FAKE_ROOT=1 FAKE_FB_PARTITION_SIZE_VENDOR_BOOT_A= --
 scenario frag_too_big         fail "won't boot on this phone"     FAKE_ROOT=1 -- --frag "$W/big.lz4" --dry-run
 
 # what was flashed must be exactly vbgraft's verified output, and the backup the original
@@ -159,7 +161,7 @@ for s, slot in (("flash_root_slot_a", "_a"), ("flash_factory_slot_b", "_b")):
     log = open(os.path.join(d, "log")).read().split("\n")
     print("  %s  %-24s flashed == grafted, backup == original; sequence: %s"
           % ("ok  " if ok else "FAIL", s, " | ".join(l for l in log if l)))
-for s in ("locked_bootloader", "slot_mismatch", "wrong_product_fb"):
+for s in ("locked_bootloader", "slot_mismatch", "wrong_product_fb", "partition_too_small", "partition_size_blank"):
     flashed = glob.glob(os.path.join(W, "s_" + s, "flashed_*"))
     print("  %s  %-24s nothing flashed" % ("ok  " if not flashed else "FAIL", s))
 PY
