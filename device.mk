@@ -48,6 +48,11 @@ PRODUCT_PACKAGES += \
     android.hardware.boot-service.default_recovery-pixel \
     libtrusty.recovery
 
+# std::__libcpp_verbose_abort for Android 15+ vendor HALs (citadeld, Weaver):
+# their vendors ship a newer libc++ than ours. Preloaded by init.recovery.zuma.rc.
+PRODUCT_PACKAGES += \
+    libshiba_cxx_compat
+
 # Trusty secure-storage proxy for recovery, built from AOSP source with the
 # SystemSuspend wakelock compiled out (patches/system_core.patch). The vendor
 # storageproxyd blocks forever in acquire_wake_lock() in recovery.
