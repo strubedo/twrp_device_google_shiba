@@ -1,3 +1,4 @@
 theme/dist/
 theme/.baked
 dist/
+__pycache__/
