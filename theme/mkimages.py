@@ -157,13 +157,16 @@ IMAGES = {
     # NEW: main-page chips (retainaspect; text drawn over them by the theme).
     # Widths = measured IBM Plex Sans 33 text + 28 padding each side (+ 12 dot + 12 gap).
     "chip_slot":      (270, 64, lambda: rrect(0, 0, 270, 64, 32, TRACK)),
-    "chip_decrypted": (310, 64, lambda: rrect(0, 0, 310, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
-    "chip_locked":    (256, 64, lambda: rrect(0, 0, 256, 64, 32, TRACK) + ellipse(34, 32, 6, fill=WARN)),
-    "chip_plain":     (320, 64, lambda: rrect(0, 0, 320, 64, 32, TRACK)),
-    # root chip (tw_root_state): measured Plex Sans 33 KernelSU 138, Magisk 104, Not rooted 159
-    "chip_ksu":       (220, 64, lambda: rrect(0, 0, 220, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
-    "chip_magisk":    (186, 64, lambda: rrect(0, 0, 186, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
-    "chip_noroot":    (216, 64, lambda: rrect(0, 0, 216, 64, 32, TRACK)),
+    "chip_decrypted": (233, 64, lambda: rrect(0, 0, 233, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_locked":    (185, 64, lambda: rrect(0, 0, 185, 64, 32, TRACK) + ellipse(34, 32, 6, fill=WARN)),
+    "chip_plain":     (247, 64, lambda: rrect(0, 0, 247, 64, 32, TRACK)),
+    # root chip (tw_root_state + tw_android_ver), measured Plex Sans 33:
+    # "KernelSU · Android 15" 328, "Magisk · Android 15" 294, "Not rooted · Android 15" 349.
+    # Data chips shortened ("Decrypted" 153, "Locked" 105, "Unencrypted" 191) so the
+    # widest row (Unencrypted + Not rooted) ends at x=993 of 1044.
+    "chip_ksu":       (408, 64, lambda: rrect(0, 0, 408, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_magisk":    (374, 64, lambda: rrect(0, 0, 374, 64, 32, TRACK) + ellipse(34, 32, 6, fill=ACCENT)),
+    "chip_noroot":    (405, 64, lambda: rrect(0, 0, 405, 64, 32, TRACK)),
     # splash (replaces TeamWin's art; splash.xml declares both retainaspect)
     "splashlogo":    (500, 500, lambda: (
         '<text x="232" y="305" text-anchor="middle" font-family="Space Grotesk" '

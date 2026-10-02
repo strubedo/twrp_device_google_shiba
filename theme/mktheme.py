@@ -196,26 +196,28 @@ MAIN_HEADER = '''<text color="%text_color%">
 				<text>{label}</text>
 			</text>
 ''' for img, tx, label, conds in [
-    ("chip_plain", 350, "Data unencrypted",
+    ("chip_plain", 350, "Unencrypted",
      '<condition var1="tw_is_fbe" var2="0"/>'),
-    ("chip_decrypted", 374, "Data decrypted",
+    ("chip_decrypted", 374, "Decrypted",
      '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>'),
-    ("chip_locked", 374, "Data locked",
+    ("chip_locked", 374, "Locked",
      '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
 ])
 MAIN_HEADER = MAIN_HEADER.replace("\\u00b7", "\u00b7")
 
 # Root chip (tw_root_state, set by TWRP from twrp_root.sh status) after the
 # data chip - whose width depends on its state, so one placement per pair.
+# It also shows the running slot's Android version (tw_android_ver, from
+# twrp_root.sh android): "KernelSU · Android 15". Widths in mkimages.py.
 _DATA_CHIPS = [   # data chip conditions, x where that chip ends (322 + width)
-    ('<condition var1="tw_is_fbe" var2="0"/>', 322 + 320),
-    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>', 322 + 310),
-    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 322 + 256),
+    ('<condition var1="tw_is_fbe" var2="0"/>', 322 + 247),
+    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>', 322 + 233),
+    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 322 + 185),
 ]
 _ROOT_CHIPS = [   # image, label, text offset (after dot 52, plain 28), tw_root_state
-    ("chip_ksu", "KernelSU", 52, "KERNELSU"),
-    ("chip_magisk", "Magisk", 52, "MAGISK"),
-    ("chip_noroot", "Not rooted", 28, "STOCK"),
+    ("chip_ksu", "KernelSU \u00b7 Android %tw_android_ver%", 52, "KERNELSU"),
+    ("chip_magisk", "Magisk \u00b7 Android %tw_android_ver%", 52, "MAGISK"),
+    ("chip_noroot", "Not rooted \u00b7 Android %tw_android_ver%", 28, "STOCK"),
 ]
 for _dc, _end in _DATA_CHIPS:
     for _img, _label, _off, _val in _ROOT_CHIPS:

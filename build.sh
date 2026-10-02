@@ -142,6 +142,7 @@ gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_insta
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
 gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-kmis' $R/system/bin/twrp_root.sh"
 gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres/ui.xml || grep -q 'name=\"font_l\" type=\"fontoverride\" filename=\"SpaceGrotesk-SemiBold.ttf\"' $R/twres/languages/en.xml"
+gate "theme images match mkimages.py (not stale)" "python3 $DEVICE_DIR/theme/check_images.py"
 gate "Enable USB debugging: menu item + zip"     "grep -q 'twrp_tools/enable-adb.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_tools/enable-adb.zip >/dev/null"
 gate "twrp_remote daemon + service"               "test -x $R/system/bin/twrp_remote && grep -q 'start twrp.remote' $R/init.recovery.zuma.rc"
 gate "OTG module for kernel 6.1 (Android 15-17)"   "/bin/grep -a -q 'vermagic=6\.1\.' $R/lib/modules/6.1/otg_host_ready.ko"
@@ -158,10 +159,38 @@ step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"
 
 if [[ "${1:-}" == "--flash" ]]; then
+    # The image is our TWRP grafted onto THIS stock vendor_boot (repack.sh base).
+    # Never flash it onto a slot running other firmware (e.g. slot A after the
+    # A15 OTA: A14's vendor_boot with A15's kernel). Refresh BASE_BUILD with the
+    # base image (~/shiba-stock/factory/vendor_boot.img).
+    BASE_BUILD="AP2A.240905.003"
+    state="$(adb get-state 2>/dev/null)"
+    run_slot="$(adb shell getprop ro.boot.slot_suffix 2>/dev/null | tr -d '\r_')"
+    if [[ "$state" == device ]]; then
+        running="$(adb shell getprop ro.build.id | tr -d '\r')"
+    elif [[ "$state" == recovery ]]; then
+        # TWRP: read the running slot's installed build.prop (read-only mount)
+        running="$(adb shell 'm=/tmp/bsh_sys; mkdir -p $m; mount -t ext4 -o ro /dev/block/mapper/system$(getprop ro.boot.slot_suffix) $m 2>/dev/null && grep -m1 "^ro.build.id=" $m/system/build.prop | cut -d= -f2; umount $m 2>/dev/null' | tr -d '\r')"
+    else
+        running=""
+    fi
+    if [[ "$running" != "$BASE_BUILD" && "${FORCE_FLASH:-}" != 1 ]]; then
+        echo "FAIL: the current slot runs '${running:-unknown (no adb)}', but this image is built on the"
+        echo "      $BASE_BUILD stock vendor_boot - flashing it would mix firmwares. Instead: switch to a"
+        echo "      slot running $BASE_BUILD, flash there, then TWRP > Install to other slot (grafts onto"
+        echo "      that slot's own vendor_boot). FORCE_FLASH=1 overrides."
+        exit 1
+    fi
     adb reboot bootloader
     # flash the slot the phone boots (after an OTA that's no longer always _a)
     slot="$(fastboot getvar current-slot 2>&1 | sed -n 's/^current-slot: *\([ab]\).*/\1/p')"
     [[ "$slot" == a || "$slot" == b ]] || { echo "FAIL: cannot read the current slot from fastboot"; exit 1; }
+    # the check above was for the RUNNING slot; after an OTA the bootloader may point elsewhere
+    if [[ "$slot" != "$run_slot" && "${FORCE_FLASH:-}" != 1 ]]; then
+        echo "FAIL: the bootloader's current slot is $slot, but the checked (running) slot was ${run_slot:-?}"
+        echo "      - not flashing. fastboot --set-active=${run_slot:-?} first, or FORCE_FLASH=1."
+        fastboot reboot recovery; exit 1
+    fi
     step "Flashing vendor_boot_$slot (current slot) and booting recovery"
     fastboot flash "vendor_boot_$slot" "$HOME/shiba-stock/twrp_vendor_boot.img"
     fastboot reboot recovery
