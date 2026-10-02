@@ -127,6 +127,7 @@ gate "citadeld/weaver launched via sh (SELinux)"  "grep -q 'service twrp.citadel
 gate "keystore2 restarted after copySqliteDb"     "/bin/grep -a -q 'Restarting keystore2 to load' $R/system/bin/recovery"
 gate "OS version matched to installed (KeyMint)"  "grep -q 'resetprop ro.build.version.release ' $R/system/bin/twrp_crypto_start.sh"
 gate "vold writes upgraded keys only if upgraded" "/bin/grep -a -q 'RAM only, not committed' $R/system/bin/recovery"
+gate "no keystore2 hang when crypto is refused"   "test \$(grep -c 'setprop twrp.crypto.keystore ready' $R/system/bin/twrp_crypto_start.sh) -eq 2 && /bin/grep -a -q 'twrp.crypto.keystore' $R/system/bin/recovery"
 gate "/data size walk deferred to Backup"        "/bin/grep -a -q 'deferred until needed' $R/system/bin/recovery && grep -q tw_shiba_exact_data_size $R/twres/portrait.xml"
 gate "vbgraft (on-device TWRP install) present"   "test -x $R/system/bin/vbgraft && test -x $R/system/bin/twrp_install_slot.sh"
 gate "TWRP install menu entries + zips"          "grep -q twrp-install-other.zip $R/twres/portrait.xml && test -f $R/system/etc/twrp_root/twrp-install-other.zip && test -f $R/system/etc/twrp_root/twrp-install-both.zip"

@@ -42,6 +42,7 @@ log "crypto start: slot=$SLOT"
 
 if [ -n "$(pidof keystore2)" ] && [ "$(getprop init.svc.twrp.keymint)" = running ]; then
     log "services already running - nothing to do"
+    setprop twrp.crypto.keystore ready
     exit 0
 fi
 
@@ -132,6 +133,10 @@ start keystore2
 wait_running keystore2 50 || { log "keystore2 did not start"; exit 0; }
 sleep 0.5   # let it register IKeystoreService
 log "keystore2 running (pid $(pidof keystore2)) - ready for metadata unlock"
+# Tell TWRP the decryption services are up. Every path that refuses or fails
+# exits above without this, and TWRP then skips decryption instead of waiting
+# forever for keystore2 (vold blocks on it).
+setprop twrp.crypto.keystore ready
 
 # --- 7-9. PIN unlock services (stage 5). Non-fatal: the metadata unlock above
 # doesn't need them; without them only the PIN (CE) unlock is unavailable. ---
