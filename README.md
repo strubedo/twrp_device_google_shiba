@@ -129,6 +129,99 @@ cd device/google/shiba && ./build.sh            # ./build.sh --flash to flash a 
 `build.sh` runs 35+ safety gates and refuses to produce an image if any fails.
 It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/`.
 
+## Version history
+
+Newest first. Every version is a git tag in this repository; its commit message
+has the technical details.
+
+**v9.35** (2026-10-02) - **Universal installer**: `install_twrp.py` installs TWRP on
+any firmware build by grafting it onto your phone's own `vendor_boot` (read from a
+rooted phone, or from the factory image for your exact build), with a backup and
+full re-checks before flashing. Release packaging with checksums.
+
+**v9.34** (2026-10-02) - App installers for both root tools: after Install KernelSU
+or Install Magisk, the matching app installs itself at the next boot (official APK
+from Download/, or Magisk's stub).
+
+**v9.33** (2026-10-02) - KernelSU app installer (first version). Build check that
+keeps TWRP within the size the bootloader can load.
+
+**v9.32** (2026-10-02) - Touch drivers come from the phone's own firmware, so the
+touchscreen works on every Android version without bundled drivers.
+
+**v9.31** (2026-10-01) - Boot control built from Google's open source (no prebuilt
+binary); it can never touch the anti-rollback fuses from recovery.
+
+**v9.30** (2026-10-01) - TWRP stays awake while the PC remote is connected.
+
+**v9.29** (2026-10-01) - Fix: switching slots (Reboot > Slot A/B) now really changes
+the boot slot. Settings are saved immediately, so they survive any reboot.
+
+**v9.28** (2026-10-01) - *Reinstall root after flashing an OTA*: one install updates
+the phone, keeps TWRP and puts root back.
+
+**v9.27** (2026-10-01) - OTA updates from TWRP verified end to end; flashing targets
+the current slot.
+
+**v9.26** (2026-10-01) - OTA guard for disabled encryption: TWRP keeps the phone on
+the working slot instead of booting one that can't start.
+
+**v9.25** (2026-10-01) - Root status chip on the main screen (KernelSU / Magisk /
+Not rooted). PC remote: *Authorize PC* for USB debugging.
+
+**v9.24** (2026-10-01) - PC remote for Linux and Windows; switches to scrcpy when
+the phone is in Android.
+
+**v9.23** (2026-10-01) - PC remote: type on the phone from the PC keyboard.
+
+**v9.22** (2026-10-01) - **TWRP Remote**: view and control TWRP from the PC over USB.
+
+**v9.21** (2026-09-29) - Advanced > TOOLS: Enable USB debugging in Android.
+
+**v9.20** (2026-09-29) - Fix: changes made to /data in TWRP were rolled back at
+the next boot (f2fs checkpoint); they now persist.
+
+**v9.19** (2026-09-29) - Graphite theme: redesigned Advanced page with grouped sections.
+
+**v9.18** (2026-09-29) - Graphite theme complete: new main screen with live status chips.
+
+**v9.16** (2026-09-29) - Graphite theme: new splash screen, header and status line.
+
+**v9.15** (2026-09-29) - Graphite theme: redesigned PIN screen.
+
+**v9.14** (2026-09-29) - Graphite theme: main-menu icons.
+
+**v9.13** (2026-09-29) - Graphite theme: all theme images drawn from vector sources.
+
+**v9.12** (2026-09-29) - **Graphite theme** (first stage): dark palette, new fonts.
+
+**v9.11** (2026-09-29) - Preparation for Android 16 firmware (newer vendor HALs).
+
+**v9.10** (2026-09-29) - Install KernelSU checks that the kernel is supported first.
+
+**v9.9** (2026-09-29) - **Encryption menu**: disable or re-enable /data encryption
+(DFE-NEO). Version number shown from the release tag.
+
+**v9.8** (2026-09-29) - MTP: browse the phone's storage from a PC while in TWRP.
+
+**v9.7** (2026-09-27) - USB OTG drives mount automatically.
+
+**v9.6** (2026-09-27) - **USB OTG** in recovery (flash drives, keyboards).
+
+**v9.5** (2026-09-27) - **Keep TWRP after OTA** complete: install TWRP to the other
+or both slots; reflash automatically after an update.
+
+**v9.4** (2026-09-27) - Keep TWRP after OTA: the image tool behind it (vbgraft).
+
+**v9.3** (2026-09-27) - Faster startup.
+
+**v9.1** (2026-09-27) - Decryption no longer changes any keys on the phone.
+
+**v9** (2026-09-27) - **Full decryption**: /data unlocks with your PIN (Titan M2).
+
+**v6** (2026-09-26) - Root menu (KernelSU / Magisk / remove) with on-screen
+output. TWRP boots, without decryption.
+
 ## License
 
 Apache License 2.0 (`LICENSE`), except the parts listed in
