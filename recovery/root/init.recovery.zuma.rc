@@ -50,17 +50,22 @@ service twrp.gatekeeper /vendor/bin/hw/android.hardware.gatekeeper-service.trust
 # Launched via sh: its vendor label (citadeld_exec) isn't in recovery's policy,
 # so it's "unlabeled" and init (enforcing) may not exec it directly. The shell
 # runs in the permissive recovery domain and execs it from there.
-service twrp.citadeld /system/bin/sh -c "exec /vendor/bin/hw/citadeld"
+service twrp.citadeld /system/bin/sh -c "LD_PRELOAD=/system/lib64/libshiba_cxx_compat.so exec /vendor/bin/hw/citadeld"
     user root
     group root hsm
     disabled
     seclabel u:r:recovery:s0
+    # A15+ vendors ship their own, newer libc++; ours (A14) lacks
+    # std::__libcpp_verbose_abort, which citadeld/Weaver and libnos_* need
+    # ("CANNOT LINK EXECUTABLE"). Provide it (only for these two services).
+    # Set inside sh -c, not with `setenv`: the linker strips LD_PRELOAD from
+    # the sh it starts (domain change -> AT_SECURE), so setenv never arrives.
 
 # Weaver (Titan M2): releases the PIN-protected secret. Titan counts failed
 # attempts and throttles, exactly like the lock screen. Same sh launch as
 # citadeld (label hal_weaver_citadel_exec is vendor-only). Must start only
 # after citadeld has registered ICitadeld on vndbinder (see the script).
-service twrp.weaver /system/bin/sh -c "exec /vendor/bin/hw/android.hardware.weaver-service.citadel"
+service twrp.weaver /system/bin/sh -c "LD_PRELOAD=/system/lib64/libshiba_cxx_compat.so exec /vendor/bin/hw/android.hardware.weaver-service.citadel"
     user root
     group root hsm
     disabled

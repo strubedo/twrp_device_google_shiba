@@ -1,4 +1,1 @@
-heatmap.ko:
-goog_touch_interface.ko: heatmap.ko
-goodix_brl_touch.ko: goog_touch_interface.ko heatmap.ko
 otg_host_ready.ko:

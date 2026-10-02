@@ -1,0 +1,13 @@
+// std::__libcpp_verbose_abort for Android 15+ vendor HALs (see verbose_abort.cpp).
+// stl "none": the library must not itself depend on libc++ - it stands in for a
+// libc++ symbol, and only needs libc.
+cc_library_shared {
+    name: "libshiba_cxx_compat",
+    recovery: true,
+    srcs: ["verbose_abort.cpp"],
+    stl: "none",
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

@@ -1264,7 +1264,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..8f87bbef
+index 171feccf..b3b7c6d1
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1395,7 +1395,32 @@ index 171feccf..8f87bbef
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3292,19 +3301,11 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3282,29 +3291,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
+ 	PartitionManager.Update_System_Details();
+ }
+ 
++// shiba: the bootloader's active slot (0 = A, 1 = B), -1 if the HAL can't say.
++static int32_t Shiba_Bootloader_Slot() {
++#ifdef AB_OTA_UPDATER
++	auto client = android::hal::BootControlClient::WaitForService();
++	return client ? client->GetActiveBootSlot() : -1;
++#else
++	return -1;
++#endif
++}
++
+ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+ 	if (Slot != "A" && Slot != "B") {
+ 		LOGERR("Set_Active_Slot invalid slot '%s'\n", Slot.c_str());
+ 		return;
+ 	}
+-	if (Active_Slot_Display == Slot)
++	// shiba: only skip when the bootloader agrees. After an OTA the bootloader
++	// points at the updated slot while TWRP's cached slot is still the running
++	// one, and "Reboot > Slot <running>" silently did nothing.
++	if (Active_Slot_Display == Slot &&
++	    (Active_Slot_Display.empty() || Shiba_Bootloader_Slot() == (Slot == "B" ? 1 : 0)))
+ 		return;
  	LOGINFO("Setting active slot %s\n", Slot.c_str());
  #ifdef AB_OTA_UPDATER
  	if (!Active_Slot_Display.empty()) {
@@ -1420,7 +1445,7 @@ index 171feccf..8f87bbef
  		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
  	}
  #else
-@@ -3314,6 +3315,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3314,6 +3329,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
@@ -1464,18 +1489,74 @@ index 171feccf..8f87bbef
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
+@@ -3610,9 +3662,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+ 
+ void TWPartitionManager::Setup_Super_Devices() {
+ 	std::string superPart = Get_Super_Partition();
++	// shiba: after an OTA, until Android's first boot on the new slot merges it,
++	// that slot's dynamic partitions are Virtual A/B snapshots. Plain dm-linear
++	// (CreateLogicalPartitions) then shows the stale base layer: on A14 -> A15
++	// /vendor mounted as Android 14's and vendor_dlkm failed with EINVAL. Map
++	// them through libsnapshot like first-stage init does - but only on the
++	// update's TARGET slot: on the source slot NeedSnapshotsInFirstStageMount()
++	// writes a rollback indicator, which would cancel the pending update.
++	if (Shiba_Map_Pending_Update_Snapshots())
++		return;
+ 	android::fs_mgr::CreateLogicalPartitions(superPart);
+ }
+ 
++// shiba: true if this slot had a pending Virtual A/B update and its partitions
++// were mapped with snapshots (nothing else to map); false -> map as before.
++bool TWPartitionManager::Shiba_Map_Pending_Update_Snapshots() {
++	if (!android::base::GetBoolProperty("ro.virtual_ab.enabled", false))
++		return false;
++	auto sm = android::snapshot::SnapshotManager::New();
++	if (!sm) {
++		LOGINFO("snapshot: no SnapshotManager\n");
++		return false;
++	}
++	auto metadata = sm->EnsureMetadataMounted();
++	if (!metadata || !metadata->HasDevice()) {
++		LOGINFO("snapshot: /metadata not mountable\n");
++		return false;
++	}
++	// snapshot-boot holds the SOURCE slot's suffix while an update is pending
++	std::string source;
++	if (!android::base::ReadFileToString("/metadata/ota/snapshot-boot", &source))
++		return false;  // no pending update
++	std::string slot = android::base::GetProperty("ro.boot.slot_suffix", "");
++	if (source == slot) {
++		LOGINFO("snapshot: update pending for the other slot (we are its source %s)\n", slot.c_str());
++		return false;
++	}
++	LOGINFO("snapshot: pending update targets this slot %s - mapping partitions with snapshots\n", slot.c_str());
++	auto r = sm->RecoveryCreateSnapshotDevices(metadata);
++	if (r == android::snapshot::CreateResult::CREATED) {
++		gui_print_color("warning", "Update pending on this slot: system partitions are read from the update's\n"
++			"snapshots. Boot Android once to finish the update.\n");
++		return true;
++	}
++	gui_print_color("error", "Could not map the pending update's snapshots (%d): system partitions\n"
++		"may show OLD data. Boot Android once to finish the update.\n", (int)r);
++	return false;
++}
++
+ void TWPartitionManager::Setup_Super_Partition() {
+ 	TWPartition* superPartition = new TWPartition();
+ 	std::string superPart = Get_Super_Partition();
 diff --git a/partitions.hpp b/partitions.hpp
 old mode 100755
 new mode 100644
-index 8c686edd..3b80f801
+index 8c686edd..0ebee7f1
 --- a/partitions.hpp
 +++ b/partitions.hpp
-@@ -386,6 +386,8 @@ public:
+@@ -386,6 +386,9 @@ public:
  	TWAtomicInt stop_backup;
  	void Override_Active_Slot(const string& Slot);                            // Override the active slot for repacking
  	void Set_Active_Slot(const string& Slot);                                 // Sets the active slot to A or B
 +	bool Restore_Boot_Slot(const string& Slot);                               // shiba: set the bootloader's slot via the HAL, no cache shortcut (OTA guard)
 +	bool Shiba_Set_Boot_Slot(int32_t slot);                                   // shiba: BootControlClient (AIDL/HIDL) set + read-back
++	bool Shiba_Map_Pending_Update_Snapshots();                                // shiba: map a pending VAB update's snapshots (target slot only)
  	string Get_Active_Slot_Suffix();                                          // Returns active slot _a or _b
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable

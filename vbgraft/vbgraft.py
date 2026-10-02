@@ -16,7 +16,11 @@ TARGET: the vendor_boot to install into (stock, or an older TWRP image).
   first_stage_ramdisk/; if it also carries a merged stock recovery only the
   first_stage_ramdisk entries are kept (cpio entries copied byte-for-byte,
   re-compressed as lz4 legacy HC-12). Other non-recovery fragments pass
-  through untouched, in order. Any existing recovery fragment (type 2) is dropped.
+  through untouched, in order - except Android 15+'s type-0 "16K" fragment
+  (kernel modules for the 16 KB page-size developer mode), which is dropped:
+  with it, stock A15's vendor_boot + our recovery is ~67 MB, more than the
+  64 MB partition (and the bootloader's load limit). The normal (4 KB) boot
+  doesn't use it. Any existing recovery fragment (type 2) is dropped.
 DONOR / FILE: our recovery fragment - from the type-2 fragment of a TWRP
   vendor_boot, or the build output. Appended last, named "recovery".
 
@@ -330,6 +334,10 @@ def main(argv):
     for f in target.frags:
         if f.type == TYPE_RECOVERY:
             print("  dropping existing recovery fragment '%s'" % f.name)
+            continue
+        if f.name == "16K":
+            print("  dropping fragment '16K' (%d bytes: 16 KB page-size developer mode -\n"
+                  "    that mode needs the stock vendor_boot; normal boots don't use it)" % len(f.data))
             continue
         nf = Fragment(f.type, f.name, f.data)
         if f.type == TYPE_PLATFORM:

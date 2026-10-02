@@ -15,8 +15,12 @@
 //   first_stage_ramdisk/; if it also carries a merged stock recovery (factory
 //   layout) only the first_stage_ramdisk entries are kept (cpio entries copied
 //   byte-for-byte, re-compressed as lz4 legacy HC-12). Other non-recovery
-//   fragments pass through untouched, in order (e.g. Android 16's type-0
-//   "16K" fragment). Any existing recovery fragment (type 2) is dropped.
+//   fragments pass through untouched, in order - except Android 15+'s type-0
+//   "16K" fragment (kernel modules for the 16 KB page-size developer mode),
+//   which is dropped: with it, stock A15's vendor_boot + our recovery is
+//   ~67 MB, more than the 64 MB partition (and the bootloader's load limit).
+//   The normal (4 KB) boot doesn't use it; its modules are in vendor_kernel_boot.
+//   Any existing recovery fragment (type 2) is dropped.
 // DONOR / FILE: our recovery fragment - taken from the type-2 fragment of a
 //   running TWRP vendor_boot (on device) or from the build output (host).
 //   Appended last, named "recovery".
@@ -384,6 +388,12 @@ int main(int argc, char** argv) {
     for (auto& f : target.frags) {
         if (f.type == VENDOR_RAMDISK_TYPE_RECOVERY) {
             printf("  dropping existing recovery fragment '%s'\n", f.name.c_str());
+            continue;
+        }
+        if (f.name == "16K") {
+            printf("  dropping fragment '16K' (%zu bytes: 16 KB page-size developer mode -\n"
+                   "    that mode needs the stock vendor_boot; normal boots don't use it)\n",
+                   f.data.size());
             continue;
         }
         Fragment nf = f;
