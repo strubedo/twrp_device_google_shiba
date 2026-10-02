@@ -66,11 +66,15 @@ touch, keyboard typing, reboot menu, screenshots. Switches to **scrcpy**
 automatically when the phone is in Android. Linux and Windows.
 
 ```
-# Linux
-sudo apt install adb python3-tk python3-pil python3-pil.imagetk   # (scrcpy optional)
-./twrp_remote/install_linux.sh          # adds "TWRP Remote" to your app menu
-# Windows: build_windows.bat builds "TWRP Remote.exe" (needs Python 3)
+# Linux: installs what's missing (adb, Python Tk/venv; scrcpy optional - apt, dnf,
+# pacman or zypper), its own Python environment, and the menu entry
+./twrp_remote/install_linux.sh            # --uninstall to remove
+# Windows: build_windows.bat builds "TWRP Remote.exe" (needs Python 3), then
+# install_windows.bat installs it, gets adb (and optionally scrcpy) from their
+# official sources and adds a Start menu shortcut (not yet tested on Windows)
 ```
+
+Screenshots are saved to **Pictures/TWRP Remote**; the **Screenshots** button opens that folder.
 
 ## ⚠️ Before you start
 
