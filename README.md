@@ -54,6 +54,11 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
 **Tools** (Advanced → TOOLS)
 - **Enable USB debugging** in Android (root module; the PC is authorized via the
   normal "Allow" prompt, or the remote's *Authorize PC*).
+- **Collect logs**: one archive with everything needed to diagnose a problem
+  (TWRP and crypto logs, kernel log, modules, partitions, update state,
+  versions), saved to Download/ (or a USB drive, if /data is locked). The serial
+  number and IMEI are removed first. **When reporting a problem, attach this.**
+  TWRP Remote has a *Collect logs* button that saves it straight to the PC.
 
 **Look**
 - **Graphite** theme: dark, Material-style, with live status chips
