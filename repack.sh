@@ -17,10 +17,13 @@
 #   * the platform fragment (type 1) is reused: if it also carries a merged
 #     stock recovery (factory layout) only first_stage_ramdisk/ is kept,
 #     otherwise its bytes are kept
-#   * every other non-recovery fragment is passed through, in order (e.g.
-#     Android 16's type-0 "16K" fragment for 16 KB page-size boot)
+#   * every other non-recovery fragment is passed through, in order - except
+#     Android 15+'s type-0 "16K" fragment (16 KB page-size developer mode),
+#     which is dropped: stock + TWRP would not fit the 64 MB partition
 #   * any existing recovery fragment (type 2) is dropped and ours appended
 # vbgraft re-parses its output and verifies all of that before writing.
+# Base: $STOCK_DIR/factory/vendor_boot.img links to vendor_boot-<BUILD ID>.img
+# (build.sh --flash only flashes a slot running that build).
 set -euo pipefail
 
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

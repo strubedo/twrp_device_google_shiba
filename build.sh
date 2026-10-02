@@ -162,9 +162,12 @@ bash "$DEVICE_DIR/repack.sh"
 if [[ "${1:-}" == "--flash" ]]; then
     # The image is our TWRP grafted onto THIS stock vendor_boot (repack.sh base).
     # Never flash it onto a slot running other firmware (e.g. slot A after the
-    # A15 OTA: A14's vendor_boot with A15's kernel). Refresh BASE_BUILD with the
-    # base image (~/shiba-stock/factory/vendor_boot.img).
-    BASE_BUILD="AP2A.240905.003"
+    # A15 OTA: A14's vendor_boot with A15's kernel). The base's build ID comes
+    # from its file name: ~/shiba-stock/factory/vendor_boot.img is a link to
+    # vendor_boot-<BUILD ID>.img - switching the base = re-pointing the link.
+    base_img="$(readlink -f "$HOME/shiba-stock/factory/vendor_boot.img")"
+    BASE_BUILD="$(basename "$base_img" | sed -n 's/^vendor_boot-\(.*\)\.img$/\1/p')"
+    [[ -n "$BASE_BUILD" ]] || { echo "FAIL: ~/shiba-stock/factory/vendor_boot.img must link to vendor_boot-<BUILD ID>.img (is: ${base_img##*/})"; exit 1; }
     state="$(adb get-state 2>/dev/null)"
     run_slot="$(adb shell getprop ro.boot.slot_suffix 2>/dev/null | tr -d '\r_')"
     if [[ "$state" == device ]]; then
