@@ -82,8 +82,9 @@ sudo apt install adb python3-tk python3-pil python3-pil.imagetk   # (scrcpy opti
 
 ## Installation
 
-> The installer is tested against simulated phones (fake adb/fastboot, real
-> vendor_boot layouts); its first real-phone run is pending.
+> Tested on a real Pixel 8 (2026-10-02): first install onto a slot with Google's
+> stock vendor_boot, both the root and the factory-image path; plus simulated
+> phones for every refusal case.
 
 TWRP lives in `vendor_boot`. The release doesn't ship an image built for one
 firmware: **`install_twrp.py` grafts TWRP onto your phone's own `vendor_boot`**
