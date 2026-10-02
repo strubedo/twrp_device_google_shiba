@@ -4267,6 +4267,7 @@
 				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
 				<!-- shiba root menu: each entry flashes a shim zip from the ramdisk so
 				     twrp_root.sh output streams live to the console (see mkrootzips.py) -->
+				<!-- shiba: bundle the logs needed to diagnose a problem (twrp_collect_logs.sh) -->
 				<listitem name="ROOT" header="1"></listitem>
 				<listitem name="Show status">
 					<actions>
@@ -4358,6 +4359,13 @@
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_tools/enable-adb.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem><listitem name="Collect logs">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_root/collect-logs.zip</action>
 						<action function="queuezip"/>
 						<action function="page">flash_confirm</action>
 					</actions>

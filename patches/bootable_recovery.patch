@@ -493,7 +493,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..20d79d2b
+index 99eeef6c..637f19af
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -798,7 +798,7 @@ index 99eeef6c..20d79d2b
  			</listbox>
  
  			<button style="main_button_half_height">
-@@ -3878,6 +4131,99 @@
+@@ -3878,6 +4131,108 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -808,6 +808,15 @@ index 99eeef6c..20d79d2b
 +					<actions>
 +						<action function="queueclear"/>
 +						<action function="set">tw_filename=/system/etc/twrp_tools/enable-adb.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<!-- shiba: bundle the logs needed to diagnose a problem (twrp_collect_logs.sh) -->
++				<listitem name="Collect logs">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/collect-logs.zip</action>
 +						<action function="queuezip"/>
 +						<action function="page">flash_confirm</action>
 +					</actions>
@@ -898,7 +907,7 @@ index 99eeef6c..20d79d2b
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4252,8 @@
+@@ -3906,6 +4261,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -907,7 +916,7 @@ index 99eeef6c..20d79d2b
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4264,8 @@
+@@ -3916,6 +4273,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -916,7 +925,7 @@ index 99eeef6c..20d79d2b
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4283,8 @@
+@@ -3933,6 +4292,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -925,7 +934,7 @@ index 99eeef6c..20d79d2b
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4295,8 @@
+@@ -3943,6 +4304,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>

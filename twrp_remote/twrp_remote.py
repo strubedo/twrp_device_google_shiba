@@ -129,6 +129,23 @@ def screenshot_dir():
     return d
 
 
+def downloads_dir():
+    """The user's Downloads folder (XDG on Linux; the usual place on Windows)."""
+    base = ""
+    if WINDOWS:
+        base = os.path.join(os.environ.get("USERPROFILE") or os.path.expanduser("~"), "Downloads")
+    else:
+        try:
+            base = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True,
+                                  text=True, timeout=3).stdout.strip()
+        except Exception:
+            base = ""
+        if not base or os.path.realpath(base) == os.path.realpath(os.path.expanduser("~")):
+            base = os.path.join(os.path.expanduser("~"), "Downloads")
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
 def open_folder(path):
     if WINDOWS:
         os.startfile(path)                          # noqa - Windows only
@@ -195,6 +212,7 @@ class Remote:
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
                            ("Screenshot", self.screenshot),
                            ("Screenshots", self.open_screenshots),
+                           ("Collect logs", self.collect_logs),
                            ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
@@ -515,6 +533,33 @@ class Remote:
             open_folder(screenshot_dir())
         except Exception as ex:
             self.notify(f"can't open the\nscreenshot folder:\n{ex}")
+
+    def collect_logs(self):
+        """TWRP: bundle its diagnostic logs (twrp_collect_logs.sh, identifiers
+        redacted) and pull the archive into the PC's Downloads folder."""
+        if self.mode != "recovery":
+            self.notify("Collect logs works\nwhile the phone is\nin TWRP")
+            return
+        self.notify("collecting logs\u2026", 60)
+
+        def go():
+            try:
+                r = subprocess.run([self.adb, "shell", "/system/bin/twrp_collect_logs.sh --to /tmp"],
+                                   capture_output=True, text=True, timeout=120, creationflags=NO_WINDOW)
+                saved = [l for l in r.stdout.splitlines() if l.startswith("SAVED: ")]
+                if not saved:
+                    raise RuntimeError("no archive (is this TWRP up to date?)")
+                remote = saved[-1][len("SAVED: "):].split(" (")[0].strip()
+                local = os.path.join(downloads_dir(), os.path.basename(remote))
+                p = subprocess.run([self.adb, "pull", remote, local], capture_output=True,
+                                   text=True, timeout=60, creationflags=NO_WINDOW)
+                if p.returncode != 0 or not os.path.isfile(local):
+                    raise RuntimeError("adb pull failed")
+                msg = f"logs saved to Downloads\n{os.path.basename(local)}"
+            except Exception as ex:
+                msg = f"Collect logs failed:\n{ex}"
+            self.root.after(0, lambda: self.notify(msg, 8))
+        threading.Thread(target=go, daemon=True).start()
 
     def notify(self, text, seconds=4):
         self.note = (text, time.monotonic() + seconds)

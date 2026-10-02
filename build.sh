@@ -145,6 +145,7 @@ gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-
 gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres/ui.xml || grep -q 'name=\"font_l\" type=\"fontoverride\" filename=\"SpaceGrotesk-SemiBold.ttf\"' $R/twres/languages/en.xml"
 gate "theme images match mkimages.py (not stale)" "python3 $DEVICE_DIR/theme/check_images.py"
 gate "Enable USB debugging: menu item + zip"     "grep -q 'twrp_tools/enable-adb.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_tools/enable-adb.zip >/dev/null"
+gate "Collect logs: script + menu item + zip"     "test -x $R/system/bin/twrp_collect_logs.sh && grep -q 'twrp_root/collect-logs.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_root/collect-logs.zip >/dev/null"
 gate "twrp_remote daemon + service"               "test -x $R/system/bin/twrp_remote && grep -q 'start twrp.remote' $R/init.recovery.zuma.rc"
 gate "OTG module for kernel 6.1 (Android 15-17)"   "/bin/grep -a -q 'vermagic=6\.1\.' $R/lib/modules/6.1/otg_host_ready.ko"
 gate "modules.dep lists OTG for 5.15 and 6.1"      "grep -qx 'otg_host_ready.ko:' $R/lib/modules/5.15/modules.dep && grep -qx 'otg_host_ready.ko:' $R/lib/modules/6.1/modules.dep"

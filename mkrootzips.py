@@ -33,6 +33,8 @@ ACTIONS = {
     "encryption-disable": "/system/bin/twrp_encryption.sh disable",
     "encryption-postformat": "/system/bin/twrp_encryption.sh postformat",
     "encryption-enable": "/system/bin/twrp_encryption.sh enable",
+    # Advanced > TOOLS > Collect logs (twrp_collect_logs.sh)
+    "collect-logs": "/system/bin/twrp_collect_logs.sh",
 }
 
 UPDATE_BINARY = """#!/system/bin/bash
