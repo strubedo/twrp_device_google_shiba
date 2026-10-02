@@ -1264,7 +1264,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..fc5d5220
+index 171feccf..af385c15
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1275,7 +1275,7 @@ index 171feccf..fc5d5220
  using android::hardware::boot::V1_0::CommandResult;
  using android::hardware::boot::V1_0::IBootControl;
  #endif
-@@ -582,10 +583,40 @@ int TWPartitionManager::Write_Fstab(void) {
+@@ -582,10 +583,49 @@ int TWPartitionManager::Write_Fstab(void) {
  	return true;
  }
  
@@ -1310,13 +1310,22 @@ index 171feccf..fc5d5220
 +		// whose system was released by a virtual A/B merge) or failed, vold would
 +		// wait forever for keystore2 - TWRP hung on its splash. Skip instead.
 +		if (!Shiba_Crypto_Services_Ready()) {
++			// what the decrypt path would have set: FBE (it has a key directory),
++			// encrypted, locked - so the main page shows "Locked" (and the root
++			// chip after it) instead of no data chip at all
++			if (!Decrypt_Data->Key_Directory.empty()) {
++				DataManager::SetValue(TW_IS_FBE, 1);
++				Set_Crypto_Type("file");
++			}
++			DataManager::SetValue(TW_IS_ENCRYPTED, 1);
++			DataManager::SetValue(TW_IS_DECRYPTED, 0);
 +			Set_Crypto_State();
 +			return;
 +		}
  		Set_Crypto_State();
  		TWPartition* Key_Directory_Partition = Find_Partition_By_Path(Decrypt_Data->Key_Directory);
  		if (Key_Directory_Partition != nullptr)
-@@ -595,7 +626,12 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -595,7 +635,12 @@ void TWPartitionManager::Decrypt_Data() {
  			Set_Crypto_Type("file");
  #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
  #ifdef USE_FSCRYPT
@@ -1330,7 +1339,7 @@ index 171feccf..fc5d5220
  				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
  				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
  				LOGINFO("Successfully decrypted metadata encrypted data partition with new block device: '%s'\n", crypto_blkdev.c_str());
-@@ -629,22 +665,9 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -629,22 +674,9 @@ void TWPartitionManager::Decrypt_Data() {
  				}
  			}
  		} else {
@@ -1356,7 +1365,7 @@ index 171feccf..fc5d5220
  		}
  	}
  	if (Decrypt_Data && (!Decrypt_Data->Is_Encrypted || Decrypt_Data->Is_Decrypted)) {
-@@ -1089,6 +1112,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
+@@ -1089,6 +1121,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
  	part_settings.adbbackup = adbbackup;
  	time(&total_start);
  
@@ -1366,7 +1375,7 @@ index 171feccf..fc5d5220
  	Update_System_Details();
  
  	if (!Mount_Current_Storage(true))
-@@ -1964,6 +1990,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+@@ -1964,6 +1999,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
  
  		DataManager::SetValue(TW_IS_DECRYPTED, 1);
  		dat->Is_Decrypted = true;
@@ -1394,7 +1403,7 @@ index 171feccf..fc5d5220
  		if (!Block_Device.empty()) {
  			dat->Decrypted_Block_Device = Block_Device;
  			gui_msg(Msg("decrypt_success_dev=Data successfully decrypted, new block device: '{1}'")(Block_Device));
-@@ -2100,6 +2147,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+@@ -2100,6 +2156,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
  
  int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  #ifdef TW_INCLUDE_CRYPTO
@@ -1404,7 +1413,7 @@ index 171feccf..fc5d5220
  	char crypto_blkdev[PROPERTY_VALUE_MAX];
  	std::vector<TWPartition*>::iterator iter;
  
-@@ -2176,24 +2226,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -2176,24 +2235,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
@@ -1432,7 +1441,7 @@ index 171feccf..fc5d5220
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3282,29 +3317,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
+@@ -3282,29 +3326,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
  	PartitionManager.Update_System_Details();
  }
  
@@ -1482,7 +1491,7 @@ index 171feccf..fc5d5220
  		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
  	}
  #else
-@@ -3314,6 +3355,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3314,6 +3364,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
@@ -1526,7 +1535,7 @@ index 171feccf..fc5d5220
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
-@@ -3610,9 +3688,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+@@ -3610,9 +3697,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
  
  void TWPartitionManager::Setup_Super_Devices() {
  	std::string superPart = Get_Super_Partition();
