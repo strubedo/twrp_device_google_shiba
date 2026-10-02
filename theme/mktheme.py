@@ -215,9 +215,9 @@ _DATA_CHIPS = [   # data chip conditions, x where that chip ends (322 + width)
     ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 322 + 185),
 ]
 _ROOT_CHIPS = [   # image, label, text offset (after dot 52, plain 28), tw_root_state
-    ("chip_ksu", "KernelSU \u00b7 Android %tw_android_ver%", 52, "KERNELSU"),
-    ("chip_magisk", "Magisk \u00b7 Android %tw_android_ver%", 52, "MAGISK"),
-    ("chip_noroot", "Not rooted \u00b7 Android %tw_android_ver%", 28, "STOCK"),
+    ("chip_ksu", "KernelSU \u00b7 %tw_android_label%", 52, "KERNELSU"),
+    ("chip_magisk", "Magisk \u00b7 %tw_android_label%", 52, "MAGISK"),
+    ("chip_noroot", "Not rooted \u00b7 %tw_android_label%", 28, "STOCK"),
 ]
 for _dc, _end in _DATA_CHIPS:
     for _img, _label, _off, _val in _ROOT_CHIPS:
