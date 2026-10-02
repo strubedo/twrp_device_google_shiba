@@ -180,6 +180,8 @@ def main():
                     help="folder for the backup and the grafted image")
     ap.add_argument("--dry-run", action="store_true",
                     help="build and verify the image, print the flash commands, flash nothing")
+    ap.add_argument("--no-root", action="store_true",
+                    help="don't read vendor_boot from a rooted phone; use the factory image")
     ap.add_argument("--adb"), ap.add_argument("--fastboot")
     args = ap.parse_args()
 
@@ -216,7 +218,7 @@ def main():
 
     # 2. its own vendor_boot
     say("== Getting the phone's own vendor_boot")
-    data = from_root(phone, slot)
+    data = None if args.no_root else from_root(phone, slot)
     source = "phone (root)"
     if data is None:
         z = find_factory_zip(build_id, args.factory)
