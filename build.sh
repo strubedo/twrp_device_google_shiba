@@ -95,6 +95,11 @@ gate "bootstrap/linker64 symlink in fragment" \
 gate "fastbootd present"                          "test -x $R/system/bin/fastbootd"
 gate "bash present"                               "test -x $R/system/bin/bash"
 gate "touch modules requested (from firmware vendor_dlkm)" "/bin/grep -a -q 'goodix_brl_touch.ko' $R/system/bin/recovery && ! test -e $R/lib/modules/5.15/goodix_brl_touch.ko"
+# The bootloader can't load an oversized vendor ramdisk: a 55.4 MB recovery
+# fragment (113 MB unpacked) dropped to fastboot; 45.0 MB (102 MB) boots. Never
+# build past the largest size proven to boot (+~1 MB); raise only after proving more.
+echo "  info recovery fragment: $(stat -c %s $FRAG) bytes (limit 46000000)"
+gate "recovery fragment fits the bootloader (<= 46000000 bytes)" "test \$(stat -c %s $FRAG) -le 46000000"
 gate "boot control HAL present"                   "test -x $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel"
 gate "libtrusty present"                          "test -f $R/system/lib64/libtrusty.so"
 gate "vendor VINTF base manifest present"        "grep -q IBootControl $R/vendor/etc/vintf/manifest.xml"

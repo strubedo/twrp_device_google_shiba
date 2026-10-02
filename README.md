@@ -40,6 +40,9 @@ checked offline (see `COMPAT_A14-A17.md`), not yet tested on a real phone.
 - Install **KernelSU** (official v3.3.0, LKM mode) or **Magisk** (30.7), or
   remove root. Every change is state-checked, backed up, verified after writing,
   and rolled back on any mismatch. KernelSU refuses unsupported kernels (KMI check).
+- **KernelSU app installed for you**: put the official `KernelSU_*.apk` in
+  `Download/`; if the app isn't installed yet, Install KernelSU sets it up to
+  install itself at the next boot (one-shot module, removes itself).
 
 **Encryption** (Advanced → ENCRYPTION)
 - Disable or re-enable `/data` encryption using **DFE-NEO** (by LeeGarChat) with
