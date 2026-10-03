@@ -28,6 +28,7 @@ project's own implementation (Apache-2.0); it bundles no third-party installer.
 | `recovery-tensor-daemon/` (Trusty storage proxy + Titan M2 Weaver, Rust) | LeeGarChat's OrangeFox Pixel tree (`include/recovery-tensor-daemon`, branch R12_14.1), unmodified | MIT OR Apache-2.0 (`recovery-tensor-daemon/LICENSE-MIT`, `LICENSE-APACHE`) | https://github.com/leegarchat/twrp_device_google_pixels |
 | Recovery build support for Rust: `patches/system_tools_aidl.patch`, `hardware_interfaces.patch`, `external_rust_crates_*.patch`, the Rust parts of `frameworks_native.patch` | from LeeGarChat's OrangeFox Pixel tree (`patches/`), plus enabling the Weaver AIDL Rust backend | Apache-2.0, as AOSP | https://github.com/leegarchat/twrp_device_google_pixels |
 | `otg_host_ready` kernel module | `otg_host_ready/` and the built `.ko` files in `recovery/root/lib/modules/` | GPL-2.0 (Linux kernel module) | this project |
+| Touchscreen drivers (fallback): `heatmap.ko`, `goog_touch_interface.ko`, `goodix_brl_touch.ko` | `recovery/root/system/etc/touch_fallback/<kernel release>/`, unmodified, extracted from `vendor_dlkm` in Google's Pixel 8 factory images (the build is named in each folder's `FROM_BUILD`) | GPL-2.0 (Linux kernel modules) | Google's Pixel kernel modules source: https://android.googlesource.com/kernel/google-modules/ (touch: `touch/common`, `touch/goodix`) |
 
 ## Fonts
 
