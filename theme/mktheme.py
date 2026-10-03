@@ -236,6 +236,19 @@ for _dc, _end in _DATA_CHIPS:
 			</text>
 '''
 
+# Decryption hint under the chips (tw_crypto_hint_shown, set by TWRP when the
+# unlock failed and twrp_crypto_start.sh found a likely cause: this slot's
+# firmware is older than the keys). One line - TWRP text doesn't wrap; the full
+# message with both dates is in the console.
+MAIN_HEADER += '''
+			<text color="#F2A25C">
+				<condition var1="tw_crypto_hint_shown" var2="1"/>
+				<font resource="font_s"/>
+				<placement x="36" y="272"/>
+				<text>Can't decrypt: this slot's firmware is older than your keys</text>
+			</text>
+'''
+
 # Graphite decrypt_pin page (mockup: lock tile, title, subtitle, dots, note,
 # skip, keypad). Functional parts kept from TWRP's page: the masked input on
 # tw_crypto_password -> trydecrypt, the failure message, cancel -> canceldecrypt.
