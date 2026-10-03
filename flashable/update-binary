@@ -1,9 +1,9 @@
 #!/sbin/sh
 # TWRP for Pixel 8 - flashable installer entry point.
-# Run by a recovery (TWRP: Install) and by the root apps (KernelSU, Magisk:
-# Modules > Install), which treat the zip as a module but run this script:
+# Run by a recovery (TWRP: Install) and by the Magisk app (Modules > Install):
 #   update-binary <api> <OUTFD> <ZIPFILE>
-# customize.sh is a fallback for installers that only source customize.sh.
+# The KernelSU app runs customize.sh instead (it would treat any zip with an
+# "install.sh" as a legacy module - hence shiba_install.sh).
 OUTFD="$2"
 ZIPFILE="$3"
 if [ "$(getprop sys.boot_completed)" = 1 ]; then BOOTMODE=true; else BOOTMODE=false; fi
@@ -18,8 +18,8 @@ ui_print() {
 [ "$(id -u)" = 0 ] || { ui_print "! needs root"; exit 1; }
 E=/dev/tmp/shiba_twrp_entry
 rm -rf "$E"; mkdir -p "$E"
-unzip -o -q "$ZIPFILE" install.sh -d "$E" || { ui_print "! cannot unpack install.sh"; exit 1; }
-. "$E/install.sh"
+unzip -o -q "$ZIPFILE" shiba_install.sh -d "$E" || { ui_print "! cannot unpack shiba_install.sh"; exit 1; }
+. "$E/shiba_install.sh"
 rm -rf "$E"
 # Root apps (KernelSU, Magisk) install a zip as a module and run this script:
 # flag that "module" for removal so it disappears at the next reboot.
