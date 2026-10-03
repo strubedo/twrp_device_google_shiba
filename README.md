@@ -1,11 +1,27 @@
 # TWRP for Google Pixel 8 (shiba) — unofficial
 
-> **DRAFT** — not yet released. Sections marked *TBD* are being finalized.
-
 A from-scratch build of **TWRP 3.7.1** (twrp-14.1) for the **Google Pixel 8**
 ("shiba", Tensor G3), with full **FBE decryption**, **TWRP that survives OTA
 updates**, built-in **root** and **encryption** tools, and a PC **remote
 control** for the recovery screen.
+
+**Download:** [latest release](https://github.com/strubedo/twrp_device_google_shiba/releases/latest)
+— one flashable zip for every firmware (flash it from the KernelSU/Magisk app or
+from TWRP), or the PC installer.
+
+<p align="center">
+  <img src="docs/images/twrp-remote.png" width="360" alt="TWRP on the Pixel 8, shown in TWRP Remote">
+  &nbsp;
+  <img src="docs/images/twrp-remote-advanced.png" width="360" alt="The Advanced page: root, KEEP TWRP, encryption, tools">
+</p>
+
+> ### 🖥️ TWRP Remote — control TWRP from your PC
+> See the phone's recovery screen **live on your PC**, tap and swipe with the mouse,
+> type with your keyboard, take **screenshots**, **collect logs** for bug reports,
+> reboot to any mode — over USB, nothing on the network. When the phone is in
+> Android, it hands over to scrcpy. One-command installer for Linux (Windows
+> installer included, not yet tested). Both screenshots above were taken with it.
+> [More below](#twrp-remote-pc) · GPL-3.0.
 
 **Status:** tested on Android 14 and Android 15, including updating from 14 to 15
 with TWRP. Android 16 and 17 support is prepared and checked offline (see
