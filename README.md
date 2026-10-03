@@ -6,8 +6,8 @@ updates**, built-in **root** and **encryption** tools, and a PC **remote
 control** for the recovery screen.
 
 **Download:** [latest release](https://github.com/strubedo/twrp_device_google_shiba/releases/latest)
-— one flashable zip for every firmware (flash it from the KernelSU/Magisk app or
-from TWRP), or the PC installer.
+— one flashable zip for every firmware. **Your phone must be rooted** (KernelSU or
+Magisk): flash the zip from the root app, or from TWRP to update it.
 
 <p align="center">
   <img src="docs/images/twrp-remote.png" width="360" alt="TWRP on the Pixel 8, shown in TWRP Remote">
@@ -105,8 +105,21 @@ Screenshots are saved to **Pictures/TWRP Remote**; the **Screenshots** button op
 ## ⚠️ Before you start
 
 - **Unlocked bootloader required** (wipes your phone the first time).
-- **Anti-rollback:** firmware from **May 2025 onward** permanently raises the
-  phone's anti-rollback level. Never flash older firmware than you have.
+- **Root required** to install: KernelSU or Magisk (the flashable zip is installed
+  from the root app).
+- **Anti-rollback (May 2025 and later):** Google's May 2025 update raised the
+  bootloader's anti-rollback version on the Pixel 8. After it, **older Android 15
+  builds can't be flashed and booted** - never flash firmware older than yours.
+  The first time you update to **May 2025 or newer**, the other slot still holds
+  the old bootloader; if the phone ever falls back to it, it won't boot. Google's
+  fix: after the first successful boot, **install the same full OTA once more**
+  (sideload, or Install it again from TWRP) so both slots carry the new
+  bootloader. Phones that later took regular monthly updates already have both
+  slots updated. See the warnings on Google's
+  [factory images page](https://developers.google.com/android/images#shiba) and
+  the pinned thread in the XDA Pixel 8 forum.
+- **TWRP never touches the bootloader**: the installers change only
+  `vendor_boot`, so installing TWRP has no anti-rollback effect.
 - **Back up** your data. Disabling encryption formats `/data`.
 - Going from Android 14 to 15+ is one-way for your data (downgrading needs a wipe).
 - **After an update's first boot, the old slot is gone.** Pixels use virtual A/B:
@@ -142,7 +155,7 @@ progress), backs up each original `vendor_boot` to Internal Storage
 (`TWRP/vendor_boot_backups/`), reads every write back and restores the original
 on any mismatch. Then reboot to recovery.
 
-### Option B: from a PC (`install_twrp.py`) - also for unrooted phones
+### Option B: from a PC (`install_twrp.py`)
 
 Requirements: unlocked bootloader; Android platform-tools (`adb`, `fastboot`);
 Python 3 with `lz4` (`pip install lz4`); the phone in Android with USB debugging on.
