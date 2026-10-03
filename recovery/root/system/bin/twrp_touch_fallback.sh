@@ -42,6 +42,15 @@ if [ ! -d "$dir" ]; then
     fi
 fi
 if [ ! -d "$dir" ]; then
+    # Same version number next (6.1.99): Google's own firmware pairs a kernel
+    # and vendor_dlkm drivers built from different snapshots (BP1A: kernel
+    # gd7dac4b14270, drivers g6da6a63a1d3d) - they still load together.
+    ver="$(echo "$rel" | cut -d- -f1)"
+    for d in "$BASE/$ver"-*; do
+        [ -d "$d" ] && { dir="$d"; log "no exact set for kernel $rel - same version ($ver): $(basename "$d")"; break; }
+    done
+fi
+if [ ! -d "$dir" ]; then
     mm="$(echo "$rel" | cut -d. -f1-2)"          # e.g. 6.1
     best=""; bestp=-1
     for d in "$BASE/$mm".*; do
