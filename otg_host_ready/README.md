@@ -1,5 +1,27 @@
 # otg_host_ready - USB OTG in recovery on Pixel 8 (shiba)
 
+> **2026-10-03 update (v9.42).** host_ready alone is not enough on Android 15+:
+> in recovery the USB-C controller registers the port **sink-only**
+> (`/sys/class/typec/port0/port_type` reads `[sink]`, read-only; Android's USB
+> HAL is what makes it dual-role), so a drive is never even detected.
+> `twrp_otg_watch.sh` now forces the OTG ID to host and turns on 5 V through
+> the charger's CHARGER_MODE vote when nothing powers the port (LeeGarChat's
+> zuma method), with this module supplying host_ready. On kernel 6.1 the module
+> now finds `dwc3_otg_host_ready()` through a kprobe (no link-time dependency)
+> and offers `/proc/otg_host_ready` (read 1/0, write 1/0); 5.15 keeps the
+> direct link (its jump-table CFI would panic on a raw kprobe address). The 6.1
+> build takes its CRCs from Google's `vmlinux.symvers` for the kernel build
+> (`-abNNNNNNNN` in `uname -r`):
+>
+>     curl -fsSL -o ~/ref/gki-symvers/6.1-ab12946699.symvers \
+>       https://ci.android.com/builds/submitted/12946699/kernel_aarch64/latest/raw/vmlinux.symvers
+>     make clean KDIR=~/ref/gki-6.1
+>     make KDIR=~/ref/gki-6.1 SYMVERS=~/ref/gki-symvers/6.1-ab12946699.symvers
+>     cp otg_host_ready.ko ../recovery/root/lib/modules/6.1/
+>
+> All 19 imported CRCs matched Google's file; `.gnu.linkonce.this_module` 0x440.
+> GKI keeps KMI CRCs stable within a generation, so one build covers 6.1.x.
+
 ## Why
 
 Pixel's dwc3 OTG state machine (`drivers/usb/dwc3/dwc3-exynos-otg.c` in
