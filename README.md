@@ -156,6 +156,27 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.40** (2026-10-02) - **Own "disable encryption" implementation** (no
+third-party installer; experimental): overlay partition + first-stage mount line,
+fully verified, with a *Dry run* that proves everything before writing. **Collect
+logs** (Advanced → TOOLS, and in TWRP Remote). **TWRP Remote installers** for
+Linux (all dependencies) and Windows; screenshots to Pictures/TWRP Remote.
+Builds use the Android 15 stock base.
+
+**v9.39** (2026-10-02) - TWRP no longer hangs when decryption is impossible (shows
+"Decryption unavailable"); "No Android" on a slot without a system; installer
+partition-size check fixed.
+
+**v9.38** (2026-10-02) - Compatibility library extended for Android 16 and 17
+security services; Android 15–17 checked with zero missing symbols.
+
+**v9.37** (2026-10-02) - Main screen shows the slot's Android version; build-time
+firmware guard for flashing; image-size check for the theme.
+
+**v9.36** (2026-10-02) - **Android 15 ready**: snapshot-aware partition mapping during
+an update, libc++ compatibility for Android 15's Titan services, slot-switch fix
+after OTAs, fixes for the 16K vendor_boot part and the 6.1 USB OTG module.
+
 **v9.35** (2026-10-02) - **Universal installer**: `install_twrp.py` installs TWRP on
 any firmware build by grafting it onto your phone's own `vendor_boot` (read from a
 rooted phone, or from the factory image for your exact build), with a backup and
