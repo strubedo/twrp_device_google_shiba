@@ -39,10 +39,10 @@ FORCE_REL=twrp/crypto_force_fallback
 # wait up to $2 tenths of a second for service $1 to be running
 wait_running() {
     i=0
-    while [ "$(getprop init.svc.$1)" != running ] && [ $i -lt "$2" ]; do
+    while [ "$(getprop "init.svc.$1")" != running ] && [ $i -lt "$2" ]; do
         sleep 0.1; i=$((i + 1))
     done
-    [ "$(getprop init.svc.$1)" = running ]
+    [ "$(getprop "init.svc.$1")" = running ]
 }
 
 # wait up to $2 tenths of a second for binder service $1 to be registered
@@ -105,12 +105,35 @@ fi
 log "installed: os=$real_rel ($real_roc) SPL system=$real_sys vendor=$real_ven"
 
 info_source=installed
+
+# --- boot patch level: the bootloader reports THIS slot's (from boot's AVB
+# props) to KeyMint, which refuses keys last used with a newer one (hardware
+# rollback protection - nothing here can or should get around it). We only
+# leave a hint; TWRP shows it if the unlock then fails, so it never blocks.
+# (toybox's strings/grep/tail handle this - tested on the phone)
+spl_num() { echo "$1" | tr -d '-'; }
+boot_now="$(strings "/dev/block/by-name/boot$SLOT" 2>/dev/null \
+    | grep -A1 -x 'com.android.build.boot.security_patch' | tail -1)"
+echo "$boot_now" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' || boot_now=""
+boot_saved=""
+[ -n "$META" ] && boot_saved="$(sed -n 's/^boot=//p' "$OSINFO" 2>/dev/null)"
+log "boot patch level: this slot=${boot_now:-?} highest seen=${boot_saved:-none}"
+if [ -n "$boot_now" ] && [ -n "$boot_saved" ] && [ "$(spl_num "$boot_now")" -lt "$(spl_num "$boot_saved")" ]; then
+    # property values are limited to 91 characters
+    setprop twrp.crypto.hint "Slot firmware $boot_now is older than your keys ($boot_saved): boot the newer slot."
+    log "HINT: this slot's boot patch level is older than the highest seen - KeyMint may refuse the keys"
+fi
+boot_keep="$boot_saved"
+if [ -n "$boot_now" ] && { [ -z "$boot_saved" ] || [ "$(spl_num "$boot_now")" -gt "$(spl_num "$boot_saved")" ]; }; then
+    boot_keep="$boot_now"
+fi
 if [ -n "$real_sys" ] && [ -n "$real_ven" ] && [ -n "$real_rel" ] && [ -n "$real_roc" ]; then
     # remember them for the fallback (when this slot's system/vendor can't be read)
     new="rel=$real_rel
 roc=$real_roc
 sys=$real_sys
-ven=$real_ven"
+ven=$real_ven
+boot=$boot_keep"
     if [ -n "$META" ] && [ "$(cat "$OSINFO" 2>/dev/null)" != "$new" ]; then
         mkdir -p "$META/twrp" && echo "$new" > "$OSINFO.tmp" && mv "$OSINFO.tmp" "$OSINFO" \
             && log "saved OS version/SPL to /metadata/$OSINFO_REL" || log "WARNING: could not save /metadata/$OSINFO_REL"
