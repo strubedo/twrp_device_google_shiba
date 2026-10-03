@@ -357,6 +357,13 @@
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
+			<text color="#F2A25C">
+				<condition var1="tw_crypto_hint_shown" var2="1"/>
+				<font resource="font_s"/>
+				<placement x="36" y="272"/>
+				<text>Can't decrypt: this slot's firmware is older than your keys</text>
+			</text>
+
 
 			<button style="main_button_accent">
 				<placement x="%indent%" y="%row2a_y%"/>

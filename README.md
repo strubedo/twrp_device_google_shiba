@@ -43,6 +43,13 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
   or vendor binaries that can't run in recovery): a fallback chain of AOSP's
   Trusty KeyMint and Gatekeeper built from source plus LeeGarChat's Titan M2
   Weaver daemon, using the OS version/patch level saved on the last normal start.
+- **Touchscreen without `vendor_dlkm`**: TWRP takes the touch drivers from the
+  slot's own firmware; when that can't be read, it loads a matching set bundled
+  for each Google kernel build (Android 14 to 17). Custom kernels aren't covered
+  (a module only loads into the kernel it was built for).
+- If decryption is impossible because the booted slot's firmware is **older
+  than your data's keys** (the security chip refuses it), TWRP says so on the
+  main screen instead of failing silently.
 - Fixes TWRP changes to `/data` being silently rolled back after an update
   (f2fs checkpoint commit).
 - **MTP**, **USB OTG** (flash drives, keyboards) with auto-mount.

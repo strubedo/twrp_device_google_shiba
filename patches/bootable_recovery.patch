@@ -1273,7 +1273,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..3c0dfa21
+index 171feccf..63ffed64
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1284,7 +1284,19 @@ index 171feccf..3c0dfa21
  using android::hardware::boot::V1_0::CommandResult;
  using android::hardware::boot::V1_0::IBootControl;
  #endif
-@@ -582,10 +583,55 @@ int TWPartitionManager::Write_Fstab(void) {
+@@ -406,6 +407,11 @@ clear:
+ 
+ #ifdef TW_LOAD_VENDOR_MODULES
+ 	KernelModuleLoader::Load_Vendor_Modules();
++	// shiba: touch drivers come from the slot's vendor_dlkm. When it can't
++	// be read (damaged super, a slot whose system was released), load the
++	// matching set bundled in the ramdisk instead, so TWRP stays usable.
++	// The script does nothing if the touch driver is already loaded.
++	TWFunc::check_and_run_script("/system/bin/twrp_touch_fallback.sh", "touch");
+ #endif
+ 
+ 	TWPartition* ven = PartitionManager.Find_Partition_By_Path("/vendor");
+@@ -582,10 +588,55 @@ int TWPartitionManager::Write_Fstab(void) {
  	return true;
  }
  
@@ -1340,7 +1352,7 @@ index 171feccf..3c0dfa21
  		Set_Crypto_State();
  		TWPartition* Key_Directory_Partition = Find_Partition_By_Path(Decrypt_Data->Key_Directory);
  		if (Key_Directory_Partition != nullptr)
-@@ -595,7 +641,12 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -595,7 +646,12 @@ void TWPartitionManager::Decrypt_Data() {
  			Set_Crypto_Type("file");
  #ifdef TW_INCLUDE_FBE_METADATA_DECRYPT
  #ifdef USE_FSCRYPT
@@ -1354,7 +1366,7 @@ index 171feccf..3c0dfa21
  				std::string crypto_blkdev = android::base::GetProperty("ro.crypto.fs_crypto_blkdev", "error");
  				Decrypt_Data->Decrypted_Block_Device = crypto_blkdev;
  				LOGINFO("Successfully decrypted metadata encrypted data partition with new block device: '%s'\n", crypto_blkdev.c_str());
-@@ -629,22 +680,15 @@ void TWPartitionManager::Decrypt_Data() {
+@@ -629,21 +685,22 @@ void TWPartitionManager::Decrypt_Data() {
  				}
  			}
  		} else {
@@ -1373,20 +1385,26 @@ index 171feccf..3c0dfa21
 -			} else {
 -				DataManager::SetValue("TW_CRYPTO_TYPE", password_type);
 -				DataManager::SetValue("tw_crypto_pwtype_0", password_type);
--			}
 +			// shiba: legacy FDE fallback removed - TWRP 14.1 vold no longer
 +			// provides cryptfs_get_password_type(). FBE/metadata only.
 +			LOGERR("FBE setup failed (legacy FDE is not supported)\n");
++			// /data is file-based encrypted and stays locked: tell the theme, so
++			// the status chips show "Locked" (and the root chip next to it)
++			// instead of disappearing - TWRP only sets tw_is_fbe on success.
++			DataManager::SetValue("tw_is_fbe", 1);
++			DataManager::SetValue("tw_is_decrypted", 0);
 +			// twrp_crypto_start.sh leaves a hint when it sees a likely cause it
 +			// can't fix (this slot's boot patch level is older than the keys').
 +			// Only shown after an actual failure, so a wrong hint costs nothing.
 +			std::string hint = android::base::GetProperty("twrp.crypto.hint", "");
-+			if (!hint.empty())
++			if (!hint.empty()) {
 +				gui_print_color("warning", "%s\n", hint.c_str());
++				// main screen line under the status chips (Graphite theme)
++				DataManager::SetValue("tw_crypto_hint_shown", 1);
+ 			}
  		}
  	}
- 	if (Decrypt_Data && (!Decrypt_Data->Is_Encrypted || Decrypt_Data->Is_Decrypted)) {
-@@ -1089,6 +1133,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
+@@ -1089,6 +1146,9 @@ int TWPartitionManager::Run_Backup(bool adbbackup) {
  	part_settings.adbbackup = adbbackup;
  	time(&total_start);
  
@@ -1396,7 +1414,7 @@ index 171feccf..3c0dfa21
  	Update_System_Details();
  
  	if (!Mount_Current_Storage(true))
-@@ -1964,6 +2011,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+@@ -1964,6 +2024,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
  
  		DataManager::SetValue(TW_IS_DECRYPTED, 1);
  		dat->Is_Decrypted = true;
@@ -1424,7 +1442,7 @@ index 171feccf..3c0dfa21
  		if (!Block_Device.empty()) {
  			dat->Decrypted_Block_Device = Block_Device;
  			gui_msg(Msg("decrypt_success_dev=Data successfully decrypted, new block device: '{1}'")(Block_Device));
-@@ -2100,6 +2168,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+@@ -2100,6 +2181,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
  
  int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  #ifdef TW_INCLUDE_CRYPTO
@@ -1434,7 +1452,7 @@ index 171feccf..3c0dfa21
  	char crypto_blkdev[PROPERTY_VALUE_MAX];
  	std::vector<TWPartition*>::iterator iter;
  
-@@ -2176,24 +2247,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -2176,24 +2260,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
@@ -1462,7 +1480,7 @@ index 171feccf..3c0dfa21
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3282,29 +3338,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
+@@ -3282,29 +3351,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
  	PartitionManager.Update_System_Details();
  }
  
@@ -1512,7 +1530,7 @@ index 171feccf..3c0dfa21
  		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
  	}
  #else
-@@ -3314,6 +3376,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3314,6 +3389,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
@@ -1556,7 +1574,7 @@ index 171feccf..3c0dfa21
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
-@@ -3610,9 +3709,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+@@ -3610,9 +3722,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
  
  void TWPartitionManager::Setup_Super_Devices() {
  	std::string superPart = Get_Super_Partition();
