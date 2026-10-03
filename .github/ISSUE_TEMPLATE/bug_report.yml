@@ -1,0 +1,105 @@
+name: Bug report
+description: Something doesn't work in TWRP, an installer or TWRP Remote
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! The most useful thing you can attach is the **Collect logs**
+        archive: in TWRP, *Advanced → TOOLS → Collect logs* (it's saved to `Download/`,
+        or use the *Collect logs* button in TWRP Remote). Your serial number and IMEI
+        are removed from it automatically.
+
+  - type: input
+    id: build
+    attributes:
+      label: Firmware build number
+      description: Android Settings → About phone → Build number
+      placeholder: e.g. BP1A.250405.007.B1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: android
+    attributes:
+      label: Android version
+      options:
+        - Android 14
+        - Android 15
+        - Android 16
+        - Android 17
+        - Other / beta
+    validations:
+      required: true
+
+  - type: input
+    id: twrp
+    attributes:
+      label: TWRP version
+      description: Shown at the top of TWRP's screen
+      placeholder: e.g. 3.7.1_14-shiba-v9.40
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install TWRP?
+      options:
+        - Flashable zip from the KernelSU app
+        - Flashable zip from the Magisk app
+        - Flashable zip from TWRP (update)
+        - PC installer (install_twrp.py)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: root
+    attributes:
+      label: Root
+      options:
+        - KernelSU
+        - Magisk
+        - None
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The steps, in order, so it can be reproduced
+      placeholder: |
+        1. Booted to TWRP
+        2. Entered my PIN
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened, and what did you expect?
+      description: Exact error messages help a lot (a screenshot of TWRP's console is great)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Drag and drop the Collect logs archive (`twrp-logs-...tar.gz`) here. If TWRP doesn't start at all, say so.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I'm using a Google Pixel 8 (shiba) - not a Pixel 8 Pro or another model
+          required: true
+        - label: I read the README, including the warnings
+          required: true
