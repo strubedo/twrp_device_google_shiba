@@ -1,0 +1,6 @@
+id=shiba_twrp_installer
+name=TWRP installer (Pixel 8)
+version=@VERSION@
+versionCode=@VERSIONCODE@
+author=shiba-twrp
+description=Installs TWRP onto this phone's own vendor_boot (both slots), then removes itself at the next reboot.

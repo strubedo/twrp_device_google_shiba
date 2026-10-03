@@ -16,3 +16,21 @@ cc_binary {
         "-Werror",
     ],
 }
+
+// Same tool, statically linked: ships inside the flashable zip, where it must
+// run both in Android (KernelSU/Magisk app) and in any recovery without
+// depending on that environment's libraries.
+cc_binary {
+    name: "vbgraft_static",
+    srcs: ["vbgraft.cpp"],
+    include_dirs: ["system/tools/mkbootimg/include/bootimg"],
+    static_libs: ["liblz4"],
+    static_executable: true,
+    stl: "libc++_static",
+    // installs to out/.../system/bin/vbgraft_static (not part of the recovery
+    // image: it isn't in PRODUCT_PACKAGES); make_release.sh takes it from there
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

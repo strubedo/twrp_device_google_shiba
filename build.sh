@@ -70,6 +70,8 @@ fi
 
 step "Pre-building modules TWRP copies without declaring dependencies"
 m servicemanager task_profiles.json mke2fs.conf -j10 2>&1 | tail -1
+# vbgraft_static: the flashable zip's graft tool (make_release.sh packages it)
+m vbgraft_static -j10 2>&1 | tail -1
 
 step "Wiping stale recovery staging root (relink never refreshes it)"
 rm -rf out/target/product/shiba/recovery
