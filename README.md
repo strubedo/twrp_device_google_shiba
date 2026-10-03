@@ -213,6 +213,13 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.43** (2026-10-03) - **Cooler phone with TWRP Remote**: the phone-side screen
+streamer no longer re-reads the whole screen 20 times a second when nothing
+changed (CPU on a still screen: ~96% of a core -> ~4%). **USB OTG storage**:
+after unplugging a drive, TWRP switches back to Internal Storage by itself
+(no more "Unable to mount storage"), and absent drives disappear from Select
+Storage.
+
 **v9.42** (2026-10-03) - **USB OTG works on Android 15 and later.** In recovery the
 USB-C controller registers the port sink-only, so flash drives were never
 detected; TWRP now switches the port to host mode itself when nothing powers it
