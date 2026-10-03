@@ -67,3 +67,24 @@ EOF
 echo "- $(find "$OUT" -type f | wc -l) files"
 echo "== dist/$NAME.zip ($(stat -c %s "$TREE/dist/$NAME.zip") bytes)"
 sha256sum "$TREE/dist/$NAME.zip"
+
+# 4. the flashable zip: one file for every firmware, flashed on the phone from
+#    TWRP (Install), the Magisk app or the KernelSU app (flashable/install.sh
+#    grafts onto the phone's own vendor_boot, both slots, verified)
+VBS="$TWRP_TOP/out/target/product/shiba/system/bin/vbgraft_static"
+[[ -f "$VBS" ]] || die "no vbgraft_static build - run ./build.sh (it builds vbgraft_static)"
+[[ "$VBS" -nt vbgraft/vbgraft.cpp ]] || die "vbgraft_static is older than vbgraft.cpp - run ./build.sh"
+file "$VBS" | grep -q 'statically linked' || die "vbgraft_static is not statically linked"
+FNAME="$NAME-flashable"
+FOUT="$TREE/dist/$FNAME"
+rm -rf "$FOUT" "$FOUT.zip"; mkdir -p "$FOUT/META-INF/com/google/android" "$FOUT/tools"
+cp flashable/update-binary flashable/updater-script "$FOUT/META-INF/com/google/android/"
+cp flashable/install.sh flashable/customize.sh "$FOUT/"
+sed -e "s/@VERSION@/$VER/" -e "s/@VERSIONCODE@/$(echo "${VER#v}" | tr -cd '0-9')/" flashable/module.prop.in > "$FOUT/module.prop"
+echo "shiba-$VER" > "$FOUT/VERSION"
+cp "$FRAG" "$FOUT/recovery.cpio.lz4"
+cp "$VBS" "$FOUT/tools/vbgraft"
+( cd "$FOUT" && sha256sum recovery.cpio.lz4 tools/vbgraft > SHA256SUMS && zip -q -X -r "$FOUT.zip" . )
+rm -rf "$FOUT"
+echo "== dist/$FNAME.zip ($(stat -c %s "$FOUT.zip") bytes) - flash from TWRP, Magisk or KernelSU"
+sha256sum "$FOUT.zip"

@@ -109,9 +109,24 @@ Screenshots are saved to **Pictures/TWRP Remote**; the **Screenshots** button op
 > phones for every refusal case.
 
 TWRP lives in `vendor_boot`. The release doesn't ship an image built for one
-firmware: **`install_twrp.py` grafts TWRP onto your phone's own `vendor_boot`**
-(the same operation as *Reflash TWRP after OTA*), keeps a backup of the
-original, and flashes it - so it works on **any firmware build**.
+firmware: both installers **graft TWRP onto your phone's own `vendor_boot`**
+(the same operation as *Reflash TWRP after OTA*), keep a backup of the
+original, and verify what they write - so they work on **any firmware build**.
+
+### Option A: flashable zip (rooted phone, or updating TWRP)
+
+`shiba-twrp-<version>-flashable.zip` - one file for every firmware. Flash it with:
+- the **KernelSU** or **Magisk** app (*Modules → Install from storage*) on a rooted
+  phone - no PC needed. KernelSU shows an "installer" module until the next
+  reboot, then it removes itself;
+- **TWRP** (*Install*) - to update TWRP to a new version.
+
+It installs to **both slots** (only the running one while an update is in
+progress), backs up each original `vendor_boot` to Internal Storage
+(`TWRP/vendor_boot_backups/`), reads every write back and restores the original
+on any mismatch. Then reboot to recovery.
+
+### Option B: from a PC (`install_twrp.py`) - also for unrooted phones
 
 Requirements: unlocked bootloader; Android platform-tools (`adb`, `fastboot`);
 Python 3 with `lz4` (`pip install lz4`); the phone in Android with USB debugging on.
@@ -156,7 +171,9 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
-**v9.40** (2026-10-02) - **Own "disable encryption" implementation** (no
+**v9.40** (2026-10-02) - **Flashable zip installer**: one zip for every firmware,
+flashed from the KernelSU/Magisk app (no PC) or from TWRP (updates); both slots,
+backed up and verified. **Own "disable encryption" implementation** (no
 third-party installer; experimental): overlay partition + first-stage mount line,
 fully verified, with a *Dry run* that proves everything before writing. **Collect
 logs** (Advanced → TOOLS, and in TWRP Remote). **TWRP Remote installers** for
