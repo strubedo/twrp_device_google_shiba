@@ -306,6 +306,7 @@ static void serve(int client) {
     uint8_t pkt[8];
     size_t have = 0;
     long next = 0;
+    long last_full = 0;
     for (;;) {
         long wait = next - now_ms();
         pollfd p{client, POLLIN, 0};
@@ -326,6 +327,13 @@ static void serve(int client) {
             continue;
         }
         next = now_ms() + kFrameIntervalMs;
+        // Idle screen: TWRP double-buffers and flips on every redraw, so an
+        // unchanged active framebuffer id means nothing was redrawn. Skip the
+        // expensive read (~10 MB of display memory per frame - it kept a core
+        // at ~96%) except for a safety capture once a second.
+        uint32_t id = active_fb_id();
+        if (sent_any && id && id == g_fb.id && now_ms() - last_full < 1000) continue;
+        last_full = now_ms();
         uint32_t sw, sh, w, h;
         if (!capture(&rgb, &sw, &sh, &w, &h)) continue;
         uLong sum = adler32(adler32(0, nullptr, 0), rgb.data(), rgb.size());
