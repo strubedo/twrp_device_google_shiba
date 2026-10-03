@@ -79,7 +79,10 @@ FNAME="$NAME-flashable"
 FOUT="$TREE/dist/$FNAME"
 rm -rf "$FOUT" "$FOUT.zip"; mkdir -p "$FOUT/META-INF/com/google/android" "$FOUT/tools"
 cp flashable/update-binary flashable/updater-script "$FOUT/META-INF/com/google/android/"
-cp flashable/install.sh flashable/customize.sh "$FOUT/"
+cp flashable/shiba_install.sh flashable/customize.sh "$FOUT/"
+# KernelSU treats any zip containing "install.sh" as a legacy module (and then
+# never runs customize.sh) - make sure that name never sneaks in
+[[ ! -e "$FOUT/install.sh" ]] || die "flashable zip must not contain install.sh (KernelSU legacy mode)"
 sed -e "s/@VERSION@/$VER/" -e "s/@VERSIONCODE@/$(echo "${VER#v}" | tr -cd '0-9')/" flashable/module.prop.in > "$FOUT/module.prop"
 echo "shiba-$VER" > "$FOUT/VERSION"
 cp "$FRAG" "$FOUT/recovery.cpio.lz4"
