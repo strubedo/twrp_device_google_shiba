@@ -1,0 +1,22 @@
+diff --git a/weaver/aidl/Android.bp b/weaver/aidl/Android.bp
+index c494d29bc3..939f2d7f3b 100644
+--- a/weaver/aidl/Android.bp
++++ b/weaver/aidl/Android.bp
+@@ -11,12 +11,17 @@ package {
+ aidl_interface {
+     name: "android.hardware.weaver",
+     vendor_available: true,
++    recovery_available: true,
+     srcs: ["android/hardware/weaver/*.aidl"],
+     stability: "vintf",
+     backend: {
+         java: {
+             platform_apis: true,
+         },
++        // recovery-tensor-daemon (Weaver over Titan M2) is written in Rust
++        rust: {
++            enabled: true,
++        },
+     },
+     versions_with_info: [
+         {

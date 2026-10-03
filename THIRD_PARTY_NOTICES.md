@@ -25,6 +25,8 @@ project's own implementation (Apache-2.0); it bundles no third-party installer.
 | TWRP changes | `patches/bootable_recovery.patch` (applies to TWRP's `bootable/recovery`, branch twrp-14.1) | GPL-3.0, as TWRP | https://github.com/TeamWin/android_bootable_recovery |
 | AOSP changes | `patches/frameworks_native.patch`, `patches/system_core.patch`, `patches/system_vold.patch` | Apache-2.0, as AOSP | https://android.googlesource.com |
 | Parts of `patches/system_vold.patch` (Android 15+ Weaver/synthetic-password handling) | adapted from LeeGarChat's OrangeFox Pixel tree | no license published; **used with the author's permission** (granted by LeeGarChat on Telegram, 2026-10-02) | https://github.com/leegarchat |
+| `recovery-tensor-daemon/` (Trusty storage proxy + Titan M2 Weaver, Rust) | LeeGarChat's OrangeFox Pixel tree (`include/recovery-tensor-daemon`, branch R12_14.1), unmodified | MIT OR Apache-2.0 (`recovery-tensor-daemon/LICENSE-MIT`, `LICENSE-APACHE`) | https://github.com/leegarchat/twrp_device_google_pixels |
+| Recovery build support for Rust: `patches/system_tools_aidl.patch`, `hardware_interfaces.patch`, `external_rust_crates_*.patch`, the Rust parts of `frameworks_native.patch` | from LeeGarChat's OrangeFox Pixel tree (`patches/`), plus enabling the Weaver AIDL Rust backend | Apache-2.0, as AOSP | https://github.com/leegarchat/twrp_device_google_pixels |
 | `otg_host_ready` kernel module | `otg_host_ready/` and the built `.ko` files in `recovery/root/lib/modules/` | GPL-2.0 (Linux kernel module) | this project |
 
 ## Fonts

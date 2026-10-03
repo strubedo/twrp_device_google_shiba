@@ -175,7 +175,9 @@ Requires a TWRP **twrp-14.1** minimal manifest checkout (~90 GB), Linux, 16 GB+ 
 repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-14.1
 repo sync
 git clone <this repo> device/google/shiba
-# apply patches/*.patch to bootable/recovery, frameworks/native, system/core, system/vold
+# apply patches/*.patch to bootable/recovery, frameworks/native, system/core, system/vold,
+# hardware/interfaces, system/tools/aidl, external/rust/crates/libc and
+# external/rust/crates/downcast-rs (each file is named after its repository path)
 cd device/google/shiba && ./build.sh            # ./build.sh --flash to flash a connected phone
 ```
 
