@@ -39,6 +39,10 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
 **Decryption & storage**
 - Full **file-based encryption** support: unlocks `/data` with your **PIN**
   (Titan M2 / Weaver / Gatekeeper / KeyMint), no key upgrades, Android untouched.
+- **Decrypts even without `/vendor`** (damaged `super`, a slot without a system,
+  or vendor binaries that can't run in recovery): a fallback chain of AOSP's
+  Trusty KeyMint and Gatekeeper built from source plus LeeGarChat's Titan M2
+  Weaver daemon, using the OS version/patch level saved on the last normal start.
 - Fixes TWRP changes to `/data` being silently rolled back after an update
   (f2fs checkpoint commit).
 - **MTP**, **USB OTG** (flash drives, keyboards) with auto-mount.
