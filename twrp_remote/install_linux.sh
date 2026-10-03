@@ -69,7 +69,7 @@ pkgs_for() {   # pkgs_for adb|venv|tk|scrcpy -> package name(s) for this distro 
         apt-get:tk) echo python3-tk ;;    apt-get:scrcpy) echo scrcpy ;;
         dnf:adb) echo android-tools ;;    dnf:venv) echo "" ;;           # venv is part of python3
         dnf:tk) echo python3-tkinter ;;   dnf:scrcpy) echo "" ;;         # not in Fedora's repos
-        pacman:adb) echo android-tools ;; pacman:venv) echo "" ;;
+        pacman:adb) echo "android-tools android-udev" ;; pacman:venv) echo "" ;;   # Arch: USB rules are a separate package
         pacman:tk) echo tk ;;             pacman:scrcpy) echo scrcpy ;;
         zypper:adb) echo android-tools ;; zypper:venv) echo "" ;;
         zypper:tk) echo python3-tk ;;     zypper:scrcpy) echo scrcpy ;;
@@ -94,6 +94,11 @@ say "Checking what's needed"
 need=()
 command -v adb >/dev/null && info "adb: $(adb version 2>/dev/null | head -1)" \
                           || { info "adb: missing"; need+=("$(pkgs_for adb)"); }
+# Arch: adb may be installed without its USB permission rules (android-udev),
+# which leaves the phone at "no permissions"
+if [[ "$PM" == pacman ]] && command -v adb >/dev/null && ! pacman -Q android-udev >/dev/null 2>&1; then
+    info "adb USB permission rules (android-udev): missing"; need+=(android-udev)
+fi
 [[ -n "$PY" ]] || die "python3 not found - install Python 3 with your package manager first"
 info "python: $("$PY" --version 2>&1)"
 have_venv && info "python venv: ok" || { info "python venv: missing"; need+=("$(pkgs_for venv)"); }
@@ -105,7 +110,7 @@ if [[ $SCRCPY == 1 ]]; then
 fi
 
 missing=()
-for x in "${need[@]}"; do [[ -n "$x" ]] && missing+=("$x"); done
+for x in "${need[@]}"; do [[ -n "$x" ]] && missing+=($x); done   # unquoted: one entry may name several packages
 if [[ ${#missing[@]} -gt 0 || ${#need[@]} -gt 0 ]]; then
     [[ $SKIP_PACKAGES == 0 ]] || die "missing system packages and --skip-packages given: ${missing[*]:-?}"
     [[ -n "$PM" ]] || die "no supported package manager (apt/dnf/pacman/zypper) - install adb and Python Tk/venv yourself"
@@ -114,6 +119,7 @@ if [[ ${#missing[@]} -gt 0 || ${#need[@]} -gt 0 ]]; then
     ask "Install now?" || die "cancelled - nothing was installed"
     install_pkgs "${missing[@]}" || die "installing ${missing[*]} failed (see the messages above)"
     command -v adb >/dev/null || die "adb is still missing after installing"
+    [[ "$PM" != pacman ]] || pacman -Q android-udev >/dev/null 2>&1 || die "android-udev is still missing after installing"
     have_venv || die "python venv is still missing after installing"
     have_tk   || die "python Tk is still missing after installing"
 fi
