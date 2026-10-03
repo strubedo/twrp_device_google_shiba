@@ -21,6 +21,10 @@ TOP="$(cd "$DEVICE_DIR/../../.." && pwd)"
 cd "$TOP"
 
 export ALLOW_MISSING_DEPENDENCIES=true
+# Neutral build identity: Android records the builder's user and host name in
+# ro.build.user / ro.build.host (prop.default) - not something to publish.
+export BUILD_USERNAME=shiba-twrp
+export BUILD_HOSTNAME=build
 
 # Version shown in TWRP (TW_DEVICE_VERSION, read by BoardConfig.mk) comes from
 # the latest device-tree tag: v9.9-encryption -> shiba-v9.9. A trailing `+`
@@ -141,6 +145,7 @@ gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to en
 gate "encryption: script, lptool, vbgraft --fstab-set, shims, pages, no DFE-NEO" "test -x $R/system/bin/twrp_encryption.sh && test -x $R/system/bin/lptool && /bin/grep -a -q -- '--fstab-set' $R/system/bin/vbgraft && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml && ! test -e $R/system/etc/twrp_dfe"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
+gate "neutral build identity (no user/host name)" "grep -q -x 'ro.build.user=shiba-twrp' $R/prop.default && grep -q -x 'ro.build.host=build' $R/prop.default && ! grep -r -q -F '$(id -un)' $R/prop.default && ! grep -r -q -F '$(hostname)' $R/prop.default"
 gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-kmis' $R/system/bin/twrp_root.sh"
 gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres/ui.xml || grep -q 'name=\"font_l\" type=\"fontoverride\" filename=\"SpaceGrotesk-SemiBold.ttf\"' $R/twres/languages/en.xml"
 gate "theme images match mkimages.py (not stale)" "python3 $DEVICE_DIR/theme/check_images.py"
