@@ -1,0 +1,67 @@
+diff --git a/build/aidl_interface_backends.go b/build/aidl_interface_backends.go
+index 941d6961..01a301c7 100644
+--- a/build/aidl_interface_backends.go
++++ b/build/aidl_interface_backends.go
+@@ -399,15 +399,17 @@ func addRustLibrary(mctx android.DefaultableHookContext, i *aidlInterface, versi
+ 
+ 	versionedRustName := fixRustName(i.versionedName(version))
+ 	rustCrateName := fixRustName(i.ModuleBase.Name())
++	recoveryAvailable := i.properties.Recovery_available
+ 
+ 	mctx.CreateModule(wrapLibraryFactory(aidlRustLibraryFactory), &rustProperties{
+-		Name:              proptools.StringPtr(rustModuleGen),
+-		Crate_name:        rustCrateName,
+-		Stem:              proptools.StringPtr("lib" + versionedRustName),
+-		Defaults:          []string{"aidl-rust-module-defaults"},
+-		Host_supported:    i.properties.Host_supported,
+-		Vendor_available:  i.properties.Vendor_available,
+-		Product_available: i.properties.Product_available,
++		Name:               proptools.StringPtr(rustModuleGen),
++		Crate_name:         rustCrateName,
++		Stem:               proptools.StringPtr("lib" + versionedRustName),
++		Defaults:           []string{"aidl-rust-module-defaults"},
++		Host_supported:     i.properties.Host_supported,
++		Vendor_available:   i.properties.Vendor_available,
++		Product_available:  i.properties.Product_available,
++		Recovery_available: recoveryAvailable,
+ 		Apex_available:    i.properties.Backend.Rust.Apex_available,
+ 		Min_sdk_version:   i.minSdkVersion(langRust),
+ 		Target:            rustTargetProperties{Darwin: darwinProperties{Enabled: proptools.BoolPtr(false)}},
+diff --git a/build/properties.go b/build/properties.go
+index e858948f..ec749f57 100644
+--- a/build/properties.go
++++ b/build/properties.go
+@@ -91,19 +91,20 @@ type javaProperties struct {
+ }
+ 
+ type rustProperties struct {
+-	Name              *string
+-	Crate_name        string
+-	Owner             *string
+-	Defaults          []string
+-	Host_supported    *bool
+-	Vendor_available  *bool
+-	Product_available *bool
+-	Srcs              []string
+-	Rustlibs          []string
+-	Stem              *string
+-	Target            rustTargetProperties
+-	Apex_available    []string
+-	Min_sdk_version   *string
++	Name               *string
++	Crate_name         string
++	Owner              *string
++	Defaults           []string
++	Host_supported     *bool
++	Vendor_available   *bool
++	Product_available  *bool
++	Recovery_available *bool
++	Srcs               []string
++	Rustlibs           []string
++	Stem               *string
++	Target             rustTargetProperties
++	Apex_available     []string
++	Min_sdk_version    *string
+ }
+ 
+ type phonyProperties struct {

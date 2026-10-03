@@ -41,3 +41,31 @@ index de624e44f6..cd6e00b991 100644
  LIBBINDER_NDK_PLATFORM {
    global:
      AParcel_getAllowFds;
+diff --git a/libs/binder/rust/Android.bp b/libs/binder/rust/Android.bp
+index 57a38dc480..1f327a54db 100644
+--- a/libs/binder/rust/Android.bp
++++ b/libs/binder/rust/Android.bp
+@@ -19,6 +19,7 @@ rust_library {
+     host_supported: true,
+     vendor_available: true,
+     product_available: true,
++    recovery_available: true,
+     target: {
+         darwin: {
+             enabled: false,
+@@ -71,6 +72,7 @@ rust_library {
+     host_supported: true,
+     vendor_available: true,
+     product_available: true,
++    recovery_available: true,
+     target: {
+         darwin: {
+             enabled: false,
+@@ -92,6 +94,7 @@ rust_library {
+ rust_bindgen {
+     name: "libbinder_ndk_bindgen",
+     crate_name: "binder_ndk_bindgen",
++    recovery_available: true,
+     wrapper_src: "sys/BinderBindings.hpp",
+     source_stem: "bindings",
+     bindgen_flag_files: [
