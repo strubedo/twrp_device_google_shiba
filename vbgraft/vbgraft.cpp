@@ -8,6 +8,14 @@
 //   vbgraft --info IMG
 //   vbgraft --src TARGET.img (--recovery-from DONOR.img | --recovery-frag FILE)
 //           --out OUT.img [--max-size BYTES]
+//   vbgraft --src IMG --fstab-get NAME
+//           print first_stage_ramdisk's NAME (e.g. fstab.zuma) from the platform
+//           fragment
+//   vbgraft --src IMG --fstab-set NAME FILE --out OUT.img [--max-size BYTES]
+//           replace that file's contents with FILE; every other byte of every
+//           other fragment, every other cpio entry, the header, dtb and
+//           bootconfig are kept and verified
+//           (--fstab-* are C++ only: used on the phone by twrp_encryption.sh)
 //
 // TARGET: the vendor_boot to install into (stock, or an older TWRP image).
 //   Header fields, vendor cmdline, board name, DTB and bootconfig are copied
@@ -300,6 +308,68 @@ bool strip_platform(const Bytes& lz4, Bytes* out, size_t* kept, size_t* dropped)
     return true;
 }
 
+// ---- first-stage fstab in the platform fragment ----------------------------
+// The one entry first_stage_ramdisk/.../NAME (exactly one, regular file).
+size_t find_fstab(const std::vector<CpioEntry>& entries, const Bytes& c, const std::string& name) {
+    size_t found = SIZE_MAX;
+    int n = 0;
+    for (size_t i = 0; i < entries.size(); i++) {
+        const std::string& p = entries[i].name;
+        if (!is_first_stage(p)) continue;
+        if (p.size() < name.size() + 1 || p.compare(p.size() - name.size() - 1, std::string::npos, "/" + name) != 0)
+            continue;
+        uint32_t mode = hex8(c.data() + entries[i].start + 14);
+        if ((mode & 0170000) != 0100000) continue;  // regular files only
+        found = i;
+        n++;
+    }
+    if (n != 1) die("expected one first_stage_ramdisk/.../" + name + ", found " + std::to_string(n));
+    return found;
+}
+
+Bytes entry_data(const Bytes& c, const CpioEntry& e) {
+    const uint8_t* h = c.data() + e.start;
+    uint32_t filesize = hex8(h + 54), namesize = hex8(h + 94);
+    size_t data_start = align_up(e.start + 110 + namesize, 4);
+    return Bytes(c.begin() + data_start, c.begin() + data_start + filesize);
+}
+
+const Fragment& platform_of(const VendorBoot& vb, size_t* index) {
+    int n = 0;
+    for (size_t i = 0; i < vb.frags.size(); i++)
+        if (vb.frags[i].type == VENDOR_RAMDISK_TYPE_PLATFORM) { *index = i; n++; }
+    if (n != 1) die("expected exactly one platform fragment, found " + std::to_string(n));
+    return vb.frags[*index];
+}
+
+// New platform fragment with NAME's data replaced (same header otherwise).
+Bytes set_fstab(const Bytes& lz4, const std::string& name, const Bytes& data) {
+    Bytes c = lz4_legacy_decompress(lz4);
+    auto entries = cpio_entries(c);
+    size_t t = find_fstab(entries, c, name);
+    Bytes s;
+    for (size_t i = 0; i < entries.size(); i++) {
+        const CpioEntry& e = entries[i];
+        if (i != t) {
+            s.insert(s.end(), c.begin() + e.start, c.begin() + e.end);
+            continue;
+        }
+        const uint8_t* h = c.data() + e.start;
+        uint32_t namesize = hex8(h + 94);
+        char sz[9];
+        snprintf(sz, sizeof(sz), "%08X", unsigned(data.size()));
+        Bytes hdr(h, h + 110);
+        memcpy(hdr.data() + 54, sz, 8);              // c_filesize
+        s.insert(s.end(), hdr.begin(), hdr.end());
+        s.insert(s.end(), h + 110, h + 110 + namesize);
+        s.resize(align_up(s.size(), 4), 0);
+        s.insert(s.end(), data.begin(), data.end());
+        s.resize(align_up(s.size(), 4), 0);
+    }
+    append_trailer(s);
+    return lz4_legacy_compress_hc12(s);
+}
+
 const char* type_name(uint32_t t) {
     switch (t) {
         case VENDOR_RAMDISK_TYPE_NONE: return "none";
@@ -332,14 +402,16 @@ void usage() {
     fprintf(stderr,
             "usage: vbgraft --info IMG\n"
             "       vbgraft --src TARGET.img (--recovery-from DONOR.img | --recovery-frag FILE)\n"
-            "               --out OUT.img [--max-size BYTES]\n");
+            "               --out OUT.img [--max-size BYTES]\n"
+            "       vbgraft --src IMG --fstab-get NAME\n"
+            "       vbgraft --src IMG --fstab-set NAME FILE --out OUT.img [--max-size BYTES]\n");
     exit(2);
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    std::string info, src, donor, frag_file, out_path;
+    std::string info, src, donor, frag_file, out_path, fstab_get, fstab_set, fstab_file;
     uint64_t max_size = 0;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
@@ -353,11 +425,66 @@ int main(int argc, char** argv) {
         else if (a == "--recovery-frag") frag_file = next();
         else if (a == "--out") out_path = next();
         else if (a == "--max-size") max_size = strtoull(next().c_str(), nullptr, 0);
+        else if (a == "--fstab-get") fstab_get = next();
+        else if (a == "--fstab-set") { fstab_set = next(); fstab_file = next(); }
         else usage();
     }
 
     if (!info.empty()) {
         print_info(parse(read_file(info), info), info);
+        return 0;
+    }
+    if (!fstab_get.empty()) {
+        if (src.empty() || !out_path.empty() || !fstab_set.empty() || !donor.empty() || !frag_file.empty()) usage();
+        VendorBoot vb = parse(read_file(src), src);
+        size_t pi;
+        Bytes c = lz4_legacy_decompress(platform_of(vb, &pi).data);
+        auto entries = cpio_entries(c);
+        Bytes d = entry_data(c, entries[find_fstab(entries, c, fstab_get)]);
+        fwrite(d.data(), 1, d.size(), stdout);
+        return 0;
+    }
+    if (!fstab_set.empty()) {
+        if (src.empty() || out_path.empty() || !donor.empty() || !frag_file.empty()) usage();
+        Bytes src_img = read_file(src);
+        VendorBoot target = parse(src_img, src);
+        Bytes data = read_file(fstab_file);
+        size_t pi;
+        platform_of(target, &pi);
+        VendorBoot out = target;
+        out.frags[pi].data = set_fstab(target.frags[pi].data, fstab_set, data);
+        Bytes img = build(out);
+
+        // ---- verify by re-parsing what we are about to write ----
+        VendorBoot chk = parse(img, "output");
+        if (!same_identity(chk.hdr, target.hdr)) die("VERIFY: header/cmdline/name differ from source");
+        if (chk.dtb != target.dtb) die("VERIFY: dtb differs from source");
+        if (chk.bootconfig != target.bootconfig) die("VERIFY: bootconfig differs from source");
+        if (chk.frags.size() != target.frags.size()) die("VERIFY: fragment count");
+        for (size_t i = 0; i < target.frags.size(); i++) {
+            if (chk.frags[i].type != target.frags[i].type || chk.frags[i].name != target.frags[i].name)
+                die("VERIFY: fragment " + std::to_string(i) + " type/name differ");
+            if (i != pi && chk.frags[i].data != target.frags[i].data)
+                die("VERIFY: fragment " + std::to_string(i) + " differs (only the platform fragment may change)");
+        }
+        Bytes oc = lz4_legacy_decompress(target.frags[pi].data), nc = lz4_legacy_decompress(chk.frags[pi].data);
+        auto oe = cpio_entries(oc), ne = cpio_entries(nc);
+        if (oe.size() != ne.size()) die("VERIFY: platform cpio entry count changed");
+        size_t t = find_fstab(ne, nc, fstab_set);
+        for (size_t i = 0; i < oe.size(); i++) {
+            if (oe[i].name != ne[i].name) die("VERIFY: platform cpio entry " + std::to_string(i) + " renamed");
+            if (i == t) continue;
+            if (!std::equal(oc.begin() + oe[i].start, oc.begin() + oe[i].end, nc.begin() + ne[i].start,
+                            nc.begin() + ne[i].end))
+                die("VERIFY: platform cpio entry " + oe[i].name + " changed");
+        }
+        if (entry_data(nc, ne[t]) != data) die("VERIFY: " + fstab_set + " content differs from " + fstab_file);
+        if (max_size && img.size() > max_size)
+            die("VERIFY: output " + std::to_string(img.size()) + " bytes > partition " + std::to_string(max_size));
+        write_file(out_path, img);
+        printf("OK: %s (%zu bytes) - %s replaced (%zu -> %zu bytes); header/cmdline/dtb/bootconfig, other "
+               "fragments and other cpio entries verified unchanged\n",
+               out_path.c_str(), img.size(), ne[t].name.c_str(), entry_data(oc, oe[t]).size(), data.size());
         return 0;
     }
     if (src.empty() || out_path.empty() || donor.empty() == frag_file.empty()) usage();

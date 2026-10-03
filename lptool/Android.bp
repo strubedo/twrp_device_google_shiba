@@ -1,0 +1,18 @@
+// lptool: add/remove/write logical partitions in super from the recovery
+// (twrp_encryption.sh's "disable encryption" overlay partition).
+// Uses AOSP liblp + fs_mgr's dm-linear helpers (Apache-2.0).
+cc_binary {
+    name: "lptool",
+    recovery: true,
+    srcs: ["lptool.cpp"],
+    shared_libs: [
+        "libbase",
+        "liblog",
+        "liblp",
+        "libfs_mgr",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}
