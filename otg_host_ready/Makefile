@@ -19,7 +19,7 @@ endif
 
 all: $(EXTRA)
 	PATH=$(CLANG):$$PATH $(MAKE) -C $(KDIR) M=$(CURDIR) ARCH=arm64 LLVM=1 LLVM_IAS=1 \
-		KBUILD_EXTRA_SYMBOLS=$(EXTRA) KBUILD_MODPOST_WARN=1 modules
+		KBUILD_EXTRA_SYMBOLS="$(EXTRA)" KBUILD_MODPOST_WARN=1 modules
 	# drop DWARF: it embeds build paths (/home/...) and is ~90% of the file;
 	# vermagic, __versions CRCs and .gnu.linkonce.this_module are untouched
 	$(CLANG)/llvm-strip --strip-debug otg_host_ready.ko

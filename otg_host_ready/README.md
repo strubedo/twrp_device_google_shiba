@@ -21,6 +21,19 @@
 >
 > All 19 imported CRCs matched Google's file; `.gnu.linkonce.this_module` 0x440.
 > GKI keeps KMI CRCs stable within a generation, so one build covers 6.1.x.
+>
+> 5.15 (same source, direct link): Google's 5.15 vmlinux.symvers plus one line
+> for the vendor symbol (KBUILD_EXTRA_SYMBOLS takes both; the Makefile quotes it):
+>
+>     printf '0xf76f2627\tdwc3_otg_host_ready\tdwc3-exynos-usb\tEXPORT_SYMBOL_GPL\t\n' \
+>       > ~/ref/gki-symvers/5.15-dwc3.symvers
+>     make clean KDIR=~/ref/gki-5.15
+>     make KDIR=~/ref/gki-5.15 SYMVERS="$HOME/ref/gki-symvers/5.15-ab12057991.symvers $HOME/ref/gki-symvers/5.15-dwc3.symvers"
+>     cp otg_host_ready.ko ../recovery/root/lib/modules/5.15/
+>
+> Checked (no Android 14 slot left to load-test): 19/19 CRCs match Google's,
+> this_module 0x400, vermagic flags and module_layout 0x4bcc9336 identical to
+> the proven previous 5.15 build.
 
 ## Why
 
