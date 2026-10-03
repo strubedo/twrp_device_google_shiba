@@ -213,6 +213,16 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.41** (2026-10-03) - **Decryption without `/vendor`**: when the slot's vendor
+binaries can't run (damaged `super`, a slot without a system, a firmware TWRP
+can't run them on), a fallback chain decrypts with AOSP's Trusty KeyMint and
+Gatekeeper built from source and LeeGarChat's Titan M2 Weaver daemon; the OS
+version/patch level is saved to `/metadata` on every normal start for it.
+**Touchscreen without `vendor_dlkm`**: bundled touch drivers for each Google
+kernel build (Android 14-17). **Clear message** when the booted slot's firmware
+is older than your data's keys (the security chip refuses it), on the main
+screen, with the Locked and root chips still shown.
+
 **v9.40** (2026-10-02) - **Flashable zip installer**: one zip for every firmware,
 flashed from the KernelSU/Magisk app (no PC) or from TWRP (updates); both slots,
 backed up and verified. **Own "disable encryption" implementation** (no
