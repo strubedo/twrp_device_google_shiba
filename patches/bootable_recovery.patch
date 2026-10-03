@@ -1273,7 +1273,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..63ffed64
+index 171feccf..62b94656
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1414,7 +1414,29 @@ index 171feccf..63ffed64
  	Update_System_Details();
  
  	if (!Mount_Current_Storage(true))
-@@ -1964,6 +2024,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
+@@ -1935,8 +1995,19 @@ void TWPartitionManager::Update_System_Details(void) {
+ 	if (FreeStorage != NULL) {
+ 		// Attempt to mount storage
+ 		if (!FreeStorage->Mount(false)) {
+-			gui_msg(Msg(msg::kWarning, "unable_to_mount_storage=Unable to mount storage"));
+-			DataManager::SetValue(TW_STORAGE_FREE_SIZE, 0);
++			// shiba: a removable storage that's gone (USB OTG drive unplugged)
++			// would otherwise stay selected and warn on every refresh - fall
++			// back to the default storage (Internal Storage) if that mounts.
++			TWPartition* Default = Get_Default_Storage_Partition();
++			if (FreeStorage->Removable && Default != NULL && Default != FreeStorage && Default->Mount(false)) {
++				LOGINFO("Storage %s unavailable - switching to %s\n", FreeStorage->Storage_Path.c_str(), Default->Storage_Path.c_str());
++				gui_print("%s removed - using %s\n", FreeStorage->Display_Name.c_str(), Default->Display_Name.c_str());
++				DataManager::SetValue("tw_storage_path", Default->Storage_Path);
++				DataManager::SetValue(TW_STORAGE_FREE_SIZE, (int)(Default->Free / 1048576LLU));
++			} else {
++				gui_msg(Msg(msg::kWarning, "unable_to_mount_storage=Unable to mount storage"));
++				DataManager::SetValue(TW_STORAGE_FREE_SIZE, 0);
++			}
+ 		} else {
+ 			DataManager::SetValue(TW_STORAGE_FREE_SIZE, (int)(FreeStorage->Free / 1048576LLU));
+ 		}
+@@ -1964,6 +2035,27 @@ void TWPartitionManager::Post_Decrypt(const string& Block_Device) {
  
  		DataManager::SetValue(TW_IS_DECRYPTED, 1);
  		dat->Is_Decrypted = true;
@@ -1442,7 +1464,7 @@ index 171feccf..63ffed64
  		if (!Block_Device.empty()) {
  			dat->Decrypted_Block_Device = Block_Device;
  			gui_msg(Msg("decrypt_success_dev=Data successfully decrypted, new block device: '{1}'")(Block_Device));
-@@ -2100,6 +2181,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
+@@ -2100,6 +2192,9 @@ void TWPartitionManager::Check_Users_Decryption_Status() {
  
  int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  #ifdef TW_INCLUDE_CRYPTO
@@ -1452,7 +1474,7 @@ index 171feccf..63ffed64
  	char crypto_blkdev[PROPERTY_VALUE_MAX];
  	std::vector<TWPartition*>::iterator iter;
  
-@@ -2176,24 +2260,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
+@@ -2176,24 +2271,9 @@ int TWPartitionManager::Decrypt_Device(string Password, int user_id) {
  	}
  
  	int pwret = -1;
@@ -1480,7 +1502,7 @@ index 171feccf..63ffed64
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3282,29 +3351,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
+@@ -3282,29 +3362,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
  	PartitionManager.Update_System_Details();
  }
  
@@ -1530,7 +1552,7 @@ index 171feccf..63ffed64
  		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
  	}
  #else
-@@ -3314,6 +3389,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3314,6 +3400,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
@@ -1574,7 +1596,7 @@ index 171feccf..63ffed64
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
-@@ -3610,9 +3722,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+@@ -3610,9 +3733,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
  
  void TWPartitionManager::Setup_Super_Devices() {
  	std::string superPart = Get_Super_Partition();
