@@ -493,7 +493,7 @@ index e2840067..cb9d49d8
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..637f19af
+index 99eeef6c..717132bb
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -533,7 +533,7 @@ index 99eeef6c..637f19af
  			</action>
  		</page>
  
-+		<!-- shiba: /data encryption (DFE-NEO). Typed confirmation, then each step
++		<!-- shiba: /data encryption (twrp_encryption.sh). Typed confirmation, then each step
 +		     runs only if the previous one succeeded (tw_operation_status == 0):
 +		       disable: encryption-disable.zip -> Format Data -> encryption-postformat.zip
 +		       enable:  encryption-enable.zip  -> Format Data
@@ -549,7 +549,7 @@ index 99eeef6c..637f19af
 +			<text style="text_m">
 +				<condition var1="tw_shiba_dfe_mode" var2="disable"/>
 +				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-+				<text>Disable /data encryption (DFE-NEO)</text>
++				<text>Disable /data encryption</text>
 +			</text>
 +
 +			<text style="text_m">
@@ -871,7 +871,7 @@ index 99eeef6c..637f19af
 +						<action function="page">flash_confirm</action>
 +					</actions>
 +				</listitem>
-+				<!-- shiba: /data encryption via bundled DFE-NEO (twrp_encryption.sh).
++				<!-- shiba: /data encryption (twrp_encryption.sh, our own implementation).
 +				     Disable / Re-enable format /data only after their step succeeds
 +				     (pages shiba_dfe_*). -->
 +				<listitem name="Encryption: Status">

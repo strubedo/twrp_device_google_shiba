@@ -45,9 +45,14 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
   `Download/`; if the app isn't installed yet, Install KernelSU sets it up to
   install itself at the next boot (one-shot module, removes itself).
 
-**Encryption** (Advanced → ENCRYPTION)
-- Disable or re-enable `/data` encryption using **DFE-NEO** (by LeeGarChat) with
-  a fixed, safe configuration. **Disabling formats `/data`.**
+**Encryption** (Advanced → ENCRYPTION) — *experimental*
+- Disable or re-enable `/data` encryption. Our own implementation: a small
+  overlay (in `super`) shadows `/vendor/etc/init/hw` at first-stage boot, with the
+  `/data` encryption flags removed from the fstab; everything is checked, backed
+  up, verified after writing and rolled back on failure. **Disabling formats
+  `/data`.** A *Dry run* builds and verifies everything without writing.
+  Verified on a real phone up to the writes; a full disable-and-boot test on a
+  wiped phone is still pending.
 - OTA guard: if encryption is disabled, an OTA can't keep it disabled — TWRP keeps
   the phone on the current slot instead of booting an unbootable one.
 
@@ -247,6 +252,7 @@ bundled KernelSU/Magisk/BusyBox, fonts under OFL-1.1).
 
 ## Credits
 
-TeamWin (TWRP) · LeeGarChat (DFE-NEO and the OrangeFox Pixel tree whose
-decryption research made this possible) · topjohnwu (Magisk) · tiann and
+TeamWin (TWRP) · LeeGarChat (the OrangeFox Pixel tree whose decryption research
+made this possible, and DFE-NEO, whose approach inspired our encryption tool) ·
+topjohnwu (Magisk) · tiann and
 contributors (KernelSU) · Google/AOSP · IBM (Plex) · Florian Karsten (Space Grotesk).

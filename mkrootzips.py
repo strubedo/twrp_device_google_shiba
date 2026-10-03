@@ -26,7 +26,7 @@ ACTIONS = {
     # keep TWRP after an OTA (twrp_install_slot.sh)
     "twrp-install-other": "/system/bin/twrp_install_slot.sh other",
     "twrp-install-both": "/system/bin/twrp_install_slot.sh both",
-    # /data encryption via bundled DFE-NEO (twrp_encryption.sh). The GUI only
+    # /data encryption (twrp_encryption.sh, our own implementation). The GUI only
     # formats /data after encryption-disable / encryption-enable succeed.
     "encryption-status": "/system/bin/twrp_encryption.sh status",
     "encryption-dryrun": "/system/bin/twrp_encryption.sh dryrun",

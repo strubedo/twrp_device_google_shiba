@@ -66,6 +66,11 @@ PRODUCT_PACKAGES += \
     vbgraft.recovery \
     twrp_remote.recovery
 
+# lptool: adds/removes/writes the small logical partition in super that holds
+# the "disable encryption" init overlay (twrp_encryption.sh). See lptool/.
+PRODUCT_PACKAGES += \
+    lptool
+
 # Timezone database for recovery (TWRP's clock, and `date` in scripts: without
 # it every TZ-aware call prints tzdata/posixrules errors). TWRP's tzdata_twrp
 # copies it into recovery as a post-install side effect, which build.sh's wipe
