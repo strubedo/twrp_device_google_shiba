@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 strubedo
 # install_windows.ps1 - install TWRP Remote for the current user (run it via install_windows.bat)
 #
 #   install_windows.bat              install (asks before downloading the optional scrcpy)

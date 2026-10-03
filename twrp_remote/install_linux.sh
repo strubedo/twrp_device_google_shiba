@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 strubedo
 # install_linux.sh - install TWRP Remote for the current user, with everything it needs.
 #
 #   ./install_linux.sh               install (asks before installing system packages)
@@ -31,7 +33,7 @@ for a in "$@"; do
         --no-scrcpy)     SCRCPY=0 ;;
         --skip-packages) SKIP_PACKAGES=1 ;;      # testing / no sudo: only the per-user part
         --uninstall)     UNINSTALL=1 ;;
-        -h|--help)       sed -n '2,17p' "$0"; exit 0 ;;
+        -h|--help)       sed -n '4,19p' "$0"; exit 0 ;;
         *) echo "unknown option: $a (see --help)"; exit 2 ;;
     esac
 done

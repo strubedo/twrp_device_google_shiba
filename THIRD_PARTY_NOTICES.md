@@ -1,8 +1,10 @@
 # Third-party components and licenses
 
 This device tree is licensed under the **Apache License 2.0** (`LICENSE`), except
-for the parts listed below, which keep their own licenses. Binaries are the
-unmodified upstream release files unless noted.
+for **TWRP Remote** (`twrp_remote/`: the PC app, its installers and the phone-side
+server), which is licensed under the **GNU General Public License v3.0 or later**
+(`twrp_remote/LICENSE`), and the parts listed below, which keep their own
+licenses. Binaries are the unmodified upstream release files unless noted.
 
 ## Bundled binaries
 

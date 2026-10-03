@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 strubedo
 // twrp_remote: stream the recovery screen to a PC and inject touch/keys over
 // adb (see twrp_remote.cpp; PC client: twrp_remote.py).
 cc_binary {

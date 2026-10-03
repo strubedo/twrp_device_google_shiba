@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 strubedo
 /*
  * twrp_remote - view and control the recovery screen from a PC over adb.
  *
