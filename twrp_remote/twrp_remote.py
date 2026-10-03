@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 strubedo
 """twrp_remote.py - view and control TWRP on the Pixel 8 (shiba) from a PC.
 Runs on Linux and Windows.
 

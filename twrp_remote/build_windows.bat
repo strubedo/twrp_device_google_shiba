@@ -1,4 +1,6 @@
 @echo off
+rem SPDX-License-Identifier: GPL-3.0-or-later
+rem Copyright (C) 2026 strubedo
 rem build_windows.bat - build "TWRP Remote.exe" (Windows, run from this folder)
 rem
 rem Needs: Python 3 from python.org (the "py" launcher). Everything else goes

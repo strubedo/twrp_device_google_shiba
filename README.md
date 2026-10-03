@@ -284,7 +284,8 @@ output. TWRP boots, without decryption.
 
 ## License
 
-Apache License 2.0 (`LICENSE`), except the parts listed in
+Apache License 2.0 (`LICENSE`), except **TWRP Remote** (`twrp_remote/`), which is
+GPL-3.0-or-later (`twrp_remote/LICENSE`), and the parts listed in
 `THIRD_PARTY_NOTICES.md` (TWRP changes GPL-3.0, OTG kernel module GPL-2.0,
 bundled KernelSU/Magisk/BusyBox, fonts under OFL-1.1).
 
