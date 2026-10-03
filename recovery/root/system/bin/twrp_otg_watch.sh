@@ -95,7 +95,7 @@ roles=1
 for f in "$VBUS" "$OTG_ID" "$CHG_VALUE" "$CHG_ACTIVE" "$UDC"; do
     [ -e "$f" ] || { log "role switching OFF: $f missing (mounting still works if host mode comes up by itself)"; roles=0; break; }
 done
-[ $roles = 1 ] && log "role switching on (host_ready: $(cat /proc/otg_host_ready 2>/dev/null || echo 'module without /proc'))"
+[ $roles = 1 ] && log "role switching on"
 
 mode=pc; idle=0; backoff=$BACKOFF_MIN; t=0; gone=0
 handled=""      # disk we've finished acting on for the current plug-in

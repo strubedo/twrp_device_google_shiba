@@ -213,6 +213,13 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.42** (2026-10-03) - **USB OTG works on Android 15 and later.** In recovery the
+USB-C controller registers the port sink-only, so flash drives were never
+detected; TWRP now switches the port to host mode itself when nothing powers it
+(OTG ID + 5 V for the device, after LeeGarChat's method), mounts the drive at
+`/usb-otg`, and returns to PC mode (adb/MTP) when it's unplugged. The OTG
+kernel module finds its target at runtime on 6.1 (more robust on new firmware).
+
 **v9.41** (2026-10-03) - **Decryption without `/vendor`**: when the slot's vendor
 binaries can't run (damaged `super`, a slot without a system, a firmware TWRP
 can't run them on), a fallback chain decrypts with AOSP's Trusty KeyMint and
