@@ -168,6 +168,21 @@ TW_RECOVERY_ADDITIONAL_RELINK_LIBRARY_FILES += \
 TARGET_RECOVERY_DEVICE_MODULES += service
 TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
     $(TARGET_OUT_EXECUTABLES)/service
+
+# Fallback decryption (no /vendor needed - damaged super, missing slot, vendor
+# ABI break): AOSP's Trusty KeyMint built from source
+# (system/core/trusty/keymint), copied to the ramdisk as
+# /system/bin/android.hardware.security.keymint-service.rust.trusty. Needs only
+# liblog, libbinder_ndk, libc. Weaver comes from recovery-tensor-daemon
+# (device.mk); twrp_crypto_start.sh picks the vendor path first.
+TARGET_RECOVERY_DEVICE_MODULES += android.hardware.security.keymint-service.rust.trusty
+TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
+    $(TARGET_OUT_VENDOR_EXECUTABLES)/hw/android.hardware.security.keymint-service.rust.trusty
+# Same for Gatekeeper (Trusty TA client, system/core/trusty/gatekeeper): our
+# decrypt flow needs its auth token for the synthetic-password key.
+TARGET_RECOVERY_DEVICE_MODULES += android.hardware.gatekeeper-service.trusty
+TW_RECOVERY_ADDITIONAL_RELINK_BINARY_FILES += \
+    $(TARGET_OUT_VENDOR_EXECUTABLES)/hw/android.hardware.gatekeeper-service.trusty
 TW_EXCLUDE_APEX := true
 # The official TWRP app can't be installed here (it installs to /system, which
 # is read-only with dm-verity on Pixel 8), only knows official devices, and its

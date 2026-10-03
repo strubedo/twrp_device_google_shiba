@@ -71,6 +71,12 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
     lptool
 
+# Fallback decryption: LeeGar's recovery-tensor-daemon (MIT/Apache); we use its
+# `weaver` subcommand (Titan M2 via /dev/gsc0, registers IWeaver/default) in
+# place of the vendor citadeld + Weaver. See twrp_crypto_start.sh.
+PRODUCT_PACKAGES += \
+    recovery-tensor-daemon
+
 # Timezone database for recovery (TWRP's clock, and `date` in scripts: without
 # it every TZ-aware call prints tzdata/posixrules errors). TWRP's tzdata_twrp
 # copies it into recovery as a post-install side effect, which build.sh's wipe

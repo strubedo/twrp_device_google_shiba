@@ -71,6 +71,33 @@ service twrp.weaver /system/bin/sh -c "LD_PRELOAD=/system/lib64/libshiba_cxx_com
     disabled
     seclabel u:r:recovery:s0
 
+# --- Fallback chain: nothing from /vendor ------------------------------------
+# Used by twrp_crypto_start.sh when the vendor path can't run (vendor<slot>
+# won't mount - damaged super, released slot - or its KeyMint won't start), or
+# when /metadata/twrp/crypto_force_fallback exists (testing). KeyMint and
+# Gatekeeper are AOSP's Trusty clients built from source (relinked into
+# /system/bin, see BoardConfig.mk); Weaver is LeeGarChat's recovery-tensor-daemon,
+# talking to the Titan M2 directly (no citadeld). Storage proxy: ours above,
+# already built from source.
+service twrp.fb.keymint /system/bin/android.hardware.security.keymint-service.rust.trusty --dev /dev/trusty-ipc-dev0
+    user root
+    group root drmrpc
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service twrp.fb.gatekeeper /system/bin/android.hardware.gatekeeper-service.trusty
+    user root
+    group root system
+    disabled
+    seclabel u:r:recovery:s0
+
+service twrp.fb.weaver /system/bin/sh -c "exec /system/bin/recovery-tensor-daemon weaver >>/tmp/twrp_weaver.log 2>&1"
+    user root
+    group root hsm
+    disabled
+    seclabel u:r:recovery:s0
+
 # --- USB OTG auto-mount --------------------------------------------------------
 # Watches for a USB mass-storage disk and mounts it at /usb-otg on plug-in
 # (once per plug-in; a deliberate unmount in TWRP is respected). Needs
