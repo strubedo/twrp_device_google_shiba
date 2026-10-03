@@ -170,6 +170,16 @@ while true; do
                     is_mounted && umount -l "$MP"
                     log "unmounted $MP"
                 fi
+                # If it was TWRP's selected storage, TWRP would keep it (an
+                # unmount doesn't refresh partition details). Select Internal
+                # Storage again; setting tw_storage_path makes TWRP update its
+                # name, free size, backup folder and zip location itself
+                # (DataManager::SetBackupFolder). Harmless if already selected.
+                if [ -d /data/media/0 ]; then
+                    sleep 1     # let TWRP finish the unmount command first
+                    timeout 10 twrp set tw_storage_path /data/media/0 >/dev/null 2>&1 \
+                        && log "storage: Internal Storage selected"
+                fi
                 handled=""; tries=0
             fi
         fi

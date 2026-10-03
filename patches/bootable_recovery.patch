@@ -1273,7 +1273,7 @@ index 8c53567e..dd982b8b
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
 old mode 100755
 new mode 100644
-index 171feccf..62b94656
+index 171feccf..a692096b
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1502,7 +1502,21 @@ index 171feccf..62b94656
  
  	// Unmount any partitions that were needed for decrypt
  	for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
-@@ -3282,29 +3362,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
+@@ -2577,6 +2657,13 @@ void TWPartitionManager::Get_Partition_List(string ListType, std::vector<Partiti
+ 		string Current_Storage = DataManager::GetCurrentStoragePath();
+ 		for (iter = Partitions.begin(); iter != Partitions.end(); iter++) {
+ 			if ((*iter)->Is_Storage) {
++				// shiba: hide removable storage that has no device right now (USB
++				// OTG drive unplugged) instead of listing it with a stale size;
++				// the selected one always stays listed.
++				if ((*iter)->Removable && (*iter)->Storage_Path != Current_Storage
++					&& !TWFunc::Path_Exists((*iter)->Primary_Block_Device)
++					&& ((*iter)->Alternate_Block_Device.empty() || !TWFunc::Path_Exists((*iter)->Alternate_Block_Device)))
++					continue;
+ 				struct PartitionList part;
+ 				sprintf(free_space, "%llu", (*iter)->Free / 1024 / 1024);
+ 				part.Display_Name = (*iter)->Storage_Name + " (";
+@@ -3282,29 +3369,35 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
  	PartitionManager.Update_System_Details();
  }
  
@@ -1552,7 +1566,7 @@ index 171feccf..62b94656
  		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
  	}
  #else
-@@ -3314,6 +3400,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
+@@ -3314,6 +3407,43 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
  	if (Fstab_Processed())
  		Update_System_Details();
  }
@@ -1596,7 +1610,7 @@ index 171feccf..62b94656
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
-@@ -3610,9 +3733,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+@@ -3610,9 +3740,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
  
  void TWPartitionManager::Setup_Super_Devices() {
  	std::string superPart = Get_Super_Partition();
