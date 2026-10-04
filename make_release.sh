@@ -10,6 +10,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 TREE="$PWD"
 TWRP_TOP="$(cd ../../.. && pwd)"
+# TWRP Remote lives in the common kit (vendor/strubedo/twrp_remote), shared
+# with the other device trees
+KIT="$TWRP_TOP/vendor/strubedo"
+REMOTE="$KIT/twrp_remote"
 FRAG="$TWRP_TOP/out/target/product/shiba/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4"
 MAX_FRAGMENT=46000000          # same limit as build.sh / install_twrp.py
 
@@ -22,6 +26,11 @@ STATUS="$(git status --porcelain)" || die "git status failed"
 TAG="$(git describe --tags --exact-match HEAD 2>/dev/null)" || die "HEAD is not tagged - tag the release commit"
 VER="${TAG%%-*}"                         # v9.34-app-installers -> v9.34
 echo "== Release $VER (tag $TAG, $(git rev-parse --short HEAD))"
+# the kit is part of the release too: it must be committed, and its commit is recorded
+[[ -f "$REMOTE/twrp_remote.py" ]] || die "TWRP Remote not found at $REMOTE (the common kit, vendor/strubedo)"
+[[ -z "$(git -C "$KIT" status --porcelain)" ]] || die "uncommitted changes in the kit ($KIT) - commit first"
+KITREV="$(git -C "$KIT" rev-parse --short HEAD)"
+echo "- kit (vendor/strubedo): $KITREV"
 
 # 2. the fragment is from this build
 [[ -f "$FRAG" ]] || die "no recovery fragment at $FRAG - run ./build.sh first"
@@ -40,9 +49,8 @@ rm -rf "$OUT" "$OUT.zip"; mkdir -p "$OUT/twrp_remote" "$OUT/licenses"
 cp "$FRAG" "$OUT/recovery.cpio.lz4"
 cp install_twrp.py vbgraft/vbgraft.py README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 cp licenses/* "$OUT/licenses/"
-cp twrp_remote/twrp_remote.py twrp_remote/twrp_remote.png twrp_remote/install_linux.sh \
-   twrp_remote/build_windows.bat twrp_remote/install_windows.bat twrp_remote/install_windows.ps1 \
-   twrp_remote/LICENSE "$OUT/twrp_remote/"
+cp "$REMOTE"/{twrp_remote.py,twrp_remote.png,install_linux.sh,build_windows.bat,install_windows.bat,install_windows.ps1,LICENSE} \
+   "$OUT/twrp_remote/"
 cat > "$OUT/INSTALL.txt" <<EOF
 TWRP $VER for Google Pixel 8 (shiba) - unofficial
 
