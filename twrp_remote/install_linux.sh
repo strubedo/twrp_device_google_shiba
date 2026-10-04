@@ -155,13 +155,13 @@ cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
 Name=TWRP Remote
-GenericName=Phone recovery remote
-Comment=View and control TWRP on the Pixel 8 over USB (adb)
+GenericName=Android recovery remote
+Comment=View and control TWRP on a phone or TV box over USB (adb)
 Exec="$HOME_DIR/venv/bin/python" "$HOME_DIR/app/twrp_remote.py"
 Icon=$ICON
 Terminal=false
 Categories=Development;Utility;
-Keywords=twrp;recovery;android;pixel;adb;
+Keywords=twrp;recovery;android;pixel;onn;tv;adb;
 StartupWMClass=TWRPRemote
 EOF
 refresh_menu
