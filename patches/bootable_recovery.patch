@@ -207,7 +207,7 @@ index 61356d34..50193a7c
 diff --git a/gui/button.cpp b/gui/button.cpp
 old mode 100755
 new mode 100644
-index 4ce595b2..481e2fd2
+index 4ce595b2..8f25df2d
 --- a/gui/button.cpp
 +++ b/gui/button.cpp
 @@ -53,6 +53,7 @@ GUIButton::GUIButton(xml_node<>* node)
@@ -218,27 +218,40 @@ index 4ce595b2..481e2fd2
  
  	if (!node)  return;
  
-@@ -79,6 +80,14 @@ GUIButton::GUIButton(xml_node<>* node)
+@@ -79,6 +80,17 @@ GUIButton::GUIButton(xml_node<>* node)
  
  	// The icon is a special case
  	mButtonIcon = LoadAttrImage(FindNode(node, "icon"), "resource");
 +	// shiba (Graphite): tile layout - icon top-left, label bottom-left
++	// onn (Graphite landscape): tile="2" - row: icon left, label right of it,
++	// both vertically centred (landscape tiles are too short to stack them)
 +	xml_node<>* iconNode = FindNode(node, "icon");
 +	if (iconNode && LoadAttrInt(iconNode, "tile", 0)) {
-+		mTileLayout = 1;
++		mTileLayout = LoadAttrInt(iconNode, "tile", 0);
 +		mTilePadX = LoadAttrIntScaleX(iconNode, "padx", 0);
 +		mTilePadTop = LoadAttrIntScaleY(iconNode, "padtop", 0);
 +		mTilePadBottom = LoadAttrIntScaleY(iconNode, "padbottom", 0);
++		mTileGap = LoadAttrIntScaleX(iconNode, "gap", 0);
 +	}
  
  	mHighlightColor = LoadAttrColor(FindNode(node, "highlight"), "color", &hasHighlightColor);
  
-@@ -92,7 +101,16 @@ GUIButton::GUIButton(xml_node<>* node)
+@@ -92,7 +104,26 @@ GUIButton::GUIButton(xml_node<>* node)
  	SetRenderPos(x, y, w, h);
  	if (mButtonLabel) {
  		TextPlacement = (Placement)LoadAttrInt(FindNode(node, "placement"), "textplacement", TOP_LEFT);
 -		if (TextPlacement != TEXT_ONLY_RIGHT) {
-+		if (mTileLayout && TextPlacement != TEXT_ONLY_RIGHT) {
++		if (mTileLayout == 2 && TextPlacement != TEXT_ONLY_RIGHT) {
++			// onn (Graphite landscape): label right of the icon, centred vertically
++			int iw = (mButtonIcon && mButtonIcon->GetResource()) ? mButtonIcon->GetWidth() : 0;
++			mButtonLabel->scaleWidth = 1;
++			mButtonLabel->SetMaxWidth(w - 2 * mTilePadX - iw - mTileGap);
++			mButtonLabel->SetPlacement(TOP_LEFT);
++			mButtonLabel->GetCurrentBounds(mTextW, mTextH);
++			mTextX = mRenderX + mTilePadX + iw + mTileGap;
++			mTextY = mRenderY + (mRenderH - mTextH) / 2;
++			mButtonLabel->SetRenderPos(mTextX, mTextY);
++		} else if (mTileLayout && TextPlacement != TEXT_ONLY_RIGHT) {
 +			// shiba (Graphite): label left-aligned on the bottom padding
 +			mButtonLabel->scaleWidth = 1;
 +			mButtonLabel->SetMaxWidth(w - 2 * mTilePadX);
@@ -251,11 +264,20 @@ index 4ce595b2..481e2fd2
  			mButtonLabel->scaleWidth = 1;
  			mButtonLabel->SetMaxWidth(w);
  			mButtonLabel->SetPlacement(CENTER);
-@@ -224,6 +242,17 @@ int GUIButton::SetRenderPos(int x, int y, int w, int h)
+@@ -224,6 +255,26 @@ int GUIButton::SetRenderPos(int x, int y, int w, int h)
  		mIconY = mRenderY + (divisor / 3);
  	}
  
-+	if (mTileLayout) {
++	if (mTileLayout == 2) {
++		// onn (Graphite landscape): row - icon left, label after it, both centred
++		mIconX = mRenderX + mTilePadX;
++		mIconY = mRenderY + (mRenderH - mIconH) / 2;
++		if (mButtonLabel) {
++			mButtonLabel->GetCurrentBounds(mTextW, mTextH);
++			mTextX = mRenderX + mTilePadX + mIconW + mTileGap;
++			mTextY = mRenderY + (mRenderH - mTextH) / 2;
++		}
++	} else if (mTileLayout) {
 +		// shiba (Graphite): icon top-left, label bottom-left
 +		mIconX = mRenderX + mTilePadX;
 +		mIconY = mRenderY + mTilePadTop;
@@ -325,20 +347,21 @@ index 91cb7a7b..c1ad1c99 100644
 diff --git a/gui/objects.hpp b/gui/objects.hpp
 old mode 100755
 new mode 100644
-index 7ca15ed8..5dc40908
+index 7ca15ed8..06f46da3
 --- a/gui/objects.hpp
 +++ b/gui/objects.hpp
-@@ -418,6 +418,9 @@ protected:
+@@ -418,6 +418,10 @@ protected:
  	GUIAction* mAction;
  	int mTextX, mTextY, mTextW, mTextH;
  	int mIconX, mIconY, mIconW, mIconH;
 +	// shiba (Graphite): <icon tile="1" padx padtop padbottom> - icon top-left,
 +	// label bottom-left (theme units, scaled). 0 = stock centred layout.
 +	int mTileLayout, mTilePadX, mTilePadTop, mTilePadBottom;
++	int mTileGap = 0;		// onn (Graphite landscape): tile="2" row layout, icon-to-label space
  	bool mRendered;
  	bool hasHighlightColor;
  	bool renderHighlight;
-@@ -564,6 +567,15 @@ protected:
+@@ -564,6 +568,15 @@ protected:
  	int mFastScrollRectCurrentH; // current height of fastscroll rect
  	int mFastScrollRectTouchY; // offset from top of fastscroll rect where the user initially touched
  	bool hasScroll; // indicates that we have enough items in the list to scroll
@@ -354,7 +377,7 @@ index 7ca15ed8..5dc40908
  	int firstDisplayedItem; // this item goes at the top of the display list - may only be partially visible
  	int scrollingSpeed; // on a touch release, this is set based on the difference in the y-axis between the last 2 touches and indicates how fast the kinetic scrolling will go
  	int y_offset; // this is how many pixels offset in the y axis for per pixel scrolling, is always <= 0 and should never be < -actualItemHeight
-@@ -661,6 +673,8 @@ protected:
+@@ -661,6 +674,8 @@ protected:
  		unsigned int selected;
  		GUIAction* action;
  		std::vector<Condition> mConditions;
