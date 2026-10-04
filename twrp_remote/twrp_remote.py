@@ -119,6 +119,19 @@ SCRCPY_PROFILES = {
             "--no-audio", "--keyboard=sdk"],
 }
 
+# Known devices by ro.product.device (lower-cased): display name and Reboot menu
+# (label, `adb reboot` target). Unknown devices show their ro.product.model and
+# the standard menu.
+REBOOT_STANDARD = [("System", "system"), ("Recovery", "recovery"), ("Bootloader", "bootloader"),
+                   ("Fastboot", "fastboot"), ("Power off", "poweroff")]
+DEVICES = {
+    "shiba": ("Pixel 8", REBOOT_STANDARD),
+    # no fastbootd in this TWRP; ADNL = Amlogic USB burning mode (reboot,update)
+    "yoc": ("onn 4K Google TV", [("System", "system"), ("Recovery", "recovery"),
+                                 ("Bootloader", "bootloader"), ("ADNL", "update"),
+                                 ("Power off", "poweroff")]),
+}
+
 
 def screenshot_dir():
     """<Pictures>/TWRP Remote - the user's real Pictures folder (XDG on Linux, which
@@ -206,7 +219,8 @@ class Remote:
         self.note = ("", 0.0)          # short message (e.g. "saved") shown over the status until a time
 
         self.root = tk.Tk(className="TWRPRemote")   # WM_CLASS = StartupWMClass in the .desktop file
-        self.root.title("TWRP remote \u00b7 Pixel 8")
+        self.root.title("TWRP remote")
+        self.device = None             # (ro.product.device, display name) of the connected device
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         self.set_icon()
@@ -233,10 +247,9 @@ class Remote:
                            ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
-        for label, target in (("System", "system"), ("Recovery", "recovery"),
-                              ("Bootloader", "bootloader"), ("Fastboot", "fastboot"),
-                              ("Power off", "poweroff")):
-            button(label, lambda l=label, t=target: self.reboot(l, t), top=6)
+        self.reboot_frame = tk.Frame(bar, bg=SURFACE)      # rebuilt per device (set_device)
+        self.reboot_frame.pack()
+        self.build_reboot_menu(REBOOT_STANDARD)
         self.status = tk.Label(bar, text="connecting\u2026", bg=SURFACE, fg=MUTED, justify="left")
         self.status.pack(side="bottom", padx=10, pady=10)
 
@@ -252,6 +265,33 @@ class Remote:
 
         threading.Thread(target=self.link, daemon=True).start()
         self.root.after(15, self.pump)
+
+    def build_reboot_menu(self, items):
+        for w in self.reboot_frame.winfo_children():
+            w.destroy()
+        for label, target in items:
+            tk.Button(self.reboot_frame, text=label, command=lambda l=label, t=target: self.reboot(l, t),
+                      width=11, relief="flat", bd=0, takefocus=0, bg="#1A1A1A", fg=TEXT,
+                      activebackground=ACCENT, activeforeground=BG, padx=6, pady=8).pack(padx=10, pady=(6, 0))
+
+    def identify(self):
+        """Which device is connected (link thread). On a change, retitle the
+        window and swap in that device's Reboot menu (on the Tk thread)."""
+        try:
+            dev = run([self.adb, "shell", "getprop", "ro.product.device"], timeout=5).stdout.strip()
+            model = run([self.adb, "shell", "getprop", "ro.product.model"], timeout=5).stdout.strip()
+        except (subprocess.SubprocessError, OSError):
+            return
+        if not dev:
+            return
+        name, menu = DEVICES.get(dev.lower(), (model or dev, REBOOT_STANDARD))
+        if self.device == (dev, name):
+            return
+        self.device = (dev, name)
+        def apply():
+            self.root.title(f"TWRP remote \u00b7 {name}")
+            self.build_reboot_menu(menu)
+        self.root.after(0, apply)
 
     def set_icon(self):
         # shipped icon (next to the program / inside the .exe), else the theme
@@ -281,9 +321,9 @@ class Remote:
     def android_mode(self):
         """Phone booted to Android: hand over to scrcpy (once per boot)."""
         if not self.scrcpy_enabled:
-            self.link_status = "phone is in Android\n(scrcpy disabled)"
+            self.link_status = "device is in Android\n(scrcpy disabled)"
         elif not self.scrcpy_path:
-            self.link_status = "phone is in Android\ninstall scrcpy to\nview it here"
+            self.link_status = "device is in Android\ninstall scrcpy to\nview it here"
         else:
             proc = self.scrcpy_proc
             if proc is not None and proc.poll() is not None:
@@ -294,7 +334,7 @@ class Remote:
                 if time.monotonic() - self.scrcpy_started > 5:
                     self.scrcpy_closed = True
             if self.scrcpy_closed:
-                self.link_status = "phone is in Android\n(scrcpy closed)"
+                self.link_status = "device is in Android\n(scrcpy closed)"
                 return
             if self.scrcpy_proc is None:
                 # adbd is up long before Android can run scrcpy's server
@@ -304,7 +344,7 @@ class Remote:
                 except (subprocess.SubprocessError, OSError):
                     booted = False
                 if not booted:
-                    self.link_status = "phone is in Android\nwaiting for it to\nfinish booting"
+                    self.link_status = "device is in Android\nwaiting for it to\nfinish booting"
                     return
                 env = dict(os.environ, ADB=self.adb)          # scrcpy uses the same adb
                 if not WINDOWS:
@@ -313,7 +353,7 @@ class Remote:
                 self.scrcpy_proc = subprocess.Popen([self.scrcpy_path] + self.scrcpy_args(), env=env,
                                                     creationflags=NO_WINDOW)
                 self.scrcpy_started = time.monotonic()
-            self.link_status = "phone is in Android\nshowing it in scrcpy"
+            self.link_status = "device is in Android\nshowing it in scrcpy"
 
     def scrcpy_args(self):
         """Per-device scrcpy options (SCRCPY_PROFILES by ro.product.device);
@@ -332,6 +372,8 @@ class Remote:
         while True:
             state = self.adb_state()
             self.mode = state
+            if state in ("device", "recovery"):
+                self.identify()
             if state == "device":
                 self.android_mode()
                 time.sleep(2)
@@ -355,9 +397,9 @@ class Remote:
                         except OSError:
                             pass
                     self.sock = None
-            self.link_status = {"bootloader": "phone is in the bootloader",
-                                "sideload": "phone is in sideload mode",
-                                "unauthorized": "phone is in Android\nunlock it and allow\nUSB debugging"
+            self.link_status = {"bootloader": "device is in the bootloader",
+                                "sideload": "device is in sideload mode",
+                                "unauthorized": "device is in Android\nunlock it and allow\nUSB debugging"
                                 }.get(state, "waiting for TWRP\u2026")
             time.sleep(1)
 
@@ -525,7 +567,7 @@ class Remote:
         def go():
             try:
                 if self.adb_state() != "recovery":
-                    return done(False, "Boot the phone into TWRP first.")
+                    return done(False, "Boot the device into TWRP first.")
                 path = adb_pubkey_path()
                 try:
                     key = open(path, encoding="utf-8").read().strip()
@@ -600,7 +642,7 @@ class Remote:
         """TWRP: bundle its diagnostic logs (twrp_collect_logs.sh, identifiers
         redacted) and pull the archive into the PC's Downloads folder."""
         if self.mode != "recovery":
-            self.notify("Collect logs works\nwhile the phone is\nin TWRP")
+            self.notify("Collect logs works\nwhile the device is\nin TWRP")
             return
         self.notify("collecting logs\u2026", 60)
 
@@ -628,7 +670,7 @@ class Remote:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="View and control TWRP on the Pixel 8 over adb.")
+    ap = argparse.ArgumentParser(description="View and control TWRP on a phone or TV box over adb.")
     ap.add_argument("--scale", type=float, default=None,
                     help="window size relative to the 1080x2400 panel (default: fit the screen)")
     ap.add_argument("--adb", help="path to adb (default: $ADB, PATH, or the usual install places)")
