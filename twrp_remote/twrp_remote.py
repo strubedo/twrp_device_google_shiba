@@ -110,6 +110,15 @@ def find_tool(name, explicit=None, env=None):
 
 NO_WINDOW = 0x08000000 if WINDOWS else 0        # CREATE_NO_WINDOW: no console flashes
 
+# scrcpy options per device (ro.product.device, lower-cased - the onn box
+# reports "YOC"). A device whose video encoder is software-only can't stream
+# 1080p at full rate: scale it down.
+SCRCPY_PROFILES = {
+    # onn 4K Google TV (Amlogic S905Y4): software-only H.264 encoder
+    "yoc": ["--max-size=640", "--max-fps=10", "--video-bit-rate=1M",
+            "--no-audio", "--keyboard=sdk"],
+}
+
 
 def screenshot_dir():
     """<Pictures>/TWRP Remote - the user's real Pictures folder (XDG on Linux, which
@@ -175,11 +184,14 @@ def run(cmd, timeout=10):
 
 # ------------------------------------------------------------------ app
 class Remote:
-    def __init__(self, scale=None, adb=None, scrcpy=True, debug_keys=False):
+    def __init__(self, scale=None, adb=None, scrcpy=True, debug_keys=False, scrcpy_args=None):
         self.adb = adb
         self.scrcpy_path = find_tool("scrcpy") if scrcpy else None
         self.scrcpy_enabled = scrcpy
         self.scrcpy_proc = None
+        self.scrcpy_extra = scrcpy_args   # None = per-device profile
+        self.scrcpy_started = 0.0
+        self.scrcpy_closed = False      # the user closed scrcpy this Android session
         self.debug_keys = debug_keys
         self.sock = None               # owned by the link thread; None while down
         self.send_lock = threading.Lock()
@@ -198,7 +210,10 @@ class Remote:
         self.root.configure(bg=BG)
         self.root.resizable(False, False)
         self.set_icon()
-        # default size: fit the screen (taskbar and title bar included)
+        # default size: fit the screen (taskbar and title bar included); refit
+        # from the real panel size once frames arrive (see show)
+        self.auto_scale = scale is None
+        self.fitted_src = None
         self.scale = scale or min(0.45, (self.root.winfo_screenheight() - 160) / 2400)
         self.canvas = tk.Canvas(self.root, width=int(1080 * self.scale), height=int(2400 * self.scale),
                                 bg=BG, highlightthickness=0, cursor="hand2")
@@ -270,11 +285,46 @@ class Remote:
         elif not self.scrcpy_path:
             self.link_status = "phone is in Android\ninstall scrcpy to\nview it here"
         else:
+            proc = self.scrcpy_proc
+            if proc is not None and proc.poll() is not None:
+                # scrcpy exited. Within a few seconds = it failed to start
+                # (often: Android still booting) - try again. Later = the user
+                # closed it: leave it closed until the device leaves Android.
+                self.scrcpy_proc = None
+                if time.monotonic() - self.scrcpy_started > 5:
+                    self.scrcpy_closed = True
+            if self.scrcpy_closed:
+                self.link_status = "phone is in Android\n(scrcpy closed)"
+                return
             if self.scrcpy_proc is None:
+                # adbd is up long before Android can run scrcpy's server
+                try:
+                    r = run([self.adb, "shell", "getprop", "sys.boot_completed"], timeout=5)
+                    booted = r.returncode == 0 and r.stdout.strip() == "1"
+                except (subprocess.SubprocessError, OSError):
+                    booted = False
+                if not booted:
+                    self.link_status = "phone is in Android\nwaiting for it to\nfinish booting"
+                    return
                 env = dict(os.environ, ADB=self.adb)          # scrcpy uses the same adb
-                self.scrcpy_proc = subprocess.Popen([self.scrcpy_path], env=env,
+                if not WINDOWS:
+                    # SDL under XWayland: scrcpy's keyboard input works there
+                    env.setdefault("SDL_VIDEODRIVER", "x11")
+                self.scrcpy_proc = subprocess.Popen([self.scrcpy_path] + self.scrcpy_args(), env=env,
                                                     creationflags=NO_WINDOW)
+                self.scrcpy_started = time.monotonic()
             self.link_status = "phone is in Android\nshowing it in scrcpy"
+
+    def scrcpy_args(self):
+        """Per-device scrcpy options (SCRCPY_PROFILES by ro.product.device);
+        --scrcpy-args on the command line replaces them."""
+        if self.scrcpy_extra is not None:
+            return self.scrcpy_extra
+        try:
+            dev = run([self.adb, "shell", "getprop", "ro.product.device"], timeout=5).stdout.strip()
+        except (subprocess.SubprocessError, OSError):
+            dev = ""
+        return list(SCRCPY_PROFILES.get(dev.lower(), []))
 
     def link(self):
         """Connect, read frames, and on any drop (reboot, unplug) retry every
@@ -287,6 +337,7 @@ class Remote:
                 time.sleep(2)
                 continue
             self.scrcpy_proc = None                           # left Android: next boot may relaunch
+            self.scrcpy_closed = False
             if state == "recovery":
                 try:
                     r = run([self.adb, "forward", f"tcp:{PORT}", "localabstract:twrp_remote"], timeout=5)
@@ -355,7 +406,16 @@ class Remote:
         self.root.after(15, self.pump)
 
     def show(self, img):
+        if self.auto_scale and self.src != self.fitted_src:
+            # landscape panels (TV boxes) fit by width as well as height
+            sw, sh = self.src
+            cap = 0.5 if sw > sh else 0.45
+            self.scale = min(cap, (self.root.winfo_screenwidth() - 260) / sw,
+                             (self.root.winfo_screenheight() - 160) / sh)
+            self.fitted_src = self.src
         size = (int(self.src[0] * self.scale), int(self.src[1] * self.scale))
+        if (int(self.canvas.cget("width")), int(self.canvas.cget("height"))) != size:
+            self.canvas.config(width=size[0], height=size[1])   # canvas follows the panel's shape
         self.photo = ImageTk.PhotoImage(img.resize(size, Image.BILINEAR))
         self.canvas.itemconfig(self.item, image=self.photo)
 
@@ -574,6 +634,8 @@ def main():
     ap.add_argument("--adb", help="path to adb (default: $ADB, PATH, or the usual install places)")
     ap.add_argument("--no-scrcpy", action="store_true",
                     help="don't start scrcpy when the phone is in Android")
+    ap.add_argument("--scrcpy-args", default=None,
+                    help='options for scrcpy, replacing the per-device profile (e.g. "--max-size=800 --no-audio")')
     ap.add_argument("--debug-keys", action="store_true",
                     help="print each key's keysym/keycode and the codes sent")
     args = ap.parse_args()
@@ -592,7 +654,8 @@ def main():
                              "adb was not found.\n\nInstall Android platform-tools and put adb on your "
                              "PATH, or start with --adb C:\\path\\to\\adb.exe")
         return
-    Remote(args.scale, adb, not args.no_scrcpy, args.debug_keys).root.mainloop()
+    extra = args.scrcpy_args.split() if args.scrcpy_args is not None else None
+    Remote(args.scale, adb, not args.no_scrcpy, args.debug_keys, extra).root.mainloop()
 
 
 if __name__ == "__main__":
