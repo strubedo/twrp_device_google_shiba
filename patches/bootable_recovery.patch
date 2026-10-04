@@ -73,6 +73,34 @@ index 78b94308..dedc69ff
  ifneq ($(TW_EXCLUDE_TZDATA), true)
  TWRP_REQUIRED_MODULES += \
      tzdata_twrp
+diff --git a/abx-functions.hpp b/abx-functions.hpp
+old mode 100755
+new mode 100644
+index 003586de..6711c571
+--- a/abx-functions.hpp
++++ b/abx-functions.hpp
+@@ -243,7 +243,8 @@ private:
+ 				// TODO: output hex instead of dec (what is the exact format?)
+ 			case TYPE_INT:
+ 				{
+-					int32_t val = read_bswap<int>(m_is);
++					// fixed-width: ABX ints are 4 bytes on every platform
++					int32_t val = read_bswap<int32_t>(m_is);
+ 					std::stringstream ss;
+ 					ss << val;
+ 					return ss.str();
+@@ -253,7 +254,10 @@ private:
+ 				// TODO: output hex instead of dec (what is the exact format?)
+ 			case TYPE_LONG:
+ 				{
+-					int64_t val = read_bswap<long>(m_is);
++					// ABX longs are 8 bytes. NOT read_bswap<long>: `long` is only 4
++					// bytes on 32-bit ARM, which desynchronised the whole stream there
++					// (onn YOC: users/*.xml -> "Error parsing XML file" at every boot)
++					int64_t val = read_bswap<int64_t>(m_is);
+ 					std::stringstream ss;
+ 					ss << val;
+ 					return ss.str();
 diff --git a/data.cpp b/data.cpp
 index c19fe4c2..d28ecc44 100644
 --- a/data.cpp
