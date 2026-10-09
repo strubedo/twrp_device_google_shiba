@@ -213,6 +213,13 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.44** (2026-10-08) - **October 2026 firmware**: touch works in TWRP on
+CP3A.261005.005 (kernel 6.1.162-android14-11-gd7a0a08e0e15) - its touch drivers
+were added to the fallback set. **TWRP Remote** is now shared with the author's
+onn 4K Google TV port: the PC app is device-neutral, and the phone-side
+streamer also supports framebuffer-only devices and a virtual touchscreen (no
+change on the Pixel, which uses DRM).
+
 **v9.43** (2026-10-03) - **Cooler phone with TWRP Remote**: the phone-side screen
 streamer no longer re-reads the whole screen 20 times a second when nothing
 changed (CPU on a still screen: ~96% of a core -> ~4%). **USB OTG storage**:
