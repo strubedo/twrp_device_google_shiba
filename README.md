@@ -19,8 +19,8 @@ Magisk): flash the zip from the root app, or from TWRP to update it.
 > See the phone's recovery screen **live on your PC**, tap and swipe with the mouse,
 > type with your keyboard, take **screenshots**, **collect logs** for bug reports,
 > reboot to any mode — over USB, nothing on the network. When the phone is in
-> Android, it hands over to scrcpy. One-command installer for Linux (Windows
-> installer included, not yet tested). Both screenshots above were taken with it.
+> Android, it hands over to scrcpy. Installers for Linux and Windows (both tested
+> on real PCs). Both screenshots above were taken with it.
 > [More below](#twrp-remote-pc) · GPL-3.0.
 
 **Status:** tested on Android 14 and Android 15, including updating from 14 to 15
@@ -108,8 +108,18 @@ automatically when the phone is in Android. Linux and Windows.
 ./twrp_remote/install_linux.sh            # --uninstall to remove
 # Windows: build_windows.bat builds "TWRP Remote.exe" (needs Python 3), then
 # install_windows.bat installs it, gets adb (and optionally scrcpy) from their
-# official sources and adds a Start menu shortcut (not yet tested on Windows)
+# official sources, offers Google's USB driver if Windows doesn't have it, warns
+# when several adb builds are installed, and adds a Start menu shortcut
+# (tested on Windows 11)
 ```
+
+**Windows tips:** if `adb devices` is empty although the phone is plugged in,
+Windows is using a generic driver for the phone's ADB interface - install the
+[Google USB Driver](https://developer.android.com/studio/run/win-usb) (the
+installer offers it). If the remote keeps disconnecting (`protocol fault ...
+connection reset`), more than one adb version is installed and they keep
+restarting each other's server: keep one platform-tools folder on PATH and close
+other tools that run their own adb.
 
 Screenshots are saved to **Pictures/TWRP Remote**; the **Screenshots** button opens that folder.
 
