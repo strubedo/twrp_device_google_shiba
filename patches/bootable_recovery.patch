@@ -1776,10 +1776,63 @@ index 8c686edd..0ebee7f1 100755
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index cccb1e78..a2aea3f6 100644
+index cccb1e78..91f3207b 100644
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
-@@ -654,6 +654,10 @@ int TWFunc::tw_reboot(RebootCommand command)
+@@ -483,6 +483,14 @@ void TWFunc::GUI_Operation_Text(string Read_Value, string Partition_Name, string
+ 	DataManager::SetValue("tw_partition", Partition_Name);
+ }
+ 
++// shiba: the persistent log.gz used to collect EVERY TWRP session forever and
++// Copy_Log decompressed + recompressed all of it on each update: at ~20 MB
++// compressed that cost ~4.4 s right after decryption (screen frozen on the
++// console). Keep only the newest history, and rotate an oversized file
++// instead of reading it (last_log.gz keeps the previous copy anyway).
++#define SHIBA_LOG_HISTORY_MAX (4 * 1024 * 1024)	// bytes of old log kept (uncompressed)
++#define SHIBA_LOG_GZ_READ_MAX (2 * 1024 * 1024)	// bigger log.gz: start fresh, don't read it
++
+ void TWFunc::Copy_Log(string Source, string Destination) {
+ 	int logPipe[2];
+ 	int pigz_pid;
+@@ -495,7 +503,12 @@ void TWFunc::Copy_Log(string Source, string Destination) {
+ 	std::string uncompressedLog(Destination);
+ 	uncompressedLog.replace(extPos, Destination.length(), "");
+ 
+-	if (Path_Exists(Destination)) {
++	struct stat dst_st;
++	if (Path_Exists(Destination) && stat(Destination.c_str(), &dst_st) == 0
++			&& dst_st.st_size > SHIBA_LOG_GZ_READ_MAX) {
++		LOGINFO("Persistent log %s is %lld bytes - starting a new one\n",
++			Destination.c_str(), (long long)dst_st.st_size);
++	} else if (Path_Exists(Destination)) {
+ 		Archive_Type type = Get_File_Type(Destination);
+ 		if (type == COMPRESSED) {
+ 			std::string destFileBuffer;
+@@ -522,6 +535,13 @@ void TWFunc::Copy_Log(string Source, string Destination) {
+ 	std::string srcLogBuffer(ss.str());
+ 	ifs.close();
+ 
++	// keep only the newest history, cut at a line start
++	if (destLogBuffer.size() > SHIBA_LOG_HISTORY_MAX) {
++		size_t cut = destLogBuffer.size() - SHIBA_LOG_HISTORY_MAX;
++		size_t nl = destLogBuffer.find('\n', cut);
++		destLogBuffer.erase(0, nl == std::string::npos ? cut : nl + 1);
++	}
++
+ 	if (pipe(logPipe) < 0) {
+ 		LOGINFO("Unable to open pipe to write to persistent log file: %s\n", Destination.c_str());
+ 	}
+@@ -558,6 +578,9 @@ void TWFunc::Copy_Log(string Source, string Destination) {
+ 			return;
+ 		}
+ 		close(logPipe[1]);
++		// wait for pigz: the caller syncs right after, and the file must be complete
++		// (upstream returned at once and left a zombie behind)
++		waitpid(pigz_pid, NULL, 0);
+ 	}
+ 	close(destination_fd);
+ }
+@@ -654,6 +677,10 @@ int TWFunc::tw_reboot(RebootCommand command)
  			return property_set(ANDROID_RB_PROPERTY, "reboot,edl");
  		case rb_fastboot:
  			return property_set(ANDROID_RB_PROPERTY, "reboot,fastboot");
@@ -1790,7 +1843,7 @@ index cccb1e78..a2aea3f6 100644
  		default:
  			return -1;
  	}
-@@ -1341,6 +1345,15 @@ bool TWFunc::Is_TWRP_App_In_System() {
+@@ -1341,6 +1368,15 @@ bool TWFunc::Is_TWRP_App_In_System() {
  
  void TWFunc::checkforapp(){
  
@@ -1806,7 +1859,7 @@ index cccb1e78..a2aea3f6 100644
  	string sdkverstr = System_Property_Get("ro.build.version.sdk");
  	int sdkver = 0;
  	if (!sdkverstr.empty()) {
-@@ -1655,4 +1668,40 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+@@ -1655,4 +1691,40 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
  	return ret;
  }
  
