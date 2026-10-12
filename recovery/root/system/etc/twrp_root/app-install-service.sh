@@ -26,8 +26,13 @@ else
     # shared name let two installers overwrite each other's copy mid-install.
     TMP="/data/local/tmp/${MODDIR##*/}.apk"
     cp "$MODDIR/app.apk" "$TMP" && chmod 644 "$TMP"
-    out="$(pm install -r "$TMP" </dev/null 2>&1)"
+    # --install-reason 4 = INSTALL_REASON_USER: the launcher then treats it like
+    # an app the user installed and puts its icon on the home screen (with the
+    # launcher's "Add app icons to Home screen" on), as for a Play install.
+    out="$(pm install -r --install-reason 4 "$TMP" </dev/null 2>&1)"
     rc=$?
+    case "$out" in *nknown*option*|*nknown*argument*)   # older pm without the flag
+        out="$(pm install -r "$TMP" </dev/null 2>&1)"; rc=$? ;; esac
     log "$out"
     log "pm install exit $rc"
     rm -f "$TMP"
