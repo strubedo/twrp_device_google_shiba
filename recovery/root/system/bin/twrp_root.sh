@@ -474,11 +474,12 @@ do_install_magisk() {
 do_remove() {
     read_part "$W/current.img"
     local cur; cur="$(state_of "$W/current.img")"
-    local backup restored="$W/restored.img"
+    local backup restored="$W/restored.img" app=""
     case "$cur" in
         KERNELSU)
             backup="$(backup_current)"
-            say "- Removing KernelSU"
+            app="$(lkm_family "$W/current.img")"   # KernelSU | KSU-Next | SukiSU
+            say "- Removing $app"
             rm -f "$restored"
             "$KSUD" boot-restore -b "$W/current.img" -o "$W" --out-name restored.img >/dev/null \
                 || die "ksud boot-restore failed"
@@ -491,6 +492,7 @@ do_remove() {
             restored="$W/restored_clean.img" ;;
         MAGISK)
             backup="$(backup_current)"
+            app=Magisk
             say "- Removing Magisk"
             local d="$W/mrestore"; rm -rf "$d"; mkdir -p "$d"
             ( cd "$d" && "$MAGISKBOOT" unpack "$W/current.img" >/dev/null 2>&1 \
@@ -504,7 +506,7 @@ do_remove() {
         *)     die "init_boot${SLOT} state is $cur - refusing to guess" ;;
     esac
     flash_verified "$restored" STOCK "$backup"
-    say "- Done. Uninstall the old manager app in Android."
+    say "- Done. Uninstall the $app app in Android if you don't need it."
 }
 
 # reroot-action -> which install-* recreates the RUNNING slot's root on the
