@@ -647,11 +647,12 @@ class Remote:
                                            "(reinstall TWRP Remote).")
                     work = "/tmp/enable_adb_inst"
                     ub = work + "/META-INF/com/google/android/update-binary"
-                    # OUTFD 1 = this adb shell's stdout: the installer's ui_print
-                    # lines come back here
+                    # OUTFD 1 = stdout. Through `| cat`: the installer writes to
+                    # /proc/self/fd/1, and adb shell's stdout is a socket, which
+                    # can't be opened that way - a pipe can
                     r = sh(f"mkdir -p {work} && "
                            f"unzip -o -q {zipf} META-INF/com/google/android/update-binary -d {work} && "
-                           f"sh {ub} 3 1 {zipf}; echo \"RC=$?\"", timeout=60)
+                           f"{{ sh {ub} 3 1 {zipf}; echo \"RC=$?\"; }} 2>&1 | cat", timeout=60)
                     out = r.stdout
                     lines = [l[len("ui_print "):] for l in out.splitlines()
                              if l.startswith("ui_print ") and l[len("ui_print "):].strip()]
