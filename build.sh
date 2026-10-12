@@ -76,9 +76,20 @@ m vbgraft_static -j10 2>&1 | tail -1
 step "Wiping stale recovery staging root (relink never refreshes it)"
 rm -rf out/target/product/shiba/recovery
 
-step "Building vendorbootimage"
 BUILD_LOG="$HOME/twrp-build.log"
-if ! m adbd vendorbootimage vbgraft -j10 > "$BUILD_LOG" 2>&1; then
+step "Building vendorbootimage (full log: $BUILD_LOG)"
+# Live progress on one line ("[ 63% 1712/2716 1m40s remaining]"), updated in
+# place; the full output still goes to the log. m's status comes from
+# PIPESTATUS (the awk display always succeeds); -e is off around the pipeline
+# so a failed build reaches the error report below instead of exiting here.
+set +e
+m adbd vendorbootimage vbgraft -j10 2>&1 | tee "$BUILD_LOG" | awk '
+    match($0, /\[ *[0-9]+% [0-9]+\/[0-9]+[^]]*\]/) {
+        printf "\r   %s\033[K", substr($0, RSTART, RLENGTH); fflush(); shown = 1 }
+    END { if (shown) print "" }'
+BUILD_RC=${PIPESTATUS[0]}
+set -e
+if [[ $BUILD_RC -ne 0 ]]; then
     echo "BUILD FAILED - first error:"
     grep -m1 -A30 'FAILED:' "$BUILD_LOG" || tail -40 "$BUILD_LOG"
     echo "full log: $BUILD_LOG"
