@@ -35,9 +35,10 @@ $UsbDriverUrl = 'https://dl.google.com/android/repository/usb_driver_r13-windows
 
 function Say($m)  { Write-Host "== $m" }
 function Info($m) { Write-Host "   $m" }
-function Warn($m) { Write-Host "   $m" -ForegroundColor Yellow }
+function Warn($m) { Write-Host "   $m" -ForegroundColor Magenta }
+function User($m) { Write-Host ">> $m" -ForegroundColor Yellow }   # things YOU need to do
 function Die($m)  { Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
-function Ask($q)  { if ($Yes) { return $true }; $r = Read-Host "   $q [Y/n]"; return ($r -eq '' -or $r -match '^[Yy]') }
+function Ask($q)  { if ($Yes) { return $true }; Write-Host ">> $q [Y/n] " -ForegroundColor Yellow -NoNewline; $r = Read-Host; return ($r -eq '' -or $r -match '^[Yy]') }
 
 if ($Uninstall) {
     Say 'Removing TWRP Remote'
@@ -134,7 +135,7 @@ if (-not $NoUsbDriver) {
                 $p = Start-Process pnputil -Verb RunAs -Wait -PassThru -WindowStyle Hidden `
                                    -ArgumentList @('/add-driver', "`"$inf`"", '/install')
                 if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
-                    Info 'USB driver: installed - unplug the phone and plug it back in'
+                    Info 'USB driver: installed'; User 'Unplug the phone and plug it back in'
                 } else {
                     Warn "USB driver: pnputil exit code $($p.ExitCode) - see https://developer.android.com/studio/run/win-usb"
                 }
@@ -209,8 +210,8 @@ if ($builds.Count -gt 1) {
         [Environment]::SetEnvironmentVariable('ADB', $newest.Path, 'User')
         Info "ADB = $($newest.Path)"
     }
-    Warn 'Best fix: keep only one platform-tools folder on PATH (System and User PATH),'
-    Warn 'and close other tools that start their own adb while you use the remote.'
+    User 'Best fix: keep only one platform-tools folder on PATH (System and User PATH),'
+    User 'and close other tools that start their own adb while you use the remote.'
 } elseif ($adbs.Count -gt 0) {
     Info "adb build: $($adbs[0].Build)"
 }
@@ -225,6 +226,7 @@ $l.Description = 'View and control TWRP on the Pixel 8 over USB (adb)'
 $l.Save()
 
 Say 'Done'
-Info 'Start it from the Start menu ("TWRP Remote"). Screenshots and logs go to %USERPROFILE%\TWRP Remote.'
+User 'Start it from the Start menu ("TWRP Remote").'
+Info 'Screenshots and logs go to %USERPROFILE%\TWRP Remote.'
 Info 'If adb does not see the phone: Google USB driver - https://developer.android.com/studio/run/win-usb'
 Info 'Remove with: install_windows.bat -Uninstall'

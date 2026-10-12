@@ -13,7 +13,8 @@ started for it (unless --no-scrcpy).
 
 Mouse = finger: click to tap, drag to swipe; scroll wheel swipes lists.
 Keyboard: while the window has focus, typing goes to TWRP (virtual keyboard).
-Side buttons: Power, Screenshot, Open folder, Collect logs, and a Reboot menu.
+Side buttons: Power, Screenshot, Open folder, Collect logs, USB debugging,
+Authorize PC, and a Reboot menu.
 Everything is saved under ~/TWRP Remote (Windows: C:\\Users\\<you>\\TWRP Remote):
 Screenshots/ and Logs/. Saves from older versions (Pictures/TWRP Remote) are
 moved there on first start.
@@ -220,6 +221,8 @@ def open_folder(path):
 
 
 MODULE = "/data/adb/modules/enable_adb"         # installed by TWRP: Advanced > Enable USB debugging
+MODULE_ZIP = "enable-adb.zip"                   # bundled next to this program (the kit's module)
+DEVICE_MODULE_ZIP = "/system/etc/twrp_tools/enable-adb.zip"   # the copy inside our TWRP builds
 
 
 def adb_pubkey_path():
@@ -284,6 +287,7 @@ class Remote:
                            ("Screenshot", self.screenshot),
                            ("Open folder", self.open_screenshots),
                            ("Collect logs", self.collect_logs),
+                           ("USB debugging", self.enable_usb_debugging),
                            ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
         tk.Label(bar, text="REBOOT", bg=SURFACE, fg=MUTED).pack(padx=10, pady=(22, 0), anchor="w")
@@ -592,10 +596,104 @@ class Remote:
         threading.Thread(target=go, daemon=True).start()
         self.notify(f"{verb}\u2026")
 
-    def authorize_pc(self):
+    def enable_usb_debugging(self):
+        """Install the enable_adb module (USB debugging on at every boot) on the
+        connected device - from TWRP (the module's own installer, works in any
+        recovery) or from rooted Android (the root manager's module installer).
+        Needs KernelSU, Magisk or APatch on the device either way."""
+        if self.mode not in ("recovery", "device"):
+            self.notify("connect the device\nin TWRP, or in Android\nwith USB debugging")
+            return
+        where = "TWRP" if self.mode == "recovery" else "Android"
+        if not messagebox.askyesno(
+                "TWRP remote",
+                "Install 'Enable USB Debugging (every boot)' on this device?\n\n"
+                "It turns on Developer options and USB debugging at every Android boot. "
+                f"Installs from {where}; needs a root manager (KernelSU, Magisk or APatch). "
+                "Remove it in the root app to stop.",
+                parent=self.root):
+            return
+        self.notify("installing the\nUSB debugging module…", 60)
+
+        def done(ok, msg, offer_key=False):
+            def show():
+                self.note = ("", 0.0)
+                (messagebox.showinfo if ok else messagebox.showerror)("TWRP remote", msg, parent=self.root)
+                if ok and offer_key and messagebox.askyesno(
+                        "TWRP remote", "Also authorize this PC, so Android trusts it without the "
+                        "'Allow USB debugging?' prompt?", parent=self.root):
+                    self.authorize_pc(ask=False)
+            self.root.after(0, show)
+
+        def sh(cmd, timeout=60):
+            return run([self.adb, "shell", cmd], timeout=timeout)
+
+        def go():
+            try:
+                local = here(MODULE_ZIP)
+                have_local = os.path.isfile(local)
+                if self.mode == "recovery":
+                    # run the module's own installer (META-INF/.../update-binary),
+                    # as a recovery would: works in any recovery that has unzip
+                    zipf = "/tmp/enable-adb.zip"
+                    if have_local:
+                        r = run([self.adb, "push", local, zipf], timeout=30)
+                        if r.returncode != 0:
+                            return done(False, f"Copying the module failed:\n{r.stderr.strip()}")
+                    elif sh(f"test -f {DEVICE_MODULE_ZIP} && echo yes").stdout.strip() == "yes":
+                        zipf = DEVICE_MODULE_ZIP
+                    else:
+                        return done(False, f"{MODULE_ZIP} is missing next to TWRP Remote "
+                                           "(reinstall TWRP Remote).")
+                    work = "/tmp/enable_adb_inst"
+                    ub = work + "/META-INF/com/google/android/update-binary"
+                    # OUTFD 1 = this adb shell's stdout: the installer's ui_print
+                    # lines come back here
+                    r = sh(f"mkdir -p {work} && "
+                           f"unzip -o -q {zipf} META-INF/com/google/android/update-binary -d {work} && "
+                           f"sh {ub} 3 1 {zipf}; echo \"RC=$?\"", timeout=60)
+                    out = r.stdout
+                    lines = [l[len("ui_print "):] for l in out.splitlines()
+                             if l.startswith("ui_print ") and l[len("ui_print "):].strip()]
+                    ok = "RC=0" in out
+                    text = "\n".join(lines) or out.strip() or r.stderr.strip()
+                    return done(ok, ("Installed.\n\n" if ok else "Not installed.\n\n") + text, offer_key=ok)
+
+                # Android: needs root; the root manager installs it as from its app
+                if "uid=0" not in sh("su -c id", timeout=20).stdout:
+                    return done(False, "No root access from adb.\n\nRoot the device (KernelSU, Magisk or "
+                                       "APatch) and allow root for 'Shell' in the root app, then retry - "
+                                       "or install it from TWRP.")
+                if not have_local:
+                    return done(False, f"{MODULE_ZIP} is missing next to TWRP Remote (reinstall TWRP Remote).")
+                found = sh("su -c 'for t in /data/adb/ksud /data/adb/apd; do [ -x $t ] && echo $t; done; "
+                           "command -v magisk'").stdout.split()
+                if "/data/adb/ksud" in found:
+                    inst = "/data/adb/ksud module install"
+                elif "/data/adb/apd" in found:
+                    inst = "/data/adb/apd module install"
+                elif any(f.endswith("magisk") for f in found):
+                    inst = "magisk --install-module"
+                else:
+                    return done(False, "Root works, but no KernelSU, Magisk or APatch was found to install "
+                                       "the module with.")
+                tmp = "/data/local/tmp/enable-adb.zip"
+                r = run([self.adb, "push", local, tmp], timeout=30)
+                if r.returncode != 0:
+                    return done(False, f"Copying the module failed:\n{r.stderr.strip()}")
+                r = sh(f"su -c '{inst} {tmp}'; echo \"RC=$?\"", timeout=120)
+                ok = "RC=0" in r.stdout
+                tail = "\n".join(l for l in r.stdout.strip().splitlines()[-8:] if not l.startswith("RC="))
+                done(ok, ("Installed - it takes effect from the next reboot.\n\n" if ok else "Not installed.\n\n")
+                     + tail)
+            except Exception as ex:
+                done(False, f"Installing failed: {ex}")
+        threading.Thread(target=go, daemon=True).start()
+
+    def authorize_pc(self, ask=True):
         """Add this PC's ADB key to the enable_adb module, so Android trusts
         this PC at the next boot without the 'Allow USB debugging?' prompt."""
-        if not messagebox.askyesno(
+        if ask and not messagebox.askyesno(
                 "TWRP remote",
                 "Authorize this PC for USB debugging?\n\nIts ADB key is added to the enable_adb module; "
                 "from the next Android boot this PC connects without the 'Allow' prompt.",
@@ -617,8 +715,8 @@ class Remote:
                     return done(False, f"This PC has no ADB key yet ({path}).\nRun 'adb devices' once, then retry.")
                 r = run([self.adb, "shell", f"test -d {MODULE} && echo yes"])
                 if r.stdout.strip() != "yes":
-                    return done(False, "The enable_adb module isn't installed.\n\nIn TWRP: decrypt data, then "
-                                       "Advanced > Enable USB debugging (needs KernelSU, Magisk or APatch).")
+                    return done(False, "The enable_adb module isn't installed.\n\nUse the 'USB debugging' "
+                                       "button first (needs KernelSU, Magisk or APatch on the device).")
                 old = run([self.adb, "shell", f"cat {MODULE}/adb_keys 2>/dev/null"]).stdout.splitlines()
                 old = [k.strip() for k in old if k.strip()]
                 if any(k.split()[0] == key.split()[0] for k in old):

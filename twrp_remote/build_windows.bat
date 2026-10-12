@@ -7,7 +7,7 @@ rem Needs: Python 3 from python.org (the "py" launcher). Everything else goes
 rem into a private venv here (.venv-win), nothing is installed system-wide.
 rem
 rem Copy these files to one folder on the Windows PC and double-click this one:
-rem     twrp_remote.py   twrp_remote.png   build_windows.bat
+rem     twrp_remote.py   twrp_remote.png   enable-adb.zip   build_windows.bat
 rem     install_windows.bat   install_windows.ps1
 rem Result: dist\TWRP Remote.exe  (single file, no console window). Then run
 rem install_windows.bat: it installs the program, gets adb (and optionally
@@ -37,7 +37,7 @@ echo === making the icon
 echo === building TWRP Remote.exe
 .venv-win\Scripts\pyinstaller --noconfirm --clean --onefile --windowed ^
     --name "TWRP Remote" --icon twrp_remote.ico ^
-    --add-data "twrp_remote.png;." ^
+    --add-data "twrp_remote.png;." --add-data "enable-adb.zip;." ^
     twrp_remote.py || (echo PyInstaller failed & pause & exit /b 1)
 
 echo.

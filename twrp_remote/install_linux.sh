@@ -40,8 +40,10 @@ done
 
 say()  { echo "== $*"; }
 info() { echo "   $*"; }
+Y=$'\e[1;33m'; N=$'\e[0m'
+user() { echo "${Y}>> $*${N}"; }       # things YOU need to do
 die()  { echo "ERROR: $*" >&2; exit 1; }
-ask()  { [[ $YES == 1 ]] && return 0; local r; read -r -p "   $1 [Y/n] " r; [[ -z "$r" || "$r" =~ ^[Yy] ]]; }
+ask()  { [[ $YES == 1 ]] && return 0; local r; read -r -p "${Y}>> $1 [Y/n]${N} " r; [[ -z "$r" || "$r" =~ ^[Yy] ]]; }
 
 refresh_menu() {
     command -v update-desktop-database >/dev/null && update-desktop-database "$APPS" 2>/dev/null || true
@@ -138,6 +140,8 @@ fi
 say "Installing the app to $HOME_DIR"
 mkdir -p "$HOME_DIR/app"
 cp "$SRC/twrp_remote.py" "$SRC/twrp_remote.png" "$HOME_DIR/app/"
+# the USB debugging module the "USB debugging" button installs (optional file)
+[[ -f "$SRC/enable-adb.zip" ]] && cp "$SRC/enable-adb.zip" "$HOME_DIR/app/"
 if [[ ! -x "$HOME_DIR/venv/bin/python" ]]; then
     "$PY" -m venv "$HOME_DIR/venv" || die "creating the Python environment failed"
 fi
@@ -167,7 +171,7 @@ EOF
 refresh_menu
 
 say "Done"
-info "Start it from the menu (\"TWRP Remote\"), or: \"$HOME_DIR/venv/bin/python\" \"$HOME_DIR/app/twrp_remote.py\""
+user "Start it from the menu (\"TWRP Remote\"), or: \"$HOME_DIR/venv/bin/python\" \"$HOME_DIR/app/twrp_remote.py\""
 info "Screenshots and logs go to ~/TWRP Remote.  Remove with: $0 --uninstall"
 info "If adb shows \"no permissions\" for the phone, your distro needs Android udev rules"
-info "(Debian/Ubuntu: they come with the adb package; then unplug and replug the phone)."
+user "(Debian/Ubuntu: they come with the adb package; then unplug and replug the phone)."
