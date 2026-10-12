@@ -98,7 +98,7 @@ index 003586de..6711c571 100755
  					ss << val;
  					return ss.str();
 diff --git a/data.cpp b/data.cpp
-index c19fe4c2..d28ecc44 100644
+index c19fe4c2..2a90877a 100644
 --- a/data.cpp
 +++ b/data.cpp
 @@ -417,11 +417,14 @@ int DataManager::SetValue(const string& varName, const string& value, const int
@@ -148,7 +148,19 @@ index c19fe4c2..d28ecc44 100644
  #ifdef TW_NO_FLASH_CURRENT_TWRP
  	mConst.SetValue("tw_no_flash_current_twrp", "1");
  #else
-@@ -1028,7 +1042,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+@@ -906,6 +920,11 @@ void DataManager::SetDefaultValues()
+ #ifdef TW_HAS_MTP
+ 	mConst.SetValue("tw_has_mtp", "1");
+ 	mPersist.SetValue("tw_mtp_enabled", "1");
++	// shiba: the user's choice, separate from tw_mtp_enabled (= MTP is running
++	// now). TWRP turns MTP off internally (sideload, format data, ...), and since
++	// settings are saved on change (v9.29) such a moment could stick and leave
++	// MTP off at every boot. Only Start/Stop MTP in the GUI change this one.
++	mPersist.SetValue("tw_mtp_wanted", "1");
+ 	mPersist.SetValue("tw_mtp_debug", "0");
+ #else
+ 	LOGINFO("TW_EXCLUDE_MTP := true\n");
+@@ -1028,7 +1047,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
  				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
  			cpuSecCheck = curTime.tv_sec + 5;
  		}
@@ -186,7 +198,7 @@ index fa626624..a7abe6a2 100644
      seclabel u:r:recovery:s0
 +    disabled
 diff --git a/gui/action.cpp b/gui/action.cpp
-index f47623da..2161fd20 100755
+index f47623da..593edaf7 100755
 --- a/gui/action.cpp
 +++ b/gui/action.cpp
 @@ -541,6 +541,7 @@ void GUIAction::operation_end(const int operation_status)
@@ -197,6 +209,22 @@ index f47623da..2161fd20 100755
  	DataManager::SetValue("tw_operation_state", 1);
  	DataManager::SetValue(TW_ACTION_BUSY, 0);
  	blankTimer.resetTimerAndUnblank();
+@@ -1765,6 +1766,7 @@ int GUIAction::startmtp(std::string arg __unused)
+ 	int op_status = 0;
+ 
+ 	operation_start("Start MTP");
++	DataManager::SetValue("tw_mtp_wanted", 1);	// shiba: remembered for the next boots
+ 	if (PartitionManager.Enable_MTP())
+ 		op_status = 0; // success
+ 	else
+@@ -1779,6 +1781,7 @@ int GUIAction::stopmtp(std::string arg __unused)
+ 	int op_status = 0;
+ 
+ 	operation_start("Stop MTP");
++	DataManager::SetValue("tw_mtp_wanted", 0);	// shiba: remembered for the next boots
+ 	if (PartitionManager.Disable_MTP())
+ 		op_status = 0; // success
+ 	else
 diff --git a/gui/blanktimer.cpp b/gui/blanktimer.cpp
 index 61356d34..50193a7c 100755
 --- a/gui/blanktimer.cpp
@@ -1952,7 +1980,7 @@ index 203638a6..3228dff8 100644
  	static int Exec_Cmd(const string& cmd, bool Show_Errors = true);            //execute a command, displays an error to the GUI if Show_Errors is true, Show_Errors is true by default
  	static int Wait_For_Child(pid_t pid, int *status, string Child_Name, bool Show_Errors = true); // Waits for pid to exit and checks exit status, displays an error to the GUI if Show_Errors is true which is the default
 diff --git a/twrp.cpp b/twrp.cpp
-index b257780d..4f48706a 100644
+index b257780d..34d0f3b8 100644
 --- a/twrp.cpp
 +++ b/twrp.cpp
 @@ -51,6 +51,8 @@ extern "C" {
@@ -1981,6 +2009,15 @@ index b257780d..4f48706a 100644
  #endif
  	Decrypt_Page(skip_decryption, datamedia);
  
+@@ -253,7 +265,7 @@ static void process_recovery_mode(twrpAdbBuFifo* adb_bu_fifo, bool skip_decrypti
+ #ifdef TW_HAS_MTP
+ 	char mtp_crash_check[PROPERTY_VALUE_MAX];
+ 	property_get("mtp.crash_check", mtp_crash_check, "0");
+-	if (DataManager::GetIntValue("tw_mtp_enabled")
++	if (DataManager::GetIntValue("tw_mtp_wanted")	// shiba: the user's choice, see data.cpp
+ 			&& !strcmp(mtp_crash_check, "0") && !crash_counter
+ 			&& (!DataManager::GetIntValue(TW_IS_ENCRYPTED) || DataManager::GetIntValue(TW_IS_DECRYPTED))) {
+ 		property_set("mtp.crash_check", "1");
 @@ -339,6 +351,10 @@ static void reboot() {
  		TWFunc::tw_reboot(rb_edl);
  	else if (Reboot_Arg == "fastboot")

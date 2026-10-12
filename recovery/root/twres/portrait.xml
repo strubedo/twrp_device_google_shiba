@@ -258,7 +258,7 @@
 				<conditions><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
 				<placement x="637" y="204"/>
-				<text>KernelSU · %tw_android_label%</text>
+				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
@@ -294,7 +294,7 @@
 				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
 				<placement x="623" y="204"/>
-				<text>KernelSU · %tw_android_label%</text>
+				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
@@ -330,7 +330,7 @@
 				<conditions><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
 				<placement x="575" y="204"/>
-				<text>KernelSU · %tw_android_label%</text>
+				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
@@ -4288,6 +4288,24 @@
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/install-ksu.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
+				     whose APK must be in Download/ (twrp_root.sh find_apk) -->
+				<listitem name="Root: Install KernelSU-Next">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_root/install-ksun.zip</action>
+						<action function="queuezip"/>
+						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<listitem name="Root: Install SukiSU">
+					<actions>
+						<action function="queueclear"/>
+						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
 						<action function="queuezip"/>
 						<action function="page">flash_confirm</action>
 					</actions>

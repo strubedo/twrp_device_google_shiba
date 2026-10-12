@@ -377,6 +377,23 @@ app_setup() {
         say "- /data isn't decrypted: install the $name app yourself after booting"
         return 0
     fi
+    # KernelSU family: kernelsu.ko runs /data/adb/ksud at boot (modules,
+    # post-fs-data...). It must be the ksud that patched init_boot - that tool's
+    # own (KSUD_APP for KernelSU-Next / SukiSU) - also when switching from another
+    # KernelSU-family root, whose ksud would otherwise stay (kept as ksud.bak).
+    # -f, not -x: /data is mounted noexec in recovery.
+    if [[ "$tool" =~ ^(ksu|ksun|suki)$ ]]; then
+        local want="${KSUD_APP:-$KSUD}"
+        if [[ -f /data/adb/ksud ]] && cmp -s "$want" /data/adb/ksud; then
+            :
+        elif { [[ ! -f /data/adb/ksud ]] || cp -p /data/adb/ksud /data/adb/ksud.bak; } \
+                && mkdir -p /data/adb && cp "$want" /data/adb/ksud && chown 0:0 /data/adb/ksud \
+                && chmod 0755 /data/adb/ksud && chcon u:object_r:ksu_file:s0 /data/adb/ksud; then
+            say "- Placed ${name}'s ksud in /data/adb$([[ -f /data/adb/ksud.bak ]] && echo " (previous one: ksud.bak)")"
+        else
+            say "! Could not place /data/adb/ksud - open the $name app after booting to finish"
+        fi
+    fi
     if [[ "${FORCE_APP_SETUP:-}" != 1 ]]; then
         if grep -a -q "$pkg" /data/system/packages.xml; then
             say "- $name app already installed"; return 0
@@ -408,17 +425,6 @@ app_setup() {
     # in /data/adb, so the root tool can run modules - including ours - at boot.
     # -f/-d, not -x: /data is mounted noexec in recovery, so bash's [[ -x ]]
     # (kernel access()) is false even for real executables there.
-    # (KernelSU-family: the ksud that patched init_boot - KSUD_APP for KernelSU-Next
-    # / SukiSU - so /data/adb/ksud matches the installed kernelsu.ko and app)
-    if [[ "$tool" =~ ^(ksu|ksun|suki)$ && ! -f /data/adb/ksud ]]; then
-        if cp "${KSUD_APP:-$KSUD}" /data/adb/ksud && chown 0:0 /data/adb/ksud && chmod 0755 /data/adb/ksud \
-                && chcon u:object_r:ksu_file:s0 /data/adb/ksud; then
-            say "- Placed ksud in /data/adb"
-        else
-            say "! Could not place /data/adb/ksud - install the KernelSU app yourself after booting"
-            return 0
-        fi
-    fi
     if [[ "$tool" == magisk && ! -d /data/adb/magisk ]]; then
         if mkdir -p /data/adb/magisk && cp -a "$TOOLS/magisk/." /data/adb/magisk/ \
                 && chown -R 0:0 /data/adb/magisk && chmod 0755 /data/adb/magisk \
