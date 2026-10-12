@@ -21,6 +21,9 @@
 #   MAGISK   ramdisk has .backup/.magisk
 #   KERNELSU ramdisk has kernelsu.ko AND init.real
 #   STOCK    neither (a leftover stock_image.sha1 alone does not count)
+# KernelSU can also be built into the kernel itself ("GKI mode": a custom kernel
+# flashed to boot) - init_boot is stock then. `status` reports KERNELSU for that
+# too (kernel_ksu), installs refuse it, and remove explains how to undo it.
 set -euo pipefail
 
 TOOLS=/system/etc/twrp_root
@@ -53,6 +56,31 @@ state_of() {
     elif has kernelsu.ko && has init.real; then echo KERNELSU
     else echo STOCK
     fi
+}
+
+# kernel_ksu [SLOT] -> success if that slot's BOOT kernel has KernelSU built in
+# (a custom kernel with KernelSU / KernelSU-Next, e.g. with SUSFS). Default: the
+# slot this run acts on. Cached per slot, keyed on the boot image's first MiB,
+# so the main-page chip doesn't unpack 64 MB after every operation.
+kernel_ksu() {
+    local s="${1:-$SLOT}"
+    local boot="/dev/block/by-name/boot${s}" d="$W/kdetect" key cache found=no
+    [[ -b "$boot" ]] || return 1
+    key="$(head -c 1048576 "$boot" | md5sum | cut -c1-16)"
+    cache="$W/kernel_ksu${s}.$key"
+    if [[ ! -f "$cache" ]]; then
+        rm -f "$W"/kernel_ksu"${s}".*
+        rm -rf "$d"; mkdir -p "$d"
+        if dd if="$boot" of="$d/boot.img" bs=1M 2>/dev/null \
+                && ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) \
+                && [[ -f "$d/kernel" ]] \
+                && grep -a -q -E 'ksu_handle_|KernelSU' "$d/kernel"; then
+            found=yes
+        fi
+        rm -rf "$d"
+        echo "$found" > "$cache"
+    fi
+    [[ "$(cat "$cache")" == yes ]]
 }
 
 # dump the partition to a file
@@ -115,11 +143,19 @@ backup_current() {
 require_state() {
     local want="$1" cur; cur="$(state_of "$W/current.img")"
     [[ "$cur" == "$want" ]] || die "init_boot${SLOT} is $cur; this action needs $want${2:+ ($2)}"
+    if [[ "$want" == STOCK ]] && kernel_ksu; then
+        die "this slot's kernel (boot${SLOT}) already has KernelSU built in (GKI mode) - it's rooted; not adding a second root"
+    fi
 }
 
 # ---- actions ---------------------------------------------------------------
 
-do_status() { read_part "$W/current.img"; state_of "$W/current.img"; }
+do_status() {
+    read_part "$W/current.img"
+    local st; st="$(state_of "$W/current.img")"
+    if [[ "$st" == STOCK ]] && kernel_ksu; then st=KERNELSU; fi
+    echo "$st"
+}
 
 # A property of the RUNNING slot's installed system, read from its build.prop on a
 # read-only mount - right whether or not /data is encrypted (the crypto script's
@@ -138,6 +174,16 @@ do_android() { installed_prop ro.build.version.release; }   # main-page root chi
 do_build()   { installed_prop ro.build.id; }                # build.sh --flash guard
 
 do_install_ksu() {
+    # "Reinstall root after OTA" when the running slot's root is a custom kernel
+    # (KernelSU / KernelSU-Next built in, e.g. Sultan + SUSFS): our KernelSU LKM
+    # would be a different root on the new slot, without that kernel. Its owner
+    # reflashes the kernel instead - say so, change nothing.
+    if [[ "$SLOT" != "$RUN_SLOT" ]] && kernel_ksu "$RUN_SLOT"; then
+        say "- This slot is rooted by its kernel (KernelSU built into boot${RUN_SLOT}),"
+        say "  so TWRP doesn't install its own KernelSU on the updated slot."
+        say "  For root there: flash your custom kernel again after the update."
+        exit 0
+    fi
     read_part "$W/current.img"
     require_state STOCK "use Remove root first"
     # The KernelSU module only loads into a kernel with a matching KMI. Check
@@ -308,7 +354,9 @@ do_remove() {
                 && "$MAGISKBOOT" repack "$W/current.img" "$restored" >/dev/null 2>&1 ) \
                 || die "Magisk ramdisk restore failed"
             ;;
-        STOCK) die "init_boot${SLOT} is already stock - nothing to remove" ;;
+        STOCK)
+            kernel_ksu && die "KernelSU is built into this slot's kernel (boot${SLOT}, GKI mode), not init_boot - to remove it, flash the stock boot image for your build (TWRP: Install > Install Image > boot)"
+            die "init_boot${SLOT} is already stock - nothing to remove" ;;
         *)     die "init_boot${SLOT} state is $cur - refusing to guess" ;;
     esac
     flash_verified "$restored" STOCK "$backup"

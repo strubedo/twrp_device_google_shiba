@@ -49,7 +49,7 @@ rm -rf "$OUT" "$OUT.zip"; mkdir -p "$OUT/twrp_remote" "$OUT/licenses"
 cp "$FRAG" "$OUT/recovery.cpio.lz4"
 cp install_twrp.py vbgraft/vbgraft.py README.md LICENSE THIRD_PARTY_NOTICES.md "$OUT/"
 cp licenses/* "$OUT/licenses/"
-cp "$REMOTE"/{twrp_remote.py,twrp_remote.png,install_linux.sh,build_windows.bat,install_windows.bat,install_windows.ps1,LICENSE} \
+cp "$REMOTE"/{twrp_remote.py,twrp_remote.png,enable-adb.zip,install_linux.sh,build_windows.bat,install_windows.bat,install_windows.ps1,LICENSE} \
    "$OUT/twrp_remote/"
 cat > "$OUT/INSTALL.txt" <<EOF
 TWRP $VER for Google Pixel 8 (shiba) - unofficial

@@ -116,6 +116,10 @@ TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 TW_MAX_BRIGHTNESS := 3827
 TW_DEFAULT_BRIGHTNESS := 1500
 TW_CUSTOM_BATTERY_PATH := "/sys/class/power_supply/battery"
+# Read the battery from sysfs (the path above). Without this, TWRP asks the
+# health HAL, which recovery doesn't run: "Using fake battery capacity 100" -
+# the status bar always showed 100%+ (and logged that every second).
+TW_USE_LEGACY_BATTERY_SERVICES := true
 TW_EXTRA_LANGUAGES := false
 TW_USE_TOOLBOX := true
 TW_INCLUDE_RESETPROP := true
