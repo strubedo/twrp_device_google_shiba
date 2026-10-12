@@ -154,21 +154,12 @@ def screenshot_dir():
     return d
 
 
-def downloads_dir():
-    """The user's Downloads folder (XDG on Linux; the usual place on Windows)."""
-    base = ""
-    if WINDOWS:
-        base = os.path.join(os.environ.get("USERPROFILE") or os.path.expanduser("~"), "Downloads")
-    else:
-        try:
-            base = subprocess.run(["xdg-user-dir", "DOWNLOAD"], capture_output=True,
-                                  text=True, timeout=3).stdout.strip()
-        except Exception:
-            base = ""
-        if not base or os.path.realpath(base) == os.path.realpath(os.path.expanduser("~")):
-            base = os.path.join(os.path.expanduser("~"), "Downloads")
-    os.makedirs(base, exist_ok=True)
-    return base
+def logs_dir():
+    """<Pictures>/TWRP Remote/Logs - Collect logs archives, next to the screenshots
+    (one TWRP Remote folder for everything it saves), created on first use."""
+    d = os.path.join(screenshot_dir(), "Logs")
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def open_folder(path):
@@ -641,7 +632,7 @@ class Remote:
 
     def collect_logs(self):
         """TWRP: bundle its diagnostic logs (twrp_collect_logs.sh, identifiers
-        redacted) and pull the archive into the PC's Downloads folder."""
+        redacted) and pull the archive into <Pictures>/TWRP Remote/Logs."""
         if self.mode != "recovery":
             self.notify("Collect logs works\nwhile the device is\nin TWRP")
             return
@@ -655,12 +646,12 @@ class Remote:
                 if not saved:
                     raise RuntimeError("no archive (is this TWRP up to date?)")
                 remote = saved[-1][len("SAVED: "):].split(" (")[0].strip()
-                local = os.path.join(downloads_dir(), os.path.basename(remote))
+                local = os.path.join(logs_dir(), os.path.basename(remote))
                 p = subprocess.run([self.adb, "pull", remote, local], capture_output=True,
                                    text=True, timeout=60, creationflags=NO_WINDOW)
                 if p.returncode != 0 or not os.path.isfile(local):
                     raise RuntimeError("adb pull failed")
-                msg = f"logs saved to Downloads\n{os.path.basename(local)}"
+                msg = f"logs saved to\nTWRP Remote/Logs\n{os.path.basename(local)}"
             except Exception as ex:
                 msg = f"Collect logs failed:\n{ex}"
             self.root.after(0, lambda: self.notify(msg, 8))
