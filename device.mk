@@ -21,20 +21,11 @@ AB_OTA_PARTITIONS += \
 # Dynamic partitions
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 
-# Virtual A/B with compression, like the stock firmware (values from the
-# October 2026 vendor build.prop; ublk is Android 16+ and unknown to our
-# libsnapshot). Without these, TWRP's update_engine_sideload treated the phone
-# as plain Virtual A/B: it wrote uncompressed snapshots and no
-# /metadata/ota/old-partition-metadata, and Android 16/17's first-stage init
-# can't map such a slot ("Could not map source device for: system_b-cow" ->
-# kernel panic). With them, libsnapshot writes compressed (snapuserd)
-# snapshots and saves the old super layout, as stock recovery does.
-PRODUCT_VENDOR_PROPERTIES += \
-    ro.virtual_ab.compression.enabled=true \
-    ro.virtual_ab.userspace.snapshots.enabled=true \
-    ro.virtual_ab.compression.xor.enabled=true \
-    ro.virtual_ab.io_uring.enabled=true \
-    ro.virtual_ab.batch_writes=true
+# No ro.virtual_ab.compression.* props: libsnapshot disables compressed and
+# userspace snapshots in recovery regardless ("Compression disabled:
+# recovery"), so they changed nothing. An A/B OTA installed from TWRP gets
+# uncompressed dm-snapshots, which Android 17 can't boot - twinstall.cpp warns
+# before such an install and keeps the current slot active after it.
 
 PRODUCT_SHIPPING_API_LEVEL := 34
 

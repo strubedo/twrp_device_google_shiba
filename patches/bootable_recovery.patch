@@ -1978,7 +1978,7 @@ index 1da19e26..b29d1543 100755
  			LOGERR("can not find ramdisk-files.txt");
  			return false;
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
-index 6abccea7..27ca37de 100755
+index 6abccea7..e14c2277 100755
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
 @@ -22,6 +22,7 @@
@@ -1989,7 +1989,88 @@ index 6abccea7..27ca37de 100755
  #include <errno.h>
  #include <fcntl.h>
  #include <limits.h>
-@@ -348,9 +349,102 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -62,6 +63,58 @@ extern "C" {
+ 
+ #define AB_OTA "payload_properties.txt"
+ 
++// shiba: an A/B OTA installed from recovery gets uncompressed dm-snapshots -
++// libsnapshot hard-disables compressed/userspace snapshots in recovery
++// ("Compression disabled: recovery"). Android 17's first-stage init can't map
++// those (kernel panic, bootloop to fastboot). Targets from this Android
++// version on are warned about first and never left as the active slot.
++#define SHIBA_OTA_BAD_MAJOR 17
++#define SHIBA_OTA_CONFIRM "/tmp/twrp_ota_confirm"
++
++// Android major version the OTA installs (post-build fingerprint
++// brand/product/device:RELEASE/ID/...), or -1 if the zip doesn't say.
++static int Ota_Target_Major(ZipArchiveHandle Zip, std::string* post_build) {
++	std::string name("META-INF/com/android/metadata");
++	ZipEntry64 entry;
++	if (FindEntry(Zip, name, &entry) != 0 || entry.uncompressed_length <= 0
++			|| entry.uncompressed_length > 1024 * 1024)
++		return -1;
++	std::string meta(entry.uncompressed_length, '\0');
++	if (ExtractToMemory(Zip, &entry, reinterpret_cast<uint8_t*>(&meta[0]), meta.size()) != 0)
++		return -1;
++	size_t p = meta.find("post-build=");
++	if (p == std::string::npos)
++		return -1;
++	size_t eol = meta.find('\n', p);
++	std::string fp = meta.substr(p + 11, eol == std::string::npos ? std::string::npos : eol - p - 11);
++	if (post_build)
++		*post_build = fp;
++	size_t c = fp.find(':');
++	if (c == std::string::npos || c + 1 >= fp.size() || !isdigit((unsigned char)fp[c + 1]))
++		return -1;
++	return atoi(fp.c_str() + c + 1);
++}
++
++// Two-step confirmation without a GUI page: the first install of a zip only
++// warns and records it; installing the same zip again within 5 minutes goes
++// ahead. Works the same from the GUI, the queue and twrp/ORS commands.
++static bool Ota_Confirmed(const char* path) {
++	std::string rec;
++	time_t now = time(NULL);
++	if (TWFunc::read_file(SHIBA_OTA_CONFIRM, rec) == 0) {
++		size_t tab = rec.find('\t');
++		if (tab != std::string::npos && rec.substr(0, tab) == path) {
++			long when = atol(rec.c_str() + tab + 1);
++			if (now - when >= 0 && now - when <= 300) {
++				unlink(SHIBA_OTA_CONFIRM);
++				return true;
++			}
++		}
++	}
++	TWFunc::write_to_file(SHIBA_OTA_CONFIRM, std::string(path) + "\t" + std::to_string((long)now));
++	return false;
++}
++
+ enum zip_type {
+ 	UNKNOWN_ZIP_TYPE = 0,
+ 	UPDATE_BINARY_ZIP_TYPE,
+@@ -326,6 +379,21 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+ 		ZipEntry64 ab_binary_entry;
+ 		if (FindEntry(Zip, ab_binary_name, &ab_binary_entry) == 0) {
+ 			LOGINFO("AB zip\n");
++			std::string post_build;
++			int target_major = Ota_Target_Major(Zip, &post_build);
++			LOGINFO("OTA target: '%s' (Android %d)\n", post_build.c_str(), target_major);
++			if (target_major >= SHIBA_OTA_BAD_MAJOR && !Ota_Confirmed(path)) {
++				gui_print_color("warning", "\n!! This OTA installs Android %d. An update installed from\n"
++					"!! recovery can't boot on Android %d+ (Android disables compressed\n"
++					"!! snapshots in recovery). TWRP would install it but keep booting\n"
++					"!! the current slot - the update would not take effect.\n"
++					"!! To update: install it from Android (Settings > System update)\n"
++					"!! or flash the factory image (fastboot update, without -w),\n"
++					"!! then reinstall TWRP.\n"
++					"!! To install anyway, install the same zip again within 5 minutes.\n",
++					target_major, SHIBA_OTA_BAD_MAJOR);
++				return INSTALL_ERROR;
++			}
+ 			gui_msg(Msg(msg::kHighlight, "flash_ab_inactive=Flashing A/B zip to inactive slot: {1}")(PartitionManager.Get_Active_Slot_Display()=="A"?"B":"A"));
+ 			// We need this so backuptool can do its magic
+ 			bool system_mount_state = PartitionManager.Is_Mounted_By_Path(PartitionManager.Get_Android_Root_Path());
+@@ -348,9 +416,114 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  			}
  			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
  			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
@@ -2027,15 +2108,18 @@ index 6abccea7..27ca37de 100755
 +						"then install the update again.\n");
 +				}
 +			}
-+			// shiba: snapshot guard. A Virtual A/B update installed from recovery
-+			// with compressed snapshots must leave /metadata/ota/old-partition-metadata
-+			// (the pre-update super layout): first-stage init builds the snapshots'
-+			// source devices from it, and Android 16+ can't boot the slot without it
-+			// (kernel panic "Failed to create devices required for first stage
-+			// mount"). If the install left snapshots but not that file, keep booting
-+			// the current slot instead of activating one that can't start.
++			// shiba: snapshot guard. libsnapshot writes uncompressed dm-snapshots in
++			// recovery (no /metadata/ota/old-partition-metadata). Android 17's
++			// first-stage init can't map those ("Could not map source device for:
++			// system_X-cow" -> kernel panic). So never leave such an update as the
++			// active slot: for Android 17+ targets always, otherwise whenever the
++			// install left snapshots without old-partition-metadata. Booting the
++			// current slot afterwards is a normal rollback - Android deletes the
++			// snapshots by itself. update_engine unmounts /metadata at the end,
++			// so mount it again before looking (it read as empty before v9.45).
 +			bool snap_guarded = false;
 +			if (ret_val == INSTALL_SUCCESS && !dfe_guarded) {
++				PartitionManager.Mount_By_Path("/metadata", false);
 +				int snaps = 0;
 +				DIR* sd = opendir("/metadata/ota/snapshots");
 +				if (sd) {
@@ -2044,15 +2128,24 @@ index 6abccea7..27ca37de 100755
 +						if (de->d_name[0] != '.') snaps++;
 +					closedir(sd);
 +				}
-+				if (snaps > 0 && !TWFunc::Path_Exists("/metadata/ota/old-partition-metadata")) {
++				bool no_old_meta = !TWFunc::Path_Exists("/metadata/ota/old-partition-metadata");
++				LOGINFO("snapshot guard: target Android %d, %d snapshot(s), old-partition-metadata %s\n",
++					target_major, snaps, no_old_meta ? "missing" : "present");
++				if (target_major >= SHIBA_OTA_BAD_MAJOR || (snaps > 0 && no_old_meta)) {
 +					snap_guarded = true;
 +					std::string cur = PartitionManager.Get_Active_Slot_Display();
 +					std::string upd = cur == "A" ? "B" : "A";
-+					gui_print_color("error", "\n!! The update left %d snapshot(s) but no old-partition-metadata:\n"
-+						"!! slot %s would not boot (Android 16+ needs it).\n", snaps, upd.c_str());
++					if (target_major >= SHIBA_OTA_BAD_MAJOR)
++						gui_print_color("error", "\n!! Slot %s got Android %d from recovery: it would not boot\n"
++							"!! (uncompressed snapshots).\n", upd.c_str(), target_major);
++					else
++						gui_print_color("error", "\n!! The update left %d snapshot(s) but no old-partition-metadata:\n"
++							"!! slot %s would not boot.\n", snaps, upd.c_str());
 +					if (PartitionManager.Restore_Boot_Slot(cur)) {
-+						gui_print_color("warning", "Slot %s was NOT activated - the phone keeps booting slot %s.\n"
-+							"Update with the factory image instead (fastboot update, without -w).\n",
++						gui_print_color("warning", "Slot %s was NOT activated - the phone keeps booting slot %s,\n"
++							"and Android discards the unused update on its next boot.\n"
++							"Update from Android (Settings > System update) or with the\n"
++							"factory image (fastboot update, without -w) instead.\n",
 +							upd.c_str(), cur.c_str());
 +					} else {
 +						gui_print_color("error", "!! Could not switch back to slot %s. Do NOT boot Android:\n"
