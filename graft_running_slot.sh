@@ -13,7 +13,7 @@ FRAG=/tmp/frag.lz4
 SLOT="$(getprop ro.boot.slot_suffix)"
 PART="/dev/block/by-name/vendor_boot${SLOT}"
 BK=/sdcard/TWRP/vendor_boot_backups
-[ -f "$FRAG" ] || { echo "no $FRAG - adb push the fragment first"; exit 1; }
+[ -f "$FRAG" ] || { echo "no $FRAG"; printf '\033[1;33m>> adb push the fragment to %s first\033[0m\n' "$FRAG"; exit 1; }
 [ -b "$PART" ] || { echo "no $PART"; exit 1; }
 mkdir -p "$BK"
 dd if="$PART" of=/tmp/vb_cur.img bs=1M 2>/dev/null
@@ -23,7 +23,8 @@ vbgraft --src /tmp/vb_cur.img --recovery-frag "$FRAG" --out /tmp/vb_new.img --ma
 dd if=/tmp/vb_new.img of="$PART" bs=1M conv=fsync 2>/dev/null
 n=$(stat -c %s /tmp/vb_new.img)
 if head -c "$n" "$PART" | cmp - /tmp/vb_new.img; then
-    echo "VERIFIED: vendor_boot${SLOT} written ($n bytes) - adb reboot recovery"
+    echo "VERIFIED: vendor_boot${SLOT} written ($n bytes)"
+    printf '\033[1;33m>> now run on the PC: adb reboot recovery\033[0m\n'
 else
     echo "MISMATCH - restoring the backup"
     dd if=/tmp/vb_cur.img of="$PART" bs=1M conv=fsync 2>/dev/null

@@ -48,6 +48,15 @@ def say(msg=""):
     print(msg, flush=True)
 
 
+if WINDOWS:
+    os.system("")                      # turns on ANSI colors in the Windows console
+_Y, _N = ("\033[1;33m", "\033[0m") if sys.stdout.isatty() else ("", "")
+
+
+def user(msg):                         # things YOU need to do (yellow)
+    say(_Y + ">> " + msg + _N)
+
+
 def fail(msg):
     say("\nERROR: " + msg)
     say("Nothing was flashed.")
@@ -294,11 +303,12 @@ def main():
     rc, out = phone.run(phone.fastboot, flash, timeout=180)
     say(out)
     if rc != 0:
-        say("\nFlashing failed. Your original is safe in the backup; restore with:\n   " + restore)
+        say("\nFlashing failed. Your original is safe in the backup.")
+        user("Restore it with:  " + restore)
         sys.exit(1)
     phone.run(phone.fastboot, ["reboot", "recovery"], timeout=30)
     say("\n== Done. The phone is booting TWRP.")
-    say("In TWRP: enter your PIN, then Advanced > KEEP TWRP > Install to both slots.")
+    user("In TWRP: enter your PIN, then Advanced > KEEP TWRP > Install to both slots.")
     say("To undo (from fastboot): " + restore)
     return 0
 
