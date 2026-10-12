@@ -280,7 +280,7 @@ class Remote:
         bar = tk.Frame(self.root, bg=SURFACE)
         bar.pack(side="right", fill="y")
         def button(label, cmd, top=0):
-            tk.Button(bar, text=label, command=cmd, width=11, relief="flat", bd=0, takefocus=0,
+            tk.Button(bar, text=label, command=cmd, width=13, relief="flat", bd=0, takefocus=0,
                       bg="#1A1A1A", fg=TEXT, activebackground=ACCENT, activeforeground=BG,
                       padx=6, pady=8).pack(padx=10, pady=(top or 10, 0))
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
@@ -315,7 +315,7 @@ class Remote:
             w.destroy()
         for label, target in items:
             tk.Button(self.reboot_frame, text=label, command=lambda l=label, t=target: self.reboot(l, t),
-                      width=11, relief="flat", bd=0, takefocus=0, bg="#1A1A1A", fg=TEXT,
+                      width=13, relief="flat", bd=0, takefocus=0, bg="#1A1A1A", fg=TEXT,
                       activebackground=ACCENT, activeforeground=BG, padx=6, pady=8).pack(padx=10, pady=(6, 0))
 
     def identify(self):
