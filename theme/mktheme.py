@@ -78,6 +78,8 @@ CARD_GROUPED = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" p
 ADV_ITEMS = [
     ('Root: Show status', 'Show status', "ROOT", None),
     ('Root: Install KernelSU', 'Install KernelSU', None, None),
+    ('Root: Install KernelSU-Next', 'Install KernelSU-Next', None, None),
+    ('Root: Install SukiSU', 'Install SukiSU', None, None),
     ('Root: Install Magisk', 'Install Magisk', None, None),
     ('Root: Remove root', 'Remove root', None, None),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
