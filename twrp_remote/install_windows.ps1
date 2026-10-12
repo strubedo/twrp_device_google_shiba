@@ -85,10 +85,12 @@ function Get-Zip($url, $into) {
     }
 }
 
-# the program: next to this script, or in dist\ after build_windows.bat
-$Exe = @((Join-Path $Src 'TWRP Remote.exe'), (Join-Path $Src 'dist\TWRP Remote.exe')) |
+# the program: next to this script (the release's prebuilt TWRP-Remote.exe, or
+# GitHub's renaming of it), or in dist\ after build_windows.bat
+$Exe = @((Join-Path $Src 'TWRP Remote.exe'), (Join-Path $Src 'TWRP-Remote.exe'), (Join-Path $Src 'TWRP.Remote.exe'),
+         (Join-Path $Src 'dist\TWRP Remote.exe')) |
        Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $Exe) { Die 'TWRP Remote.exe not found - run build_windows.bat first (or put the .exe next to this script)' }
+if (-not $Exe) { Die 'TWRP Remote.exe not found - download TWRP-Remote.exe from the release into this folder, or run build_windows.bat first' }
 
 Say "Installing to $Dest"
 New-Item -ItemType Directory -Force $Dest | Out-Null

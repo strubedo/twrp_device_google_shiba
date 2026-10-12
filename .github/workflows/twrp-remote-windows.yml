@@ -1,0 +1,51 @@
+# Builds TWRP Remote for Windows (TWRP-Remote.exe) on GitHub's Windows runners
+# and attaches it to the release - the same PyInstaller build as
+# twrp_remote/build_windows.bat, so Windows users don't need Python.
+# Runs when a release is published; run it by hand (Actions > this workflow >
+# Run workflow) to add the .exe to an existing release.
+name: TWRP Remote for Windows
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and attach to (e.g. v9.46)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow + PyInstaller
+        run: python -m pip install --upgrade pip pillow pyinstaller
+
+      - name: Build TWRP-Remote.exe
+        working-directory: twrp_remote
+        shell: pwsh
+        run: |
+          python -c "from PIL import Image; Image.open('twrp_remote.png').save('twrp_remote.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+          $data = @('--add-data', 'twrp_remote.png;.')
+          if (Test-Path 'enable-adb.zip') { $data += @('--add-data', 'enable-adb.zip;.') }
+          pyinstaller --noconfirm --clean --onefile --windowed --name "TWRP-Remote" --icon twrp_remote.ico @data twrp_remote.py
+          if (-not (Test-Path 'dist\TWRP-Remote.exe')) { throw 'PyInstaller produced no exe' }
+          Get-FileHash 'dist\TWRP-Remote.exe' -Algorithm SHA256 | Format-List
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:TAG" "twrp_remote/dist/TWRP-Remote.exe" --clobber
