@@ -80,6 +80,29 @@ meta_done() {
 OSINFO="$META/$OSINFO_REL"
 FORCE_FALLBACK=""
 [ -n "$META" ] && [ -e "$META/$FORCE_REL" ] && FORCE_FALLBACK=1
+# Which chain worked last time, per vendor build ("fallback <vendor fingerprint>"):
+# with the same vendor, don't spend ~5 s re-proving that the vendor chain fails.
+CHAIN_REL=twrp/crypto_chain
+saved_chain=""
+[ -n "$META" ] && saved_chain="$(cat "$META/$CHAIN_REL" 2>/dev/null)"
+# write ($1 = new content) or clear (no $1) /metadata/twrp/crypto_chain - mounts
+# /metadata briefly if TWRP hasn't yet, like at the top
+save_chain() {
+    m=/metadata; tmp=""
+    if ! mountpoint -q /metadata; then
+        mkdir -p /tmp/metamnt
+        mount -t f2fs /dev/block/by-name/metadata /tmp/metamnt 2>>"$LOG" || return 1
+        m=/tmp/metamnt; tmp=1
+    fi
+    if [ -n "$1" ]; then
+        mkdir -p "$m/twrp" && echo "$1" > "$m/$CHAIN_REL.tmp" && mv "$m/$CHAIN_REL.tmp" "$m/$CHAIN_REL" \
+            && chmod 600 "$m/$CHAIN_REL" && log "remembered: $1"
+    else
+        rm -f "$m/$CHAIN_REL" && log "cleared the remembered chain"
+    fi
+    [ -n "$tmp" ] && umount /tmp/metamnt 2>>"$LOG"
+    return 0
+}
 
 if [ -n "$(pidof keystore2)" ] && { [ "$(getprop init.svc.twrp.keymint)" = running ] \
         || [ "$(getprop init.svc.twrp.fb.keymint)" = running ]; }; then
@@ -91,7 +114,7 @@ fi
 
 # --- 1. the installed system's real OS version + SPLs ------------------------
 mkdir -p "$MNT/system" "$MNT/vendor"
-real_sys=""; real_ven=""; real_rel=""; real_roc=""
+real_sys=""; real_ven=""; real_rel=""; real_roc=""; real_vfp=""
 if mount -t ext4 -o ro "/dev/block/mapper/system$SLOT" "$MNT/system" 2>>"$LOG"; then
     BP="$MNT/system/system/build.prop"
     real_sys="$(grep -m1 '^ro.build.version.security_patch=' "$BP" | cut -d= -f2)"
@@ -101,6 +124,7 @@ if mount -t ext4 -o ro "/dev/block/mapper/system$SLOT" "$MNT/system" 2>>"$LOG"; 
 fi
 if mount -t ext4 -o ro "/dev/block/mapper/vendor$SLOT" "$MNT/vendor" 2>>"$LOG"; then
     real_ven="$(grep -m1 '^ro.vendor.build.security_patch=' "$MNT/vendor/build.prop" | cut -d= -f2)"
+    real_vfp="$(grep -m1 '^ro.vendor.build.fingerprint=' "$MNT/vendor/build.prop" | cut -d= -f2)"
     umount "$MNT/vendor"
 fi
 log "installed: os=$real_rel ($real_roc) SPL system=$real_sys vendor=$real_ven"
@@ -322,9 +346,22 @@ if [ -n "$FORCE_FALLBACK" ]; then
     fallback_chain || log "fallback chain failed - decryption unavailable"
     exit 0
 fi
+if [ -n "$real_vfp" ] && [ "$saved_chain" = "fallback $real_vfp" ]; then
+    log "vendor chain failed before with this vendor build -> fallback chain directly"
+    if fallback_chain; then exit 0; fi
+    log "fallback chain failed - trying the vendor chain after all"
+    for s in keystore2 twrp.fb.weaver twrp.fb.gatekeeper twrp.fb.keymint; do stop "$s"; done
+    save_chain
+fi
 vendor_chain; rc=$?
 if [ $rc = 1 ]; then
     log "vendor chain unavailable -> fallback chain (nothing from /vendor)"
-    fallback_chain || log "fallback chain failed - decryption unavailable"
+    if fallback_chain; then
+        [ -n "$real_vfp" ] && save_chain "fallback $real_vfp"
+    else
+        log "fallback chain failed - decryption unavailable"
+    fi
+elif [ $rc = 0 ] && [ -n "$saved_chain" ]; then
+    save_chain      # the vendor chain works (again) - forget the old result
 fi
 exit 0
