@@ -291,7 +291,7 @@ find_apk() {
         [[ -n "$f" ]] || continue
         # plain grep (not -q): with pipefail, grep -q's early exit can SIGPIPE unzip
         if "$bb" unzip -l "$f" 2>/dev/null | grep "$marker" >/dev/null; then echo "$f"; return 0; fi
-    done < <(sort -t: -k1,1nr <<< "$list" | cut -d: -f2-)
+    done <<< "$(sort -t: -k1,1nr <<< "$list" | cut -d: -f2-)"   # no < <(...): recovery has no /dev/fd
 }
 
 # ksud_for TOOL -> the ksud to patch with: bundled for KernelSU, the app's own
