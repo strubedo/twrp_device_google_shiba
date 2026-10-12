@@ -13,8 +13,10 @@ started for it (unless --no-scrcpy).
 
 Mouse = finger: click to tap, drag to swipe; scroll wheel swipes lists.
 Keyboard: while the window has focus, typing goes to TWRP (virtual keyboard).
-Side buttons: Power, Screenshot (saved to Pictures/TWRP Remote), Screenshots
-(opens that folder), and a Reboot menu.
+Side buttons: Power, Screenshot, Open folder, Collect logs, and a Reboot menu.
+Everything is saved under ~/TWRP Remote (Windows: C:\\Users\\<you>\\TWRP Remote):
+Screenshots/ and Logs/. Saves from older versions (Pictures/TWRP Remote) are
+moved there on first start.
 
 Needs adb (Android platform-tools) and Pillow; Tk comes with Python on Windows
 (Linux: sudo apt install python3-tk python3-pil.imagetk). Optional: scrcpy.
@@ -134,32 +136,78 @@ DEVICES = {
 }
 
 
+def home_dir():
+    return os.environ.get("USERPROFILE") if WINDOWS and os.environ.get("USERPROFILE") \
+        else os.path.expanduser("~")
+
+
+def app_dir():
+    """~/TWRP Remote (C:\\Users\\<you>\\TWRP Remote on Windows) - one folder for
+    everything TWRP Remote saves, each kind in its own subfolder."""
+    d = os.path.join(home_dir(), "TWRP Remote")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
 def screenshot_dir():
-    """<Pictures>/TWRP Remote - the user's real Pictures folder (XDG on Linux, which
-    follows a renamed/localized one; the Pictures known folder's usual place on
-    Windows), created on first use."""
+    """~/TWRP Remote/Screenshots, created on first use."""
+    d = os.path.join(app_dir(), "Screenshots")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def logs_dir():
+    """~/TWRP Remote/Logs - Collect logs archives, created on first use."""
+    d = os.path.join(app_dir(), "Logs")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def old_pictures_dir():
+    """Where versions up to v9.44 saved: <Pictures>/TWRP Remote (screenshots loose in
+    it, logs in its Logs/ subfolder). Only read, for the one-time move."""
     base = ""
     if WINDOWS:
-        base = os.path.join(os.environ.get("USERPROFILE") or os.path.expanduser("~"), "Pictures")
+        base = os.path.join(home_dir(), "Pictures")
     else:
         try:
             base = subprocess.run(["xdg-user-dir", "PICTURES"], capture_output=True,
                                   text=True, timeout=3).stdout.strip()
         except Exception:
             base = ""
-        if not base or os.path.realpath(base) == os.path.realpath(os.path.expanduser("~")):
-            base = os.path.join(os.path.expanduser("~"), "Pictures")   # xdg-user-dir falls back to ~
-    d = os.path.join(base, "TWRP Remote")
-    os.makedirs(d, exist_ok=True)
-    return d
+        if not base or os.path.realpath(base) == os.path.realpath(home_dir()):
+            base = os.path.join(home_dir(), "Pictures")   # xdg-user-dir falls back to ~
+    return os.path.join(base, "TWRP Remote")
 
 
-def logs_dir():
-    """<Pictures>/TWRP Remote/Logs - Collect logs archives, next to the screenshots
-    (one TWRP Remote folder for everything it saves), created on first use."""
-    d = os.path.join(screenshot_dir(), "Logs")
-    os.makedirs(d, exist_ok=True)
-    return d
+def move_old_saves():
+    """One-time move from <Pictures>/TWRP Remote into ~/TWRP Remote: screenshots ->
+    Screenshots/, Logs/* -> Logs/. Never overwrites (a name already present in the
+    new place is left where it was); removes the old folders only once empty.
+    Returns the number of files moved."""
+    old = old_pictures_dir()
+    if not os.path.isdir(old) or os.path.realpath(old) == os.path.realpath(app_dir()):
+        return 0
+    moved = 0
+    for src_dir, dst_dir in ((old, screenshot_dir()), (os.path.join(old, "Logs"), logs_dir())):
+        if not os.path.isdir(src_dir):
+            continue
+        for name in os.listdir(src_dir):
+            src = os.path.join(src_dir, name)
+            dst = os.path.join(dst_dir, name)
+            if not os.path.isfile(src) or os.path.exists(dst):
+                continue
+            try:
+                shutil.move(src, dst)
+                moved += 1
+            except OSError:
+                pass
+    for d in (os.path.join(old, "Logs"), old):
+        try:
+            os.rmdir(d)                         # only succeeds when empty
+        except OSError:
+            pass
+    return moved
 
 
 def open_folder(path):
@@ -234,7 +282,7 @@ class Remote:
                       padx=6, pady=8).pack(padx=10, pady=(top or 10, 0))
         for label, cmd in (("Power", lambda: self.press(KEY_POWER)),
                            ("Screenshot", self.screenshot),
-                           ("Screenshots", self.open_screenshots),
+                           ("Open folder", self.open_screenshots),
                            ("Collect logs", self.collect_logs),
                            ("Authorize PC", self.authorize_pc)):
             button(label, cmd)
@@ -626,13 +674,14 @@ class Remote:
 
     def open_screenshots(self):
         try:
-            open_folder(screenshot_dir())
+            screenshot_dir(); logs_dir()        # both subfolders visible from the start
+            open_folder(app_dir())
         except Exception as ex:
-            self.notify(f"can't open the\nscreenshot folder:\n{ex}")
+            self.notify(f"can't open the\nTWRP Remote folder:\n{ex}")
 
     def collect_logs(self):
         """TWRP: bundle its diagnostic logs (twrp_collect_logs.sh, identifiers
-        redacted) and pull the archive into <Pictures>/TWRP Remote/Logs."""
+        redacted) and pull the archive into ~/TWRP Remote/Logs."""
         if self.mode != "recovery":
             self.notify("Collect logs works\nwhile the device is\nin TWRP")
             return
@@ -689,7 +738,14 @@ def main():
                              "PATH, or start with --adb C:\\path\\to\\adb.exe")
         return
     extra = args.scrcpy_args.split() if args.scrcpy_args is not None else None
-    Remote(args.scale, adb, not args.no_scrcpy, args.debug_keys, extra).root.mainloop()
+    remote = Remote(args.scale, adb, not args.no_scrcpy, args.debug_keys, extra)
+    try:
+        moved = move_old_saves()                # one-time: <Pictures>/TWRP Remote -> ~/TWRP Remote
+    except Exception:
+        moved = 0
+    if moved:
+        remote.notify(f"moved {moved} saved files\nto TWRP Remote\nin your home folder", 8)
+    remote.root.mainloop()
 
 
 if __name__ == "__main__":

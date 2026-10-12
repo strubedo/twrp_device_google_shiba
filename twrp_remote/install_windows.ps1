@@ -46,7 +46,7 @@ if ($Uninstall) {
     if ([Environment]::GetEnvironmentVariable('ADB','User') -like "$Dest\*") {
         [Environment]::SetEnvironmentVariable('ADB', $null, 'User')
     }
-    Info 'removed (screenshots in Pictures\TWRP Remote are kept; the Google USB driver stays installed)'
+    Info 'removed (screenshots and logs in %USERPROFILE%\TWRP Remote are kept; the Google USB driver stays installed)'
     exit 0
 }
 
@@ -225,6 +225,6 @@ $l.Description = 'View and control TWRP on the Pixel 8 over USB (adb)'
 $l.Save()
 
 Say 'Done'
-Info 'Start it from the Start menu ("TWRP Remote"). Screenshots go to Pictures\TWRP Remote.'
+Info 'Start it from the Start menu ("TWRP Remote"). Screenshots and logs go to %USERPROFILE%\TWRP Remote.'
 Info 'If adb does not see the phone: Google USB driver - https://developer.android.com/studio/run/win-usb'
 Info 'Remove with: install_windows.bat -Uninstall'

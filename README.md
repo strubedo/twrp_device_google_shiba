@@ -121,8 +121,10 @@ connection reset`), more than one adb version is installed and they keep
 restarting each other's server: keep one platform-tools folder on PATH and close
 other tools that run their own adb.
 
-Screenshots are saved to **Pictures/TWRP Remote**, and *Collect logs* archives to
-**Pictures/TWRP Remote/Logs**; the **Screenshots** button opens that folder.
+Everything TWRP Remote saves goes into **TWRP Remote** in your home folder
+(`~/TWRP Remote`, on Windows `C:\Users\<you>\TWRP Remote`): **Screenshots/** and
+*Collect logs* archives in **Logs/**. The **Open folder** button opens it. Screenshots
+from older versions (Pictures/TWRP Remote) are moved there on first start.
 
 ## ⚠️ Before you start
 

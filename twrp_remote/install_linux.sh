@@ -54,7 +54,7 @@ if [[ $UNINSTALL == 1 ]]; then
     say "Removing TWRP Remote"
     rm -rf "$HOME_DIR"; rm -f "$DESKTOP" "$ICON"
     refresh_menu
-    info "removed $HOME_DIR and the menu entry (screenshots in Pictures/TWRP Remote are kept;"
+    info "removed $HOME_DIR and the menu entry (screenshots and logs in ~/TWRP Remote are kept;"
     info "system packages like adb are left installed)"
     exit 0
 fi
@@ -168,6 +168,6 @@ refresh_menu
 
 say "Done"
 info "Start it from the menu (\"TWRP Remote\"), or: \"$HOME_DIR/venv/bin/python\" \"$HOME_DIR/app/twrp_remote.py\""
-info "Screenshots go to Pictures/TWRP Remote.  Remove with: $0 --uninstall"
+info "Screenshots and logs go to ~/TWRP Remote.  Remove with: $0 --uninstall"
 info "If adb shows \"no permissions\" for the phone, your distro needs Android udev rules"
 info "(Debian/Ubuntu: they come with the adb package; then unplug and replug the phone)."
