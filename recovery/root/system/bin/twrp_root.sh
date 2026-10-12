@@ -100,7 +100,15 @@ flash_verified() {
 backup_current() {
     local b="$W/init_boot${SLOT}.backup.$(date +%Y%m%d-%H%M%S).img"
     read_part "$b"
-    say "- Backed up current init_boot${SLOT} to $b" >&2
+    # The /tmp copy is for the rollback below; keep one that survives a reboot
+    # on Internal Storage too, next to the vendor_boot backups.
+    local keep=/data/media/0/TWRP/init_boot_backups
+    if [[ -d /data/media/0 ]] && mkdir -p "$keep" && cp "$b" "$keep/" 2>/dev/null; then
+        chown -R 0:1023 /data/media/0/TWRP 2>/dev/null; chmod 660 "$keep/${b##*/}" 2>/dev/null
+        say "- Backed up current init_boot${SLOT} to Internal Storage: TWRP/init_boot_backups/${b##*/}" >&2
+    else
+        say "- Backed up current init_boot${SLOT} to $b (Internal Storage not available - lost at reboot)" >&2
+    fi
     echo "$b"
 }
 

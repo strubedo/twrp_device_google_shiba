@@ -14,8 +14,9 @@
 #   fallback - nothing from /vendor: AOSP's Trusty KeyMint + Gatekeeper built
 #              from source, LeeGarChat's recovery-tensor-daemon for Weaver (Titan
 #              M2 directly), our AOSP storageproxyd. Used when vendor<slot> won't
-#              mount (damaged super, released slot) or its KeyMint won't start,
-#              or when /metadata/twrp/crypto_force_fallback exists (testing).
+#              mount (damaged super, released slot), its KeyMint won't start,
+#              or keystore2 won't come up with it (Android 17), or when
+#              /metadata/twrp/crypto_force_fallback exists (testing).
 #              Weaver alone also falls back if citadeld/Weaver fail.
 #
 # SAFETY: KeyMint versions keys by OS version and security patch levels. With a
@@ -181,7 +182,15 @@ start_keystore() {
     mkdir -p /tmp/misc/keystore
     start keystore2
     wait_running keystore2 50 || { log "keystore2 did not start"; return 1; }
-    sleep 0.5   # let it register IKeystoreService
+    # "running" only means init started it. Our keystore2 (Android 14 source)
+    # can abort right after connecting to a newer vendor KeyMint (Android 17's:
+    # SIGABRT within ~40 ms, init restarts it every 5 s) - then nothing ever
+    # registers and vold/TWRP would wait forever. Require the service itself.
+    if ! wait_service android.system.keystore2.IKeystoreService/default 30; then
+        log "keystore2 did not register IKeystoreService in 3 s (state: $(getprop init.svc.keystore2)) - stopping it"
+        stop keystore2
+        return 1
+    fi
     log "keystore2 running (pid $(pidof keystore2)) - ready for metadata unlock"
     # Tell TWRP the decryption services are up. Every path that refuses or
     # fails returns before this, and TWRP then skips decryption instead of
@@ -240,7 +249,10 @@ vendor_chain() {
         return 1
     fi
     log "vendor keymint running (pid $(pidof android.hardware.security.keymint-service.rust.trusty))"
-    start_keystore || return 2      # 2: KeyMint is up - don't switch chains now
+    # keystore2 failing with the vendor KeyMint (e.g. Android 17's, newer than
+    # our keystore2) -> the fallback chain: our KeyMint + keystore2 are built
+    # from the same source and talk to the same Trusty TA (tested on A17).
+    start_keystore || { log "keystore2 failed with the vendor KeyMint"; return 1; }
 
     # PIN unlock services. Non-fatal: the metadata unlock doesn't need them;
     # without them only the PIN (CE) unlock is unavailable.
