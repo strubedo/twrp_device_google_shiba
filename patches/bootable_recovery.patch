@@ -583,7 +583,7 @@ index e2840067..cf36a8a3 100755
  		<string name="swipe_power_off">Swipe to Power Off</string>
  		<string name="swipe_power_off_s">Power Off</string>
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
-index 99eeef6c..717132bb 100755
+index 99eeef6c..494c6de7 100755
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -888,7 +888,7 @@ index 99eeef6c..717132bb 100755
  			</listbox>
  
  			<button style="main_button_half_height">
-@@ -3878,6 +4131,108 @@
+@@ -3878,6 +4131,126 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -923,6 +923,24 @@ index 99eeef6c..717132bb 100755
 +					<actions>
 +						<action function="queueclear"/>
 +						<action function="set">tw_filename=/system/etc/twrp_root/install-ksu.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
++				     whose APK must be in Download/ (twrp_root.sh find_apk) -->
++				<listitem name="Root: Install KernelSU-Next">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-ksun.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="Root: Install SukiSU">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
 +						<action function="queuezip"/>
 +						<action function="page">flash_confirm</action>
 +					</actions>
@@ -997,7 +1015,7 @@ index 99eeef6c..717132bb 100755
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4261,8 @@
+@@ -3906,6 +4279,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -1006,7 +1024,7 @@ index 99eeef6c..717132bb 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4273,8 @@
+@@ -3916,6 +4291,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -1015,7 +1033,7 @@ index 99eeef6c..717132bb 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4292,8 @@
+@@ -3933,6 +4310,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -1024,7 +1042,7 @@ index 99eeef6c..717132bb 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4304,8 @@
+@@ -3943,6 +4322,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
@@ -1776,7 +1794,7 @@ index 8c686edd..0ebee7f1 100755
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index cccb1e78..91f3207b 100644
+index cccb1e78..43dbeb1e 100644
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -483,6 +483,14 @@ void TWFunc::GUI_Operation_Text(string Read_Value, string Partition_Name, string
@@ -1859,7 +1877,7 @@ index cccb1e78..91f3207b 100644
  	string sdkverstr = System_Property_Get("ro.build.version.sdk");
  	int sdkver = 0;
  	if (!sdkverstr.empty()) {
-@@ -1655,4 +1691,40 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+@@ -1655,4 +1691,51 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
  	return ret;
  }
  
@@ -1879,6 +1897,17 @@ index cccb1e78..91f3207b 100644
 +	if (state != "KERNELSU" && state != "MAGISK" && state != "STOCK")
 +		state = "UNKNOWN";
 +	DataManager::SetValue("tw_root_state", state);
++	// Which root, for the chip's text: KernelSU / KSU-Next / SukiSU / APatch /
++	// Magisk - status writes it next to its work files (twrp_root.sh root_name)
++	std::string name;
++	if (state == "KERNELSU" || state == "MAGISK") {
++		read_file("/tmp/twrp_root/root_name", name);
++		size_t e = name.find_last_not_of(" \r\n\t");
++		name = (e == std::string::npos) ? "" : name.substr(0, e + 1);
++	}
++	if (name.empty() || name.size() > 12)
++		name = (state == "MAGISK") ? "Magisk" : "KernelSU";
++	DataManager::SetValue("tw_root_name", name);
 +
 +	// Android version of the running slot's installed system, shown in the same
 +	// chip ("KernelSU · Android 15"). twrp_root.sh android reads it from the
@@ -2031,7 +2060,7 @@ index 1da19e26..b29d1543 100755
  			LOGERR("can not find ramdisk-files.txt");
  			return false;
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
-index 6abccea7..e14c2277 100755
+index 6abccea7..9e4646cd 100755
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
 @@ -22,6 +22,7 @@
@@ -2123,7 +2152,7 @@ index 6abccea7..e14c2277 100755
  			gui_msg(Msg(msg::kHighlight, "flash_ab_inactive=Flashing A/B zip to inactive slot: {1}")(PartitionManager.Get_Active_Slot_Display()=="A"?"B":"A"));
  			// We need this so backuptool can do its magic
  			bool system_mount_state = PartitionManager.Is_Mounted_By_Path(PartitionManager.Get_Android_Root_Path());
-@@ -348,9 +416,114 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -348,9 +416,121 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  			}
  			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
  			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
@@ -2213,15 +2242,22 @@ index 6abccea7..e14c2277 100755
 +			DataManager::GetValue("tw_auto_reroot", reroot);
 +			if (reroot && ret_val == INSTALL_SUCCESS && !dfe_guarded && !snap_guarded
 +					&& TWFunc::Path_Exists("/system/bin/twrp_root.sh")) {
++				// the same root tool the running slot has: KernelSU / KernelSU-Next /
++				// SukiSU / Magisk (twrp_root.sh reroot-action; kernel-built-in root:
++				// install-* explains that the kernel must be reflashed instead)
 +				std::string st;
-+				TWFunc::Exec_Cmd("/system/bin/twrp_root.sh status", st, false);
++				TWFunc::Exec_Cmd("/system/bin/twrp_root.sh reroot-action", st, false);
 +				const char* action = NULL;
-+				if (st.find("KERNELSU") != std::string::npos) action = "install-ksu";
-+				else if (st.find("MAGISK") != std::string::npos) action = "install-magisk";
++				if (st.find("install-ksun") != std::string::npos) action = "install-ksun";
++				else if (st.find("install-suki") != std::string::npos) action = "install-suki";
++				else if (st.find("install-ksu") != std::string::npos) action = "install-ksu";
++				else if (st.find("install-magisk") != std::string::npos) action = "install-magisk";
 +				if (!action) {
 +					gui_print("- Reinstall root: this slot isn't rooted - nothing to reinstall.\n");
 +				} else {
 +					gui_print("- Reinstalling root on the updated slot (%s)\n",
++						strcmp(action, "install-ksun") == 0 ? "KernelSU-Next" :
++						strcmp(action, "install-suki") == 0 ? "SukiSU" :
 +						strcmp(action, "install-ksu") == 0 ? "KernelSU" : "Magisk");
 +					std::string cmd = std::string("/system/bin/twrp_root.sh ") + action + " other 2>&1";
 +					FILE* fp = popen(cmd.c_str(), "r");

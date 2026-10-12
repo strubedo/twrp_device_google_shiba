@@ -19,8 +19,10 @@ OUT = os.path.join(HERE, "recovery", "root", "system", "etc", "twrp_root")
 # zip name -> command it runs
 ACTIONS = {
     # root menu (twrp_root.sh)
-    "status": "/system/bin/twrp_root.sh status",
+    "status": "/system/bin/twrp_root.sh info",
     "install-ksu": "/system/bin/twrp_root.sh install-ksu",
+    "install-ksun": "/system/bin/twrp_root.sh install-ksun",
+    "install-suki": "/system/bin/twrp_root.sh install-suki",
     "install-magisk": "/system/bin/twrp_root.sh install-magisk",
     "remove": "/system/bin/twrp_root.sh remove",
     # keep TWRP after an OTA (twrp_install_slot.sh)

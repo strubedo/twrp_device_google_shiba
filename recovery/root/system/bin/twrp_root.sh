@@ -2,7 +2,17 @@
 # twrp_root.sh - install / remove root on the active slot's init_boot.
 #
 #   twrp_root.sh status          print STOCK | KERNELSU | MAGISK | UNKNOWN
+#                                (KERNELSU also for root built into the boot
+#                                kernel: KernelSU family or APatch). The short
+#                                name for the chip goes to $W/root_name.
+#   twrp_root.sh name            that short name: KernelSU | KSU-Next | SukiSU |
+#                                APatch | Magisk | (empty = not rooted)
+#   twrp_root.sh info            human-readable details (Root: Show status)
 #   twrp_root.sh install-ksu     KernelSU (LKM) via bundled ksud
+#   twrp_root.sh install-ksun    KernelSU-Next (LKM) via the ksud in its app
+#   twrp_root.sh install-suki    SukiSU (LKM) via the ksud in its app
+#                                (the app's APK must be in Download/: the
+#                                ramdisk has no room to bundle every patcher)
 #   twrp_root.sh install-magisk  Magisk via its own boot_patch.sh
 #   twrp_root.sh remove          restore stock init_boot (either tool)
 #   ... ACTION other             act on the slot we are NOT running (after an
@@ -21,9 +31,10 @@
 #   MAGISK   ramdisk has .backup/.magisk
 #   KERNELSU ramdisk has kernelsu.ko AND init.real
 #   STOCK    neither (a leftover stock_image.sha1 alone does not count)
-# KernelSU can also be built into the kernel itself ("GKI mode": a custom kernel
-# flashed to boot) - init_boot is stock then. `status` reports KERNELSU for that
-# too (kernel_ksu), installs refuse it, and remove explains how to undo it.
+# Root can also be built into the kernel itself (a custom kernel with KernelSU,
+# KernelSU-Next, SukiSU or APatch in boot) - init_boot is stock then; see
+# kernel_scan. `status` reports KERNELSU for that too, installs refuse it, and
+# remove explains how to undo it.
 set -euo pipefail
 
 TOOLS=/system/etc/twrp_root
@@ -58,29 +69,63 @@ state_of() {
     fi
 }
 
-# kernel_ksu [SLOT] -> success if that slot's BOOT kernel has KernelSU built in
-# (a custom kernel with KernelSU / KernelSU-Next, e.g. with SUSFS). Default: the
-# slot this run acts on. Cached per slot, keyed on the boot image's first MiB,
-# so the main-page chip doesn't unpack 64 MB after every operation.
-kernel_ksu() {
+# kernel_scan [SLOT] -> prints that slot's BOOT kernel facts, one per line:
+#   ROOT=none|KernelSU|KSU-Next|SukiSU|APatch   root built into the kernel
+#   SUSFS=0|1                                   SUSFS patches present
+#   BANNER=6.1.162-android14-11-g...            the kernel's release string
+# Markers (from the projects' sources): every KernelSU-family kernel logs with
+# the "KernelSU: " prefix; KernelSU-Next adds avc_spoof (extras.c), SukiSU its
+# sukisu_ functions / "KernelSU Stealth"; APatch's KernelPatch carries the
+# magic KP1158. Cached per slot, keyed on the boot image's first MiB, so the
+# main-page chip doesn't unpack 64 MB after every operation.
+kernel_scan() {
     local s="${1:-$SLOT}"
-    local boot="/dev/block/by-name/boot${s}" d="$W/kdetect" key cache found=no
-    [[ -b "$boot" ]] || return 1
+    local boot="/dev/block/by-name/boot${s}" d="$W/kdetect" key cache
+    [[ -b "$boot" ]] || { echo "ROOT=none"; echo "SUSFS=0"; echo "BANNER="; return 0; }
     key="$(head -c 1048576 "$boot" | md5sum | cut -c1-16)"
-    cache="$W/kernel_ksu${s}.$key"
+    cache="$W/kernel_scan${s}.$key"
     if [[ ! -f "$cache" ]]; then
-        rm -f "$W"/kernel_ksu"${s}".*
+        rm -f "$W"/kernel_scan"${s}".*
         rm -rf "$d"; mkdir -p "$d"
+        local root=none susfs=0 banner=""
         if dd if="$boot" of="$d/boot.img" bs=1M 2>/dev/null \
                 && ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) \
-                && [[ -f "$d/kernel" ]] \
-                && grep -a -q -E 'ksu_handle_|KernelSU' "$d/kernel"; then
-            found=yes
+                && [[ -f "$d/kernel" ]]; then
+            local k="$d/kernel"
+            if grep -a -q 'KP1158' "$k"; then root=APatch
+            elif grep -a -q -E 'KernelSU: |Android KernelSU|ksu_handle_' "$k"; then
+                if grep -a -q -E 'sukisu_|KernelSU Stealth' "$k"; then root=SukiSU
+                elif grep -a -q 'avc_spoof' "$k"; then root=KSU-Next
+                else root=KernelSU
+                fi
+            fi
+            grep -a -q -i 'susfs' "$k" && susfs=1
+            banner="$(grep -a -m1 -o 'Linux version [^ ]*' "$k" | awk '{print $3}' || true)"
         fi
         rm -rf "$d"
-        echo "$found" > "$cache"
+        printf 'ROOT=%s\nSUSFS=%s\nBANNER=%s\n' "$root" "$susfs" "$banner" > "$cache"
     fi
-    [[ "$(cat "$cache")" == yes ]]
+    cat "$cache"
+}
+kscan_get() { kernel_scan "${2:-}" | sed -n "s/^$1=//p"; }   # kscan_get KEY [SLOT]
+
+# kernel_ksu [SLOT] -> success if that slot's boot kernel has root built in
+# (KernelSU family or APatch). Name kept from v9.46.
+kernel_ksu() { [[ "$(kscan_get ROOT "${1:-}")" != none ]]; }
+
+# lkm_family IMG -> KernelSU | KSU-Next | SukiSU: which project's kernelsu.ko
+# an LKM-patched init_boot carries (same markers as kernel_scan)
+lkm_family() {
+    local d="$W/lkm"; rm -rf "$d"; mkdir -p "$d"
+    local fam=KernelSU
+    if ( cd "$d" && "$MAGISKBOOT" unpack "$1" >/dev/null 2>&1 \
+            && "$MAGISKBOOT" cpio ramdisk.cpio "extract kernelsu.ko kernelsu.ko" >/dev/null 2>&1 ); then
+        if grep -a -q -E 'sukisu_|KernelSU Stealth' "$d/kernelsu.ko"; then fam=SukiSU
+        elif grep -a -q 'avc_spoof' "$d/kernelsu.ko"; then fam=KSU-Next
+        fi
+    fi
+    rm -rf "$d"
+    echo "$fam"
 }
 
 # dump the partition to a file
@@ -144,16 +189,58 @@ require_state() {
     local want="$1" cur; cur="$(state_of "$W/current.img")"
     [[ "$cur" == "$want" ]] || die "init_boot${SLOT} is $cur; this action needs $want${2:+ ($2)}"
     if [[ "$want" == STOCK ]] && kernel_ksu; then
-        die "this slot's kernel (boot${SLOT}) already has KernelSU built in (GKI mode) - it's rooted; not adding a second root"
+        die "this slot's kernel (boot${SLOT}) already has $(kscan_get ROOT) built in (custom kernel) - it's rooted; not adding a second root"
     fi
 }
 
 # ---- actions ---------------------------------------------------------------
 
+# root_name STATE -> the short name for the chip (empty when not rooted)
+root_name() {
+    case "$1" in
+        MAGISK)   echo Magisk ;;
+        KERNELSU) if kernel_ksu; then kscan_get ROOT; else lkm_family "$W/current.img"; fi ;;
+        *)        echo "" ;;
+    esac
+}
+
 do_status() {
     read_part "$W/current.img"
     local st; st="$(state_of "$W/current.img")"
     if [[ "$st" == STOCK ]] && kernel_ksu; then st=KERNELSU; fi
+    root_name "$st" > "$W/root_name" 2>/dev/null || true
+    echo "$st"
+}
+
+do_name() { do_status >/dev/null; cat "$W/root_name"; }
+
+# Root: Show status - what is rooted, how, and with which kernel
+do_info() {
+    read_part "$W/current.img"
+    local ib; ib="$(state_of "$W/current.img")"
+    local kroot; kroot="$(kscan_get ROOT)"
+    local susfs; susfs="$(kscan_get SUSFS)"
+    local banner; banner="$(kscan_get BANNER)"
+    say "Slot:      ${SLOT#_}"
+    case "$ib" in
+        KERNELSU) say "init_boot: $(lkm_family "$W/current.img") (LKM - kernelsu.ko loaded at boot)" ;;
+        MAGISK)   say "init_boot: Magisk" ;;
+        STOCK)    say "init_boot: stock" ;;
+        *)        say "init_boot: $ib" ;;
+    esac
+    if [[ "$kroot" != none ]]; then
+        say "Kernel:    $kroot built in$([[ "$susfs" == 1 ]] && echo " + SUSFS") (custom kernel in boot${SLOT})"
+    else
+        say "Kernel:    no root built in$([[ "$susfs" == 1 ]] && echo " (SUSFS patches present)")"
+    fi
+    say "Release:   ${banner:-unknown}"
+    local st="$ib"; [[ "$st" == STOCK && "$kroot" != none ]] && st=KERNELSU
+    local n; n="$(root_name "$st")"
+    say "Root:      ${n:-not rooted}"
+    if [[ "$ib" == KERNELSU && "$kroot" != none ]]; then
+        say "! Two roots: a $kroot kernel AND $(lkm_family "$W/current.img") in init_boot."
+        say "! Use Root: Remove root to take the init_boot one off (the kernel's stays)."
+    fi
     echo "$st"
 }
 
@@ -173,14 +260,69 @@ installed_prop() {
 do_android() { installed_prop ro.build.version.release; }   # main-page root chip
 do_build()   { installed_prop ro.build.id; }                # build.sh --flash guard
 
-do_install_ksu() {
+# find_apk TOOL -> path of the newest app APK for TOOL in Download/ or the top
+# level of Internal Storage that really is that app (carries MARKER), or nothing.
+# KernelSU's own name pattern also matches KernelSU_Next*.apk - excluded.
+find_apk() {
+    local tool="$1" globs marker f k b bb="$W/tools/busybox"
+    case "$tool" in
+        ksu)    globs="KernelSU";                 marker='lib/arm64-v8a/libksud.so' ;;
+        ksun)   globs="KernelSU_Next KernelSU-Next KSUN"; marker='lib/arm64-v8a/libksud.so' ;;
+        suki)   globs="SukiSU";                   marker='lib/arm64-v8a/libksud.so' ;;
+        magisk) globs="Magisk";                   marker='lib/arm64-v8a/libmagiskboot.so' ;;
+        *) return 0 ;;
+    esac
+    mkdir -p "$W/tools"
+    [[ -x "$bb" ]] || { cp "$TOOLS/magisk/busybox" "$bb" && chmod 755 "$bb"; } || return 0
+    local g list=""
+    for g in $globs; do
+        for f in /data/media/0/Download/"$g"*.apk /data/media/0/"$g"*.apk; do
+            [[ -f "$f" ]] || continue
+            b="${f##*/}"
+            [[ "$tool" == ksu && "$b" =~ [Nn]ext|KSUN ]] && continue
+            # sort key: ..._32601-release.apk -> 32601, Magisk-v30.7.apk -> 30007
+            k="$(sed -n 's/.*_\([0-9][0-9]*\)[-.].*/\1/p' <<< "$b")"
+            [[ -n "$k" ]] || k="$(sed -n 's/.*v\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p' <<< "$b" \
+                                  | awk '{print $1*1000+$2}')"
+            list+="${k:-0}:$f"$'\n'
+        done
+    done
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        # plain grep (not -q): with pipefail, grep -q's early exit can SIGPIPE unzip
+        if "$bb" unzip -l "$f" 2>/dev/null | grep "$marker" >/dev/null; then echo "$f"; return 0; fi
+    done < <(sort -t: -k1,1nr <<< "$list" | cut -d: -f2-)
+}
+
+# ksud_for TOOL -> the ksud to patch with: bundled for KernelSU, the app's own
+# (lib/arm64-v8a/libksud.so) for KernelSU-Next / SukiSU - their kernelsu.ko and
+# ksud must match their app.
+ksud_for() {
+    case "$1" in
+        ksu) echo "$KSUD" ;;
+        ksun|suki)
+            local apk; apk="$(find_apk "$1")"
+            [[ -n "$apk" ]] || return 1
+            local out="$W/tools/ksud-$1"
+            "$W/tools/busybox" unzip -p "$apk" lib/arm64-v8a/libksud.so > "$out" 2>/dev/null && [[ -s "$out" ]] \
+                || return 1
+            chmod 755 "$out"
+            echo "$out" ;;
+        *) return 1 ;;
+    esac
+}
+
+tool_name() { case "$1" in ksu) echo KernelSU ;; ksun) echo KernelSU-Next ;; suki) echo SukiSU ;; magisk) echo Magisk ;; esac; }
+
+do_install_ksu_family() {
+    local tool="$1" name; name="$(tool_name "$tool")"
     # "Reinstall root after OTA" when the running slot's root is a custom kernel
     # (KernelSU / KernelSU-Next built in, e.g. Sultan + SUSFS): our KernelSU LKM
     # would be a different root on the new slot, without that kernel. Its owner
     # reflashes the kernel instead - say so, change nothing.
     if [[ "$SLOT" != "$RUN_SLOT" ]] && kernel_ksu "$RUN_SLOT"; then
-        say "- This slot is rooted by its kernel (KernelSU built into boot${RUN_SLOT}),"
-        say "  so TWRP doesn't install its own KernelSU on the updated slot."
+        say "- This slot is rooted by its kernel ($(kscan_get ROOT "$RUN_SLOT") built into boot${RUN_SLOT}),"
+        say "  so TWRP doesn't install another root on the updated slot."
         say "  For root there: flash your custom kernel again after the update."
         exit 0
     fi
@@ -189,23 +331,32 @@ do_install_ksu() {
     # The KernelSU module only loads into a kernel with a matching KMI. Check
     # before touching anything, instead of failing inside boot-patch (or
     # worse, producing an image whose kernelsu.ko never loads).
+    local ksud
+    if ! ksud="$(ksud_for "$tool")"; then
+        say "! $name is installed with the patcher from its own app."
+        say "! Put the official $name APK in Download/ (from its GitHub releases),"
+        die "then run this again. Nothing was changed."
+    fi
+    [[ "$tool" == ksu ]] || say "- Patcher: ksud from ${name}'s app ($(find_apk "$tool" | sed 's#/data/media/0/##'))"
     local k; k="$(kmi)"
-    local kmis; kmis="$("$KSUD" boot-info supported-kmis 2>/dev/null)"
-    [[ -n "$kmis" ]] || die "ksud reports no supported KMIs - bundled ksud is broken. Nothing was changed."
+    local kmis; kmis="$("$ksud" boot-info supported-kmis 2>/dev/null)"
+    [[ -n "$kmis" ]] || die "$name's ksud reports no supported KMIs - wrong or broken file. Nothing was changed."
     if ! grep -qx "$k" <<< "$kmis"; then
         say "! The kernel on slot ${SLOT#_} has KMI $k"
-        say "! The bundled KernelSU supports: $(tr '\n' ' ' <<< "$kmis")"
-        die "KernelSU can't root this kernel. Use Install Magisk, or a TWRP with a newer ksud. Nothing was changed."
+        say "! This $name supports: $(tr '\n' ' ' <<< "$kmis")"
+        die "$name can't root this kernel. Try another root, or a newer $name. Nothing was changed."
     fi
-    say "- Kernel KMI $k is supported by the bundled KernelSU"
+    say "- Kernel KMI $k is supported by $name"
     local backup; backup="$(backup_current)"
-    say "- Patching with KernelSU (KMI $k)"
+    say "- Patching with $name (KMI $k)"
     rm -f "$W/ksu_patched.img"
-    "$KSUD" boot-patch -b "$W/current.img" --kmi "$k" -o "$W" --out-name ksu_patched.img >/dev/null \
-        || die "ksud boot-patch failed"
+    "$ksud" boot-patch -b "$W/current.img" --kmi "$k" -o "$W" --out-name ksu_patched.img >/dev/null \
+        || die "$name's ksud boot-patch failed"
     flash_verified "$W/ksu_patched.img" KERNELSU "$backup"
-    app_setup ksu
+    KSUD_APP="$ksud" app_setup "$tool"
 }
+
+do_install_ksu() { do_install_ksu_family ksu; }
 
 # After Install KernelSU / Install Magisk, on a phone where that root tool's
 # app isn't installed yet, put in place what the app or Magisk's zip installer
@@ -216,6 +367,8 @@ app_setup() {
     local tool="$1" pkg name glob marker fallback=""
     case "$tool" in
         ksu)    pkg=me.weishu.kernelsu;   name=KernelSU; glob=KernelSU; marker='lib/arm64-v8a/libksud.so' ;;
+        ksun)   pkg=com.rifsxd.ksunext;   name=KernelSU-Next; glob=KernelSU_Next; marker='lib/arm64-v8a/libksud.so' ;;
+        suki)   pkg=com.sukisu.ultra;     name=SukiSU;   glob=SukiSU;   marker='lib/arm64-v8a/libksud.so' ;;
         magisk) pkg=com.topjohnwu.magisk; name=Magisk;   glob=Magisk;   marker='lib/arm64-v8a/libmagiskboot.so'
                 fallback="$TOOLS/magisk/stub.apk" ;;
         *) die "app_setup: unknown tool '$tool'" ;;
@@ -239,24 +392,7 @@ app_setup() {
     # <Name>*.apk in Download/ or the top level, accepted only if it carries
     # the tool's own library. busybox runs from an executable copy named
     # busybox (the image copy isn't +x; busybox picks its applet by its name).
-    local bb="$W/tools/busybox" apk="" f
-    mkdir -p "$W/tools" && cp "$TOOLS/magisk/busybox" "$bb" && chmod 755 "$bb" \
-        || { say "! Could not prepare busybox - install the $name app yourself after booting"; return 0; }
-    # sort key: KernelSU_v3.3.0_32601-release.apk -> 32601 (version code),
-    #           Magisk-v30.7.apk -> 30*1000+7
-    for f in $(for g in /data/media/0/Download/"$glob"*.apk /data/media/0/"$glob"*.apk; do
-                   [[ -f "$g" ]] || continue
-                   b="${g##*/}"
-                   k="$(sed -n 's/.*_\([0-9][0-9]*\)[-.].*/\1/p' <<< "$b")"
-                   [[ -n "$k" ]] || k="$(sed -n 's/.*v\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p' <<< "$b" \
-                                         | awk '{print $1*1000+$2}')"
-                   echo "${k:-0}:$g"
-               done | sort -t: -k1,1nr | cut -d: -f2-); do
-        # plain grep (not -q): with pipefail, grep -q's early exit can SIGPIPE unzip
-        if "$bb" unzip -l "$f" 2>/dev/null | grep "$marker" >/dev/null; then
-            apk="$f"; break
-        fi
-    done
+    local apk; apk="$(find_apk "$tool")"
     if [[ -n "$apk" ]]; then
         say "- $name app: ${apk#/data/media/0/}"
     elif [[ -n "$fallback" && -f "$fallback" ]]; then
@@ -272,8 +408,10 @@ app_setup() {
     # in /data/adb, so the root tool can run modules - including ours - at boot.
     # -f/-d, not -x: /data is mounted noexec in recovery, so bash's [[ -x ]]
     # (kernel access()) is false even for real executables there.
-    if [[ "$tool" == ksu && ! -f /data/adb/ksud ]]; then
-        if cp "$KSUD" /data/adb/ksud && chown 0:0 /data/adb/ksud && chmod 0755 /data/adb/ksud \
+    # (KernelSU-family: the ksud that patched init_boot - KSUD_APP for KernelSU-Next
+    # / SukiSU - so /data/adb/ksud matches the installed kernelsu.ko and app)
+    if [[ "$tool" =~ ^(ksu|ksun|suki)$ && ! -f /data/adb/ksud ]]; then
+        if cp "${KSUD_APP:-$KSUD}" /data/adb/ksud && chown 0:0 /data/adb/ksud && chmod 0755 /data/adb/ksud \
                 && chcon u:object_r:ksu_file:s0 /data/adb/ksud; then
             say "- Placed ksud in /data/adb"
         else
@@ -355,7 +493,7 @@ do_remove() {
                 || die "Magisk ramdisk restore failed"
             ;;
         STOCK)
-            kernel_ksu && die "KernelSU is built into this slot's kernel (boot${SLOT}, GKI mode), not init_boot - to remove it, flash the stock boot image for your build (TWRP: Install > Install Image > boot)"
+            kernel_ksu && die "$(kscan_get ROOT) is built into this slot's kernel (boot${SLOT}, custom kernel), not init_boot - to remove it, flash the stock boot image for your build (TWRP: Install > Install Image > boot)"
             die "init_boot${SLOT} is already stock - nothing to remove" ;;
         *)     die "init_boot${SLOT} state is $cur - refusing to guess" ;;
     esac
@@ -363,15 +501,35 @@ do_remove() {
     say "- Done. Uninstall the old manager app in Android."
 }
 
+# reroot-action -> which install-* recreates the RUNNING slot's root on the
+# other slot after an OTA (twinstall.cpp, "Reinstall root after OTA"), or none
+do_reroot_action() {
+    local st; st="$(do_status)"
+    case "$st" in
+        MAGISK)   echo install-magisk ;;
+        KERNELSU) case "$(cat "$W/root_name" 2>/dev/null)" in
+                      KSU-Next) echo install-ksun ;;
+                      SukiSU)   echo install-suki ;;
+                      *)        echo install-ksu ;;   # kernel root: install-* explains, changes nothing
+                  esac ;;
+        *)        echo none ;;
+    esac
+}
+
 case "${1:-}" in
     status)         do_status ;;
+    name)           do_name ;;      # short root name for the chip (empty = not rooted)
+    info)           do_info ;;      # Root: Show status
+    reroot-action)  do_reroot_action ;;
     android)        do_android ;;   # read-only: Android version of the running slot
     build)          do_build ;;     # read-only: build ID of the running slot
     stage-app)      app_setup "${2:-}" ;;   # the app-install part of install-ksu/-magisk alone (testing)
     kmi)            kmi ;;          # read-only: KMI of the (other) slot's kernel
     detect)         [[ -f "${2:-}" ]] || die "usage: $0 detect IMAGE"; state_of "$(realpath "$2")" ;;
     install-ksu)    do_install_ksu ;;
+    install-ksun)   do_install_ksu_family ksun ;;
+    install-suki)   do_install_ksu_family suki ;;
     install-magisk) do_install_magisk ;;
     remove)         do_remove ;;
-    *) echo "usage: $0 status|install-ksu|install-magisk|remove" >&2; exit 2 ;;
+    *) echo "usage: $0 status|name|info|install-ksu|install-ksun|install-suki|install-magisk|remove" >&2; exit 2 ;;
 esac
