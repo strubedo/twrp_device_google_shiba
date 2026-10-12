@@ -4294,7 +4294,7 @@
 				</listitem>
 				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
 				     whose APK must be in Download/ (twrp_root.sh find_apk) -->
-				<listitem name="Root: Install KernelSU-Next">
+				<listitem name="Install KernelSU-Next">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/install-ksun.zip</action>
@@ -4302,7 +4302,7 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Root: Install SukiSU">
+				<listitem name="Install SukiSU">
 					<actions>
 						<action function="queueclear"/>
 						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
