@@ -597,7 +597,8 @@ do_install_apatch() {
     flash_boot_verified "$d/new-boot.img" "$backup" patched
     rm -rf "$d"
     apatch_android_setup
-    app_setup apatch
+    # root is installed and verified at this point: the app step only warns
+    ( app_setup apatch ) || say "! Could not stage the APatch app - install it from Download/ after booting"
     say "- Keep your SuperKey written down: the APatch app doesn't show it."
 }
 

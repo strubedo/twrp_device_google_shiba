@@ -1417,12 +1417,12 @@
 
 			<text style="text_m">
 				<placement x="%center_x%" y="%row3_y%" placement="5"/>
-				<text>8-63 letters and digits, with both.</text>
+				<text>Use letters AND numbers, 8 or more.</text>
 			</text>
 
 			<text style="text_m_fail">
 				<placement x="%center_x%" y="%row4_y%" placement="5"/>
-				<text>Remember it: the APatch app asks for it.</text>
+				<text>Example: pixel8key2026. Write it down.</text>
 			</text>
 
 			<text style="text_m">
