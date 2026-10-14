@@ -81,6 +81,7 @@ ADV_ITEMS = [
     ('Root: Install KernelSU-Next', 'Install KernelSU-Next', None, None),
     ('Root: Install SukiSU', 'Install SukiSU', None, None),
     ('Root: Install Magisk', 'Install Magisk', None, None),
+    ('Root: Install APatch', 'Install APatch', None, None),
     ('Root: Remove root', 'Remove root', None, None),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
     ('TWRP: Install to both slots', 'Install to both slots', None, None),

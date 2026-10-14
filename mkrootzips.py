@@ -24,6 +24,8 @@ ACTIONS = {
     "install-ksun": "/system/bin/twrp_root.sh install-ksun",
     "install-suki": "/system/bin/twrp_root.sh install-suki",
     "install-magisk": "/system/bin/twrp_root.sh install-magisk",
+    # the SuperKey comes from the TWRP page (savesecret -> /tmp/twrp_root/apatch_key)
+    "install-apatch": "/system/bin/twrp_root.sh install-apatch",
     "remove": "/system/bin/twrp_root.sh remove",
     # keep TWRP after an OTA (twrp_install_slot.sh)
     "twrp-install-other": "/system/bin/twrp_install_slot.sh other",

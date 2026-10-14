@@ -14,7 +14,13 @@
 #                                (the app's APK must be in Download/: the
 #                                ramdisk has no room to bundle every patcher)
 #   twrp_root.sh install-magisk  Magisk via its own boot_patch.sh
-#   twrp_root.sh remove          restore stock init_boot (either tool)
+#   twrp_root.sh install-apatch  APatch: KernelPatch into the BOOT kernel (not
+#                                init_boot) with kptools + kpimg from the APatch
+#                                APK in Download/; the SuperKey comes from the
+#                                TWRP page ($W/apatch_key, 0600) or, for the
+#                                other slot after an OTA, from the running kernel
+#   twrp_root.sh remove          restore stock init_boot (either tool), or
+#                                unpatch APatch from boot
 #   ... ACTION other             act on the slot we are NOT running (after an
 #                                OTA: "Reinstall root after OTA", twinstall.cpp);
 #                                the KMI then comes from that slot's boot image
@@ -189,6 +195,8 @@ require_state() {
     local want="$1" cur; cur="$(state_of "$W/current.img")"
     [[ "$cur" == "$want" ]] || die "init_boot${SLOT} is $cur; this action needs $want${2:+ ($2)}"
     if [[ "$want" == STOCK ]] && kernel_ksu; then
+        [[ "$(kscan_get ROOT)" == APatch ]] \
+            && die "this slot's kernel (boot${SLOT}) is patched with APatch - it's rooted; use Remove root first"
         die "this slot's kernel (boot${SLOT}) already has $(kscan_get ROOT) built in (custom kernel) - it's rooted; not adding a second root"
     fi
 }
@@ -228,7 +236,9 @@ do_info() {
         STOCK)    say "init_boot: stock" ;;
         *)        say "init_boot: $ib" ;;
     esac
-    if [[ "$kroot" != none ]]; then
+    if [[ "$kroot" == APatch ]]; then
+        say "Kernel:    APatch (KernelPatch patched into boot${SLOT})"
+    elif [[ "$kroot" != none ]]; then
         say "Kernel:    $kroot built in$([[ "$susfs" == 1 ]] && echo " + SUSFS") (custom kernel in boot${SLOT})"
     else
         say "Kernel:    no root built in$([[ "$susfs" == 1 ]] && echo " (SUSFS patches present)")"
@@ -270,6 +280,7 @@ find_apk() {
         ksun)   globs="KernelSU_Next KernelSU-Next KSUN"; marker='lib/arm64-v8a/libksud.so' ;;
         suki)   globs="SukiSU";                   marker='lib/arm64-v8a/libksud.so' ;;
         magisk) globs="Magisk";                   marker='lib/arm64-v8a/libmagiskboot.so' ;;
+        apatch) globs="APatch";                   marker='lib/arm64-v8a/libkptools.so' ;;
         *) return 0 ;;
     esac
     mkdir -p "$W/tools"
@@ -280,8 +291,10 @@ find_apk() {
             [[ -f "$f" ]] || continue
             b="${f##*/}"
             [[ "$tool" == ksu && "$b" =~ [Nn]ext|KSUN ]] && continue
-            # sort key: ..._32601-release.apk -> 32601, Magisk-v30.7.apk -> 30007
-            k="$(sed -n 's/.*_\([0-9][0-9]*\)[-.].*/\1/p' <<< "$b")"
+            # sort key: ..._32601-release.apk -> 32601, APatch_11224_9a63e0f_... ->
+            # 11224, Magisk-v30.7.apk -> 30007
+            k="$(sed -n 's/^[^_]*_\([0-9][0-9]*\)[-._].*/\1/p' <<< "$b")"
+            [[ -n "$k" ]] || k="$(sed -n 's/.*_\([0-9][0-9]*\)[-.].*/\1/p' <<< "$b")"
             [[ -n "$k" ]] || k="$(sed -n 's/.*v\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p' <<< "$b" \
                                   | awk '{print $1*1000+$2}')"
             list+="${k:-0}:$f"$'\n'
@@ -312,7 +325,7 @@ ksud_for() {
     esac
 }
 
-tool_name() { case "$1" in ksu) echo KernelSU ;; ksun) echo KernelSU-Next ;; suki) echo SukiSU ;; magisk) echo Magisk ;; esac; }
+tool_name() { case "$1" in ksu) echo KernelSU ;; ksun) echo KernelSU-Next ;; suki) echo SukiSU ;; magisk) echo Magisk ;; apatch) echo APatch ;; esac; }
 
 do_install_ksu_family() {
     local tool="$1" name; name="$(tool_name "$tool")"
@@ -371,6 +384,7 @@ app_setup() {
         suki)   pkg=com.sukisu.ultra;     name=SukiSU;   glob=SukiSU;   marker='lib/arm64-v8a/libksud.so' ;;
         magisk) pkg=com.topjohnwu.magisk; name=Magisk;   glob=Magisk;   marker='lib/arm64-v8a/libmagiskboot.so'
                 fallback="$TOOLS/magisk/stub.apk" ;;
+        apatch) pkg=me.bmax.apatch;       name=APatch;   glob=APatch;   marker='lib/arm64-v8a/libkptools.so' ;;
         *) die "app_setup: unknown tool '$tool'" ;;
     esac
     if [[ ! -f /data/system/packages.xml ]]; then
@@ -471,6 +485,175 @@ do_install_magisk() {
     app_setup magisk
 }
 
+# ---- APatch (KernelPatch in the boot kernel) ------------------------------
+# APatch roots the kernel itself: kptools injects kpimg (KernelPatch) into the
+# kernel Image in boot, which then finds kernel functions through kallsyms. So
+# it needs CONFIG_KALLSYMS, not a matching KMI, and lives in BOOT - init_boot
+# stays stock. magiskboot unpacks/repacks the boot image (it decompresses the
+# kernel), kptools only patches the raw kernel.
+BOOTPART="/dev/block/by-name/boot${SLOT}"
+KEYFILE="$W/apatch_key"
+
+# apatch_tools -> KPTOOLS and KPIMG from the newest APatch APK, or return 1
+apatch_tools() {
+    local apk; apk="$(find_apk apatch)"
+    [[ -n "$apk" ]] || return 1
+    KPTOOLS="$W/tools/kptools"; KPIMG="$W/tools/kpimg"
+    "$W/tools/busybox" unzip -p "$apk" lib/arm64-v8a/libkptools.so > "$KPTOOLS" 2>/dev/null && [[ -s "$KPTOOLS" ]] \
+        && "$W/tools/busybox" unzip -p "$apk" assets/kpimg > "$KPIMG" 2>/dev/null && [[ -s "$KPIMG" ]] \
+        || return 1
+    chmod 755 "$KPTOOLS"
+    APATCH_APK="$apk"
+}
+
+# boot_kernel_dir IMG DIR -> DIR holds magiskboot's unpack of IMG (DIR/kernel)
+boot_kernel_dir() {
+    rm -rf "$2"; mkdir -p "$2"
+    ( cd "$2" && "$MAGISKBOOT" unpack "$1" >/dev/null 2>&1 ) && [[ -f "$2/kernel" ]]
+}
+
+# key_ok KEY -> APatch's own rule (PatchesViewModel): 8-63 chars, a letter and a
+# digit. The TWRP page only allows letters and digits.
+key_ok() { [[ "$1" =~ ^[A-Za-z0-9]{8,63}$ && "$1" =~ [A-Za-z] && "$1" =~ [0-9] ]]; }
+
+backup_boot() {
+    local b="$W/boot${SLOT}.backup.$(date +%Y%m%d-%H%M%S).img"
+    dd if="$BOOTPART" of="$b" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
+    local keep=/data/media/0/TWRP/boot_backups
+    if [[ -d /data/media/0 ]] && mkdir -p "$keep" && cp "$b" "$keep/" 2>/dev/null; then
+        chown -R 0:1023 /data/media/0/TWRP 2>/dev/null; chmod 660 "$keep/${b##*/}" 2>/dev/null
+        say "- Backed up boot${SLOT} to Internal Storage: TWRP/boot_backups/${b##*/}" >&2
+    else
+        say "- Backed up boot${SLOT} to $b (Internal Storage not available - lost at reboot)" >&2
+    fi
+    echo "$b"
+}
+
+# flash_boot_verified IMG BACKUP WANT(patched|stock)
+flash_boot_verified() {
+    local img="$1" backup="$2" want="$3" d="$W/apcheck"
+    boot_kernel_dir "$img" "$d" || die "new boot image doesn't unpack - not flashing"
+    if grep -a -q 'KP1158' "$d/kernel"; then
+        [[ "$want" == patched ]] || die "new boot image still has APatch - not flashing"
+    else
+        [[ "$want" == stock ]] || die "new boot image has no APatch - not flashing"
+    fi
+    rm -rf "$d"
+    say "- Flashing boot${SLOT}"
+    dd if="$img" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null || die "write failed"
+    local n; n="$(stat -c %s "$img")"
+    dd if="$BOOTPART" of="$W/readback.img" bs=1M 2>/dev/null
+    if ! cmp -s -n "$n" "$img" "$W/readback.img"; then
+        say "! Readback mismatch - restoring backup"
+        dd if="$backup" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null
+        die "flash verification failed; original boot restored"
+    fi
+    rm -f "$W/readback.img" "$W"/kernel_scan"${SLOT}".*
+    say "- Verified: boot${SLOT} is now $([[ "$want" == patched ]] && echo "patched with APatch" || echo "without APatch")"
+}
+
+do_install_apatch() {
+    [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
+    local key=""
+    if [[ -f "$KEYFILE" ]]; then key="$(cat "$KEYFILE")"; rm -f "$KEYFILE"; fi
+    read_part "$W/current.img"
+    require_state STOCK "use Remove root first - APatch replaces it"
+    if ! apatch_tools; then
+        say "! APatch is installed with kptools + kpimg from its own app."
+        say "! Put the official APatch APK in Download/ (github.com/bmax121/APatch releases),"
+        die "then run this again. Nothing was changed."
+    fi
+    say "- Patcher: kptools + kpimg from APatch's app (${APATCH_APK#/data/media/0/})"
+    # Reinstall after an OTA (other slot): the running kernel carries the key
+    if [[ -z "$key" && "$SLOT" != "$RUN_SLOT" ]]; then
+        local rd="$W/aprun"
+        dd if="/dev/block/by-name/boot${RUN_SLOT}" of="$W/aprun.img" bs=1M 2>/dev/null \
+            && boot_kernel_dir "$W/aprun.img" "$rd" \
+            && key="$("$KPTOOLS" -i "$rd/kernel" -l 2>/dev/null | sed -n 's/^superkey=//p' | head -1)"
+        rm -rf "$rd" "$W/aprun.img"
+        [[ -n "$key" ]] || die "can't read the SuperKey from slot ${RUN_SLOT#_}'s kernel - use Advanced > ROOT > Install APatch after the first boot. Nothing was changed."
+        say "- SuperKey: the same as slot ${RUN_SLOT#_}"
+    fi
+    [[ -n "$key" ]] || die "no SuperKey - start from Advanced > ROOT > Install APatch. Nothing was changed."
+    key_ok "$key" || die "the SuperKey needs 8-63 letters and digits, with at least one of each. Nothing was changed."
+    local d="$W/ap"
+    rm -rf "$d"; mkdir -p "$d"
+    dd if="$BOOTPART" of="$d/boot.img" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
+    ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) && [[ -f "$d/kernel" ]] \
+        || die "cannot unpack boot${SLOT}. Nothing was changed."
+    # plain grep (not -q) into /dev/null: with pipefail, -q's early exit can SIGPIPE kptools
+    if ! "$KPTOOLS" -i "$d/kernel" -f 2>/dev/null | grep 'CONFIG_KALLSYMS=y' >/dev/null; then
+        die "this kernel has no CONFIG_KALLSYMS - APatch can't patch it. Nothing was changed."
+    fi
+    "$KPTOOLS" -i "$d/kernel" -f 2>/dev/null | grep 'CONFIG_KALLSYMS_ALL=y' >/dev/null \
+        || say "! CONFIG_KALLSYMS_ALL is off - APatch may not boot (the backup restores it)"
+    local backup; backup="$(backup_boot)"
+    say "- Patching the kernel with APatch (KernelPatch)"
+    mv "$d/kernel" "$d/kernel.ori"
+    "$KPTOOLS" -p -i "$d/kernel.ori" -S "$key" -k "$KPIMG" -o "$d/kernel" > "$d/kptools.log" 2>&1 \
+        || { sed 's/^/   /' "$d/kptools.log" | grep -v -i superkey | tail -5; die "kptools patch failed. Nothing was changed."; }
+    key=""
+    ( cd "$d" && "$MAGISKBOOT" repack boot.img new-boot.img >/dev/null 2>&1 ) || die "repack failed. Nothing was changed."
+    flash_boot_verified "$d/new-boot.img" "$backup" patched
+    rm -rf "$d"
+    apatch_android_setup
+    app_setup apatch
+    say "- Keep your SuperKey written down: the APatch app doesn't show it."
+}
+
+# apatch_android_setup - what the APatch app's "Install (AndroidPatch)" does
+# (APatchApp.installApatch): apd and its tools from the APK into /data/adb.
+# KernelPatch starts /data/adb/apd at boot by itself (verified on shiba: no app
+# step needed), and apd then runs modules - including our app installer.
+# Never fatal: the kernel root is already installed and verified.
+apatch_android_setup() {
+    if [[ ! -f /data/system/packages.xml ]]; then
+        say "- /data isn't decrypted: open the APatch app after booting and tap Install"
+        return 0
+    fi
+    local bb="$W/tools/busybox" ap=/data/adb/ap
+    local ver; ver="$(sed -n 's/^[^_]*_\([0-9][0-9]*\)[-._].*/\1/p' <<< "${APATCH_APK##*/}")"
+    if mkdir -p "$ap/bin" "$ap/log" \
+            && "$bb" unzip -p "$APATCH_APK" lib/arm64-v8a/libapd.so > /data/adb/apd.new && [[ -s /data/adb/apd.new ]] \
+            && mv -f /data/adb/apd.new /data/adb/apd && chmod 0755 /data/adb/apd \
+            && ln -sf /data/adb/apd "$ap/bin/apd" && ln -sf /data/adb/apd "$ap/bin/magiskpolicy" \
+            && ln -sf /data/adb/apd "$ap/bin/resetprop" \
+            && "$bb" unzip -p "$APATCH_APK" lib/arm64-v8a/libbusybox.so > "$ap/bin/busybox" && chmod 0755 "$ap/bin/busybox" \
+            && cp "$KPTOOLS" "$ap/bin/kptools" && chmod 0755 "$ap/bin/kptools" \
+            && touch "$ap/package_config" "$ap/su_path" \
+            && { [[ -s "$ap/su_path" ]] || echo /system/bin/su > "$ap/su_path"; } \
+            && { [[ -z "$ver" ]] || echo "$ver" > "$ap/version"; } \
+            && chown -R 0:0 /data/adb/apd "$ap" \
+            && chcon u:object_r:adb_data_file:s0 /data/adb/apd && chcon -R u:object_r:adb_data_file:s0 "$ap"; then
+        say "- Set up AndroidPatch (apd) in /data/adb, as the APatch app's Install does"
+    else
+        rm -f /data/adb/apd.new
+        say "! Could not set up apd - open the APatch app after booting and tap Install (AndroidPatch)"
+    fi
+}
+
+do_remove_apatch() {
+    [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
+    if ! apatch_tools; then
+        say "! Removing APatch needs kptools from the APatch APK in Download/."
+        say "! Or restore your boot backup: TWRP/boot_backups/ (Install > Install Image > boot)."
+        die "Nothing was changed."
+    fi
+    local d="$W/ap"
+    rm -rf "$d"; mkdir -p "$d"
+    dd if="$BOOTPART" of="$d/boot.img" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
+    ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) && [[ -f "$d/kernel" ]] \
+        || die "cannot unpack boot${SLOT}. Nothing was changed."
+    local backup; backup="$(backup_boot)"
+    say "- Removing APatch"
+    mv "$d/kernel" "$d/kernel.ori"
+    "$KPTOOLS" -u -i "$d/kernel.ori" -o "$d/kernel" >/dev/null 2>&1 || die "kptools unpatch failed. Nothing was changed."
+    ( cd "$d" && "$MAGISKBOOT" repack boot.img new-boot.img >/dev/null 2>&1 ) || die "repack failed. Nothing was changed."
+    flash_boot_verified "$d/new-boot.img" "$backup" stock
+    rm -rf "$d"
+    say "- Done. Uninstall the APatch app in Android if you don't need it."
+}
+
 do_remove() {
     read_part "$W/current.img"
     local cur; cur="$(state_of "$W/current.img")"
@@ -501,6 +684,7 @@ do_remove() {
                 || die "Magisk ramdisk restore failed"
             ;;
         STOCK)
+            if [[ "$(kscan_get ROOT)" == APatch ]]; then do_remove_apatch; return 0; fi
             kernel_ksu && die "$(kscan_get ROOT) is built into this slot's kernel (boot${SLOT}, custom kernel), not init_boot - to remove it, flash the stock boot image for your build (TWRP: Install > Install Image > boot)"
             die "init_boot${SLOT} is already stock - nothing to remove" ;;
         *)     die "init_boot${SLOT} state is $cur - refusing to guess" ;;
@@ -518,6 +702,7 @@ do_reroot_action() {
         KERNELSU) case "$(cat "$W/root_name" 2>/dev/null)" in
                       KSU-Next) echo install-ksun ;;
                       SukiSU)   echo install-suki ;;
+                      APatch)   echo install-apatch ;;
                       *)        echo install-ksu ;;   # kernel root: install-* explains, changes nothing
                   esac ;;
         *)        echo none ;;
@@ -538,6 +723,7 @@ case "${1:-}" in
     install-ksun)   do_install_ksu_family ksun ;;
     install-suki)   do_install_ksu_family suki ;;
     install-magisk) do_install_magisk ;;
+    install-apatch) do_install_apatch ;;
     remove)         do_remove ;;
-    *) echo "usage: $0 status|name|info|install-ksu|install-ksun|install-suki|install-magisk|remove" >&2; exit 2 ;;
+    *) echo "usage: $0 status|name|info|install-ksu|install-ksun|install-suki|install-magisk|install-apatch|remove" >&2; exit 2 ;;
 esac

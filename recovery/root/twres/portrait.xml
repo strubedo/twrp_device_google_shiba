@@ -1393,6 +1393,98 @@
 		       disable: encryption-disable.zip -> Format Data -> encryption-postformat.zip
 		       enable:  encryption-enable.zip  -> Format Data
 		     (action_page's tw_action2 runs unconditionally, so it can't be used.) -->
+		<!-- shiba: APatch SuperKey. Letters and digits only (APatch: 8-63, at
+		     least one letter and one digit - twrp_root.sh checks that). The key
+		     reaches the script through savesecret (a 0600 file in /tmp), never a
+		     logged command line. -->
+		<page name="shiba_apatch_key">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>Install APatch</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Choose a SuperKey</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row2_y%" placement="5"/>
+				<text>APatch patches the kernel (boot).</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row3_y%" placement="5"/>
+				<text>8-63 letters and digits, with both.</text>
+			</text>
+
+			<text style="text_m_fail">
+				<placement x="%center_x%" y="%row4_y%" placement="5"/>
+				<text>Remember it: the APatch app asks for it.</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row5_y%" placement="5"/>
+				<text>The APatch APK must be in Download.</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%center_x%" y="%row8_y%" placement="5"/>
+				<text>Type the key, then Enter.  Back to cancel.</text>
+			</text>
+
+			<input>
+				<placement x="%indent%" y="%row10_y%" w="%content_width%" h="%input_height%"/>
+				<text>%tw_apatch_key%</text>
+				<data name="tw_apatch_key"/>
+				<restrict minlen="8" maxlen="63" allow="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"/>
+				<action function="page">shiba_apatch_start</action>
+			</input>
+
+			<fill color="%accent_color%">
+				<placement x="%indent%" y="row11_y" w="%content_width%" h="input_line_width"/>
+			</fill>
+
+			<template name="keyboardtemplate"/>
+
+			<action>
+				<touch key="home"/>
+				<actions>
+					<action function="set">tw_apatch_key=</action>
+					<action function="page">main</action>
+				</actions>
+			</action>
+
+			<action>
+				<touch key="back"/>
+				<actions>
+					<action function="set">tw_apatch_key=</action>
+					<action function="page">advanced</action>
+				</actions>
+			</action>
+		</page>
+
+		<page name="shiba_apatch_start">
+			<action>
+				<conditions>
+					<condition var1="tw_apatch_go" var2="1"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_apatch_go=0</action>
+					<action function="savesecret">tw_apatch_key=/tmp/twrp_root/apatch_key</action>
+					<action function="queueclear"/>
+					<action function="set">tw_filename=/system/etc/twrp_root/install-apatch.zip</action>
+					<action function="queuezip"/>
+					<action function="page">flash_confirm</action>
+				</actions>
+			</action>
+
+			<!-- no fallback action on tw_apatch_go=0 here: setting it to 0 above
+			     would trigger it and bounce back to Advanced before flash_confirm -->
+		</page>
+
 		<page name="shiba_dfe_confirm">
 			<template name="page"/>
 
@@ -4316,6 +4408,15 @@
 						<action function="set">tw_filename=/system/etc/twrp_root/install-magisk.zip</action>
 						<action function="queuezip"/>
 						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<!-- APatch: patches the KERNEL in boot (KernelPatch), not init_boot;
+				     needs a SuperKey (shiba_apatch_key) and the APatch APK in Download/ -->
+				<listitem name="Install APatch">
+					<actions>
+						<action function="set">tw_apatch_key=</action>
+						<action function="set">tw_apatch_go=1</action>
+						<action function="page">shiba_apatch_key</action>
 					</actions>
 				</listitem>
 				<listitem name="Remove root">
