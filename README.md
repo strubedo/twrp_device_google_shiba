@@ -6,8 +6,10 @@ updates**, built-in **root** and **encryption** tools, and a PC **remote
 control** for the recovery screen.
 
 **Download:** [latest release](https://github.com/strubedo/twrp_device_google_shiba/releases/latest)
-— one flashable zip for every firmware. **Your phone must be rooted** (KernelSU or
-Magisk): flash the zip from the root app, or from TWRP to update it.
+— one flashable zip for every firmware, and a PC installer. **No root needed:**
+install from a PC with fastboot (Option B), then root from TWRP itself
+(Advanced → ROOT) if you want. Already rooted? Flash the zip from KernelSU or
+Magisk (Option A). To update TWRP later, flash the zip from TWRP.
 
 <p align="center">
   <img src="docs/images/twrp-remote.png" width="360" alt="TWRP on the Pixel 8, shown in TWRP Remote">
@@ -129,8 +131,10 @@ from older versions (Pictures/TWRP Remote) are moved there on first start.
 ## ⚠️ Before you start
 
 - **Unlocked bootloader required** (wipes your phone the first time).
-- **Root required** to install: KernelSU or Magisk (the flashable zip is installed
-  from the root app).
+- **Root is optional.** Without root, install from a PC (Option B: fastboot and
+  your firmware's factory image); TWRP can then root the phone for you
+  (Advanced → ROOT: APatch, KernelSU, KernelSU-Next, Magisk or SukiSU). With
+  root, the flashable zip installs from the root app (Option A).
 - **Anti-rollback (May 2025 and later):** Google's May 2025 update raised the
   bootloader's anti-rollback version on the Pixel 8. After it, **older Android 15
   builds can't be flashed and booted** - never flash firmware older than yours.
@@ -179,7 +183,7 @@ progress), backs up each original `vendor_boot` to Internal Storage
 (`TWRP/vendor_boot_backups/`), reads every write back and restores the original
 on any mismatch. Then reboot to recovery.
 
-### Option B: from a PC (`install_twrp.py`)
+### Option B: from a PC (`install_twrp.py`) - no root needed
 
 Requirements: unlocked bootloader; Android platform-tools (`adb`, `fastboot`);
 Python 3 with `lz4` (`pip install lz4`); the phone in Android with USB debugging on.
@@ -225,6 +229,16 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
+
+**v9.49** (2026-10-17) - **Kernel chip** on the main screen, under the others:
+"Kernel 6.1.162 · Stock", the kernel's own name for custom kernels (e.g. "Wild"),
+or "Custom", plus "· SUSFS" when it has SUSFS. **ROOT menu in alphabetical
+order** (Show status first, Remove root last), with a line under each install
+saying whether its app's APK must be in `/sdcard/Download` or the app installs
+itself. **KernelSU installs read the KMI from the slot's boot kernel** (fixes
+"cannot derive KMI" right after changing kernels, and supports custom kernels
+whose name drops `androidNN`). A **missing APK** now stops with numbered steps,
+the official download link and the exact folder.
 
 **v9.44** (2026-10-08) - **October 2026 firmware**: touch works in TWRP on
 CP3A.261005.005 (kernel 6.1.162-android14-11-gd7a0a08e0e15) - its touch drivers
