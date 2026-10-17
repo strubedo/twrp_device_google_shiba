@@ -176,6 +176,10 @@ IMAGES = {
         '<text x="354" y="62" text-anchor="middle" font-family="IBM Plex Sans" '
         f'font-weight="500" font-size="40" letter-spacing="8" fill="#A1A1A1">PIXEL 8 · SHIBA</text>')),
 }
+# kernel chip (main page, second row): one plain chip per width bucket -
+# twrp_root.sh kernel_label measures "Kernel 6.1.162 · Stock" and picks one
+IMAGES.update({f"chip_kernel_{w}": (w, 64, (lambda w=w: rrect(0, 0, w, 64, 32, TRACK)))
+               for w in range(240, 785, 16)})
 NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 
 

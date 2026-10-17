@@ -47,6 +47,41 @@
 		<image name="chip_magisk" filename="chip_magisk" retainaspect="1"/>
 		<image name="chip_noroot" filename="chip_noroot" retainaspect="1"/>
 		<image name="main_button_accent" filename="main_button_accent"/>
+		<image name="chip_kernel_240" filename="chip_kernel_240" retainaspect="1"/>
+		<image name="chip_kernel_256" filename="chip_kernel_256" retainaspect="1"/>
+		<image name="chip_kernel_272" filename="chip_kernel_272" retainaspect="1"/>
+		<image name="chip_kernel_288" filename="chip_kernel_288" retainaspect="1"/>
+		<image name="chip_kernel_304" filename="chip_kernel_304" retainaspect="1"/>
+		<image name="chip_kernel_320" filename="chip_kernel_320" retainaspect="1"/>
+		<image name="chip_kernel_336" filename="chip_kernel_336" retainaspect="1"/>
+		<image name="chip_kernel_352" filename="chip_kernel_352" retainaspect="1"/>
+		<image name="chip_kernel_368" filename="chip_kernel_368" retainaspect="1"/>
+		<image name="chip_kernel_384" filename="chip_kernel_384" retainaspect="1"/>
+		<image name="chip_kernel_400" filename="chip_kernel_400" retainaspect="1"/>
+		<image name="chip_kernel_416" filename="chip_kernel_416" retainaspect="1"/>
+		<image name="chip_kernel_432" filename="chip_kernel_432" retainaspect="1"/>
+		<image name="chip_kernel_448" filename="chip_kernel_448" retainaspect="1"/>
+		<image name="chip_kernel_464" filename="chip_kernel_464" retainaspect="1"/>
+		<image name="chip_kernel_480" filename="chip_kernel_480" retainaspect="1"/>
+		<image name="chip_kernel_496" filename="chip_kernel_496" retainaspect="1"/>
+		<image name="chip_kernel_512" filename="chip_kernel_512" retainaspect="1"/>
+		<image name="chip_kernel_528" filename="chip_kernel_528" retainaspect="1"/>
+		<image name="chip_kernel_544" filename="chip_kernel_544" retainaspect="1"/>
+		<image name="chip_kernel_560" filename="chip_kernel_560" retainaspect="1"/>
+		<image name="chip_kernel_576" filename="chip_kernel_576" retainaspect="1"/>
+		<image name="chip_kernel_592" filename="chip_kernel_592" retainaspect="1"/>
+		<image name="chip_kernel_608" filename="chip_kernel_608" retainaspect="1"/>
+		<image name="chip_kernel_624" filename="chip_kernel_624" retainaspect="1"/>
+		<image name="chip_kernel_640" filename="chip_kernel_640" retainaspect="1"/>
+		<image name="chip_kernel_656" filename="chip_kernel_656" retainaspect="1"/>
+		<image name="chip_kernel_672" filename="chip_kernel_672" retainaspect="1"/>
+		<image name="chip_kernel_688" filename="chip_kernel_688" retainaspect="1"/>
+		<image name="chip_kernel_704" filename="chip_kernel_704" retainaspect="1"/>
+		<image name="chip_kernel_720" filename="chip_kernel_720" retainaspect="1"/>
+		<image name="chip_kernel_736" filename="chip_kernel_736" retainaspect="1"/>
+		<image name="chip_kernel_752" filename="chip_kernel_752" retainaspect="1"/>
+		<image name="chip_kernel_768" filename="chip_kernel_768" retainaspect="1"/>
+		<image name="chip_kernel_784" filename="chip_kernel_784" retainaspect="1"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>

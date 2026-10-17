@@ -16,6 +16,26 @@
 #     servicemanager variant, bootstrap linker symlink) before repacking.
 set -eo pipefail
 
+# Output colors (script-colors palette: bright/neon); off when not a terminal,
+# NO_COLOR, or TERM=dumb. RD, not R: R is the recovery root path below.
+if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
+    if [[ "${COLORTERM:-}" == *truecolor* || "${COLORTERM:-}" == *24bit* ]]; then
+        # 24-bit: neon green #39FF14, yellow #FFFF33, orange #FF9F1C, red #FF3131
+        C=$'\e[1;38;2;57;255;20m'; G=$'\e[38;2;57;255;20m'; Y=$'\e[1;38;2;255;255;51m'
+        W=$'\e[38;2;255;159;28m'; RD=$'\e[1;38;2;255;49;49m'
+    else
+        C=$'\e[1;92m'; G=$'\e[92m'; Y=$'\e[1;93m'; W=$'\e[93m'; RD=$'\e[1;91m'
+    fi
+    B=$'\e[1m'; N=$'\e[0m'
+else
+    B= C= G= Y= W= RD= N=
+fi
+step() { printf '\n%s== %s%s\n' "$C" "$*" "$N"; }        # step
+ok()   { printf '   %s\u2713 %s%s\n' "$G" "$*" "$N"; }     # success
+user() { printf '%s>> %s%s\n' "$Y" "$*" "$N"; }            # YOU do this
+warn() { printf '   %s! %s%s\n' "$W" "$*" "$N"; }          # notice
+fail() { printf '%sFAIL: %s%s\n' "$RD" "$*" "$N" >&2; }    # error line (caller exits)
+
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP="$(cd "$DEVICE_DIR/../../.." && pwd)"
 cd "$TOP"
@@ -37,14 +57,12 @@ if [ -n "$SHIBA_TAG" ] && { [ "$(git -C "$DEVICE_DIR" rev-list -n1 "$SHIBA_TAG")
         || [ -n "$(git -C "$DEVICE_DIR" status --porcelain)" ]; }; then
     SHIBA_VERSION="${SHIBA_VERSION}+"
 fi
-echo "TWRP device version: $SHIBA_VERSION (tag ${SHIBA_TAG:-none})"
+step "TWRP device version: ${B}$SHIBA_VERSION${N}${C} (tag ${SHIBA_TAG:-none})"
 
 # No `set -u`: envsetup.sh's functions (lunch, m) reference unset variables.
 # shellcheck disable=SC1091
 source build/envsetup.sh >/dev/null
 lunch twrp_shiba-ap2a-eng >/dev/null
-
-step() { printf '\n== %s\n' "$*"; }
 
 step "Generating root-menu shim zips"
 python3 "$DEVICE_DIR/mkrootzips.py"
@@ -90,9 +108,9 @@ m adbd vendorbootimage vbgraft -j10 2>&1 | tee "$BUILD_LOG" | awk '
 BUILD_RC=${PIPESTATUS[0]}
 set -e
 if [[ $BUILD_RC -ne 0 ]]; then
-    echo "BUILD FAILED - first error:"
+    fail "BUILD FAILED - first error:"
     grep -m1 -A30 'FAILED:' "$BUILD_LOG" || tail -40 "$BUILD_LOG"
-    echo "full log: $BUILD_LOG"
+    fail "full log: $BUILD_LOG"
     exit 1
 fi
 tail -3 "$BUILD_LOG"
@@ -100,7 +118,7 @@ tail -3 "$BUILD_LOG"
 step "Gates"
 R=out/target/product/shiba/recovery/root
 FRAG=out/target/product/shiba/obj/PACKAGING/vendor_ramdisk_fragments_intermediates/recovery.cpio.lz4
-gate() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1" >&2; exit 1; fi; }
+gate() { if eval "$2"; then ok "$1"; else fail "gate: $1"; exit 1; fi; }
 gate "pixel format RGBA8888 (ABGR + no R/B swap)" \
      "grep -a -q 'setting DRM_FORMAT_RGBA8888' $R/system/lib64/libminuitwrp.so"
 gate "system servicemanager present"              "test -x $R/system/bin/servicemanager"
@@ -115,7 +133,7 @@ gate "touch modules requested (from firmware vendor_dlkm)" "/bin/grep -a -q 'goo
 # The bootloader can't load an oversized vendor ramdisk: a 55.4 MB recovery
 # fragment (113 MB unpacked) dropped to fastboot; 45.0 MB (102 MB) boots. Never
 # build past the largest size proven to boot (+~1 MB); raise only after proving more.
-echo "  info recovery fragment: $(stat -c %s $FRAG) bytes (limit 46000000)"
+echo "   recovery fragment: ${B}$(stat -c %s $FRAG)${N} bytes (limit 46000000)"
 gate "recovery fragment fits the bootloader (<= 46000000 bytes)" "test \$(stat -c %s $FRAG) -le 46000000"
 gate "boot control HAL present"                   "test -x $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel"
 gate "libtrusty present"                          "test -f $R/system/lib64/libtrusty.so"
@@ -175,7 +193,7 @@ gate "boot HAL built from source (no AR fuse blow)" "/bin/grep -a -q 'anti-rollb
 gate "reinstall root after OTA (tickbox + script)" "grep -q 'tw_auto_reroot' $R/twres/portrait.xml && grep -q 'ACTION other' $R/system/bin/twrp_root.sh && /bin/grep -a -q 'Reinstalling root on the updated slot' $R/system/bin/recovery"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
-python3 "$DEVICE_DIR/check_libs.py" || { echo "FAIL: missing libraries above - not repacking"; exit 1; }
+python3 "$DEVICE_DIR/check_libs.py" || { fail "missing libraries above - not repacking"; exit 1; }
 
 step "Repacking vendor_boot"
 bash "$DEVICE_DIR/repack.sh"
@@ -188,7 +206,7 @@ if [[ "${1:-}" == "--flash" ]]; then
     # vendor_boot-<BUILD ID>.img - switching the base = re-pointing the link.
     base_img="$(readlink -f "$HOME/shiba-stock/factory/vendor_boot.img")"
     BASE_BUILD="$(basename "$base_img" | sed -n 's/^vendor_boot-\(.*\)\.img$/\1/p')"
-    [[ -n "$BASE_BUILD" ]] || { echo "FAIL: ~/shiba-stock/factory/vendor_boot.img must link to vendor_boot-<BUILD ID>.img (is: ${base_img##*/})"; exit 1; }
+    [[ -n "$BASE_BUILD" ]] || { fail "~/shiba-stock/factory/vendor_boot.img must link to vendor_boot-<BUILD ID>.img (is: ${base_img##*/})"; exit 1; }
     state="$(adb get-state 2>/dev/null)"
     run_slot="$(adb shell getprop ro.boot.slot_suffix 2>/dev/null | tr -d '\r_')"
     if [[ "$state" == device ]]; then
@@ -200,20 +218,21 @@ if [[ "${1:-}" == "--flash" ]]; then
         running=""
     fi
     if [[ "$running" != "$BASE_BUILD" && "${FORCE_FLASH:-}" != 1 ]]; then
-        echo "FAIL: the current slot runs '${running:-unknown (no adb)}', but this image is built on the"
-        echo "      $BASE_BUILD stock vendor_boot - flashing it would mix firmwares. Instead: switch to a"
-        echo "      slot running $BASE_BUILD, flash there, then TWRP > Install to other slot (grafts onto"
-        echo "      that slot's own vendor_boot). FORCE_FLASH=1 overrides."
+        fail "the current slot runs '${running:-unknown (no adb)}', but this image is built on the"
+        fail "$BASE_BUILD stock vendor_boot - flashing it would mix firmwares."
+        [[ -z "$running" ]] && user "Connect the phone (Android with USB debugging, or TWRP) and run this again"
+        user "Or: switch to a slot running $BASE_BUILD, flash there, then TWRP > Install to other slot"
+        echo "   (grafts onto that slot's own vendor_boot). FORCE_FLASH=1 overrides."
         exit 1
     fi
     adb reboot bootloader
     # flash the slot the phone boots (after an OTA that's no longer always _a)
     slot="$(fastboot getvar current-slot 2>&1 | sed -n 's/^current-slot: *\([ab]\).*/\1/p')"
-    [[ "$slot" == a || "$slot" == b ]] || { echo "FAIL: cannot read the current slot from fastboot"; exit 1; }
+    [[ "$slot" == a || "$slot" == b ]] || { fail "cannot read the current slot from fastboot"; exit 1; }
     # the check above was for the RUNNING slot; after an OTA the bootloader may point elsewhere
     if [[ "$slot" != "$run_slot" && "${FORCE_FLASH:-}" != 1 ]]; then
-        echo "FAIL: the bootloader's current slot is $slot, but the checked (running) slot was ${run_slot:-?}"
-        echo "      - not flashing. fastboot --set-active=${run_slot:-?} first, or FORCE_FLASH=1."
+        fail "the bootloader's current slot is $slot, but the checked (running) slot was ${run_slot:-?} - not flashing."
+        user "Run: fastboot --set-active=${run_slot:-?}  (or FORCE_FLASH=1)"
         fastboot reboot recovery; exit 1
     fi
     step "Flashing vendor_boot_$slot (current slot) and booting recovery"
@@ -225,6 +244,10 @@ if [[ "${1:-}" == "--flash" ]]; then
         v="$(adb shell getprop ro.twrp.version 2>/dev/null | tr -d '\r')"
         [[ -n "$v" ]] && break; sleep 1
     done
-    step "TWRP is back up: ${v:-version unknown}"
-    [[ "$v" == *"$SHIBA_VERSION"* ]] || step "WARNING: phone reports '${v:-nothing}', this build is $SHIBA_VERSION"
+    if [[ "$v" == *"$SHIBA_VERSION"* ]]; then
+        step "TWRP is back up"; ok "${B}$v${N}"
+    else
+        step "TWRP is back up: ${v:-version unknown}"
+        warn "phone reports '${v:-nothing}', this build is $SHIBA_VERSION"
+    fi
 fi

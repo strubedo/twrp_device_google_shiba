@@ -51,6 +51,8 @@ FRAME_IMAGES = {"navbar_bg": False, "chip_slot": True, "chip_decrypted": True,
                 "chip_locked": True, "chip_plain": True,
                 "chip_ksu": True, "chip_magisk": True, "chip_noroot": True,
                 "main_button_accent": False}             # Install = primary (blue) tile
+KERNEL_CHIP_WIDTHS = range(240, 785, 16)                  # chip_kernel_W (twrp_root.sh kernel_label)
+FRAME_IMAGES.update({f"chip_kernel_{w}": True for w in KERNEL_CHIP_WIDTHS})
 NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES) | {"tile_install"}
 # primary tile style: blue image, black label (button parts resolve node-first,
 # then style - pages.cpp FindNode - so only the Install button uses it)
@@ -76,12 +78,14 @@ CARD_GROUPED = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" p
                 '\n\t\t\t<separator color="%background_color%" height="2"/>')
 # Advanced page: (existing item name, new name or None, header before it or None, subtitle or None)
 ADV_ITEMS = [
+    # alphabetical (portrait.xml has them in this order); the subtitle says
+    # which ones need their app's APK in Download/ (twrp_root.sh apk_missing)
     ('Root: Show status', 'Show status', "ROOT", None),
-    ('Root: Install KernelSU', 'Install KernelSU', None, None),
-    ('Root: Install KernelSU-Next', 'Install KernelSU-Next', None, None),
-    ('Root: Install SukiSU', 'Install SukiSU', None, None),
-    ('Root: Install Magisk', 'Install Magisk', None, None),
-    ('Root: Install APatch', 'Install APatch', None, None),
+    ('Root: Install APatch', 'Install APatch', None, "Needs the APatch APK in /sdcard/Download"),
+    ('Root: Install KernelSU', 'Install KernelSU', None, "App installs automatically"),
+    ('Root: Install KernelSU-Next', 'Install KernelSU-Next', None, "Needs the KernelSU-Next APK in /sdcard/Download"),
+    ('Root: Install Magisk', 'Install Magisk', None, "App installs automatically"),
+    ('Root: Install SukiSU', 'Install SukiSU', None, "Needs the SukiSU APK in /sdcard/Download"),
     ('Root: Remove root', 'Remove root', None, None),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
     ('TWRP: Install to both slots', 'Install to both slots', None, None),
@@ -236,6 +240,26 @@ for _dc, _end in _DATA_CHIPS:
 				<font resource="font_s"/>
 				<placement x="{_end + 16 + _off}" y="204"/>
 				<text>{_label}</text>
+			</text>
+'''
+
+# Kernel chip, second row (tw_kernel_chip/tw_kernel_label, TWRP from
+# twrp_root.sh kernel): "Kernel 6.1.162 · Stock". One image per width bucket;
+# hidden while the decryption hint below uses that row.
+for _w in KERNEL_CHIP_WIDTHS:
+    MAIN_HEADER += f'''
+			<image>
+				<conditions><condition var1="tw_kernel_chip" var2="{_w}"/><condition var1="tw_crypto_hint_shown" op="!=" var2="1"/></conditions>
+				<image resource="chip_kernel_{_w}"/>
+				<placement x="36" y="276"/>
+			</image>
+'''
+MAIN_HEADER += '''
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_kernel_chip" op="!=" var2="0"/><condition var1="tw_crypto_hint_shown" op="!=" var2="1"/></conditions>
+				<font resource="font_s"/>
+				<placement x="64" y="284"/>
+				<text>%tw_kernel_label%</text>
 			</text>
 '''
 

@@ -8,6 +8,9 @@
 #   twrp_root.sh name            that short name: KernelSU | KSU-Next | SukiSU |
 #                                APatch | Magisk | (empty = not rooted)
 #   twrp_root.sh info            human-readable details (Root: Show status)
+#   twrp_root.sh kernel          main-page kernel chip: "WIDTH|Kernel 6.1.162 · Stock"
+#                                (Stock | the kernel's brand, e.g. Wild | Custom,
+#                                plus " · SUSFS"); WIDTH picks the chip image
 #   twrp_root.sh install-ksu     KernelSU (LKM) via bundled ksud
 #   twrp_root.sh install-ksun    KernelSU-Next (LKM) via the ksud in its app
 #   twrp_root.sh install-suki    SukiSU (LKM) via the ksud in its app
@@ -137,25 +140,30 @@ lkm_family() {
 # dump the partition to a file
 read_part() { dd if="$PART" of="$1" bs=1M 2>/dev/null; }
 
-# kmi -> e.g. android14-5.15  (from 5.15.137-android14-11-g...). For the running
-# slot that's the running kernel; for the other slot (after an OTA it may carry
-# a different kernel, e.g. android15-6.1) it's read from that slot's boot image.
+# kmi -> e.g. android14-6.1 (from 6.1.162-android14-11-g...): the KMI of the
+# kernel in this slot's BOOT partition - the one the patched init_boot will
+# boot with. Not uname -r: TWRP runs the kernel that was in boot when it
+# started, which isn't the slot's kernel any more after a kernel flash or
+# restore (v9.48: "cannot derive KMI from kernel '6.1.162-Wild'" right after
+# putting the stock kernel back). Branded custom kernels can drop the
+# androidNN part from their name (6.1.162-Wild); a GKI kernel's Linux version
+# then still says which KMI it is, where only one Android release uses it.
 kmi() {
-    local r
-    if [[ "$SLOT" == "$RUN_SLOT" ]]; then
-        r="$(uname -r)"
-    else
-        local d="$W/kboot"; rm -rf "$d"; mkdir -p "$d"
-        dd if="/dev/block/by-name/boot${SLOT}" of="$d/boot.img" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
-        ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) || die "cannot unpack boot${SLOT}"
-        # grep the binary itself (-a): with pipefail, `strings | grep -m1` dies of
-        # SIGPIPE (exit 141) when grep stops at the first match
-        r="$(grep -a -m1 -o 'Linux version [^ ]*' "$d/kernel" | awk '{print $3}')"
-        [[ -n "$r" ]] || die "cannot read the kernel version in boot${SLOT}"
-    fi
+    local r; r="$(kscan_get BANNER)"
+    [[ -n "$r" || "$SLOT" != "$RUN_SLOT" ]] || r="$(uname -r)"
+    [[ -n "$r" ]] || die "cannot read the kernel version in boot${SLOT}"
     local ver="${r%%.*}.$(echo "$r" | cut -d. -f2)"
-    local rel; rel="$(echo "$r" | grep -o 'android[0-9]*' | head -1)"
-    [[ -n "$rel" ]] || die "cannot derive KMI from kernel '$r'"
+    ver="${ver%%-*}"
+    local rel; rel="$(echo "$r" | grep -o 'android[0-9]*' | head -1 || true)"
+    if [[ -z "$rel" ]]; then
+        case "$ver" in          # GKI: Linux version -> its one Android release
+            6.1)  rel=android14 ;;
+            6.6)  rel=android15 ;;
+            6.12) rel=android16 ;;
+            *)    die "cannot derive the KMI from kernel '$r' (no androidNN in its name, and Linux $ver is used by more than one Android release). Nothing was changed." ;;
+        esac
+        echo "- Kernel '$r' doesn't name its KMI; Linux $ver is ${rel}-${ver}" >&2
+    fi
     echo "${rel}-${ver}"
 }
 
@@ -254,6 +262,53 @@ do_info() {
     echo "$st"
 }
 
+# kernel_label -> "WIDTH|Kernel 6.1.162 · Stock" for the main-page kernel chip
+# (twrp-functions.cpp Update_Root_State). The slot's BOOT kernel (kernel_scan,
+# cached), so it changes as soon as a kernel is flashed:
+#   Stock   Google's build: 6.1.162-android14-11-g<sha>-ab<build id>
+#   <Brand> a custom kernel that names itself: 6.1.162-Wild, ...-android14-...-Wild
+#   Custom  anything else (own builds, -dirty, ...)
+# plus " · SUSFS" when SUSFS is in it. WIDTH = chip image width: the text's
+# width in IBM Plex Sans 33 (advances of ! .. ~ below, from the theme font)
+# + 28 padding each side, rounded up to 16 - mkimages.py draws chip_kernel_240
+# .. chip_kernel_784. Empty output when boot can't be read (no chip).
+KW_CHARS='!"#$%&'"'"'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+KW_WIDTHS="9 14 24 20 31 23 8 11 11 15 20 9 13 9 13 20 20 20 20 20 20 20 20 20 20 10 10 20 20 20 16 29 21 22 20 22 19 18 23 23 13 17 21 17 27 23 23 20 23 21 19 19 22 20 29 20 20 19 10 13 10 20 19 20 18 19 17 19 18 11 17 19 8 8 17 9 29 19 18 19 19 12 16 12 19 16 25 17 16 15 11 10 11 20"
+text_width() {   # ASCII only; space 8. The tables go in through the environment:
+    # awk -v would process the backslash in KW_CHARS as an escape (toybox awk
+    # drops it), shifting every later character's width by one
+    KW_CHARS="$KW_CHARS" KW_WIDTHS="$KW_WIDTHS" awk -v s="$1" 'BEGIN {
+        c = ENVIRON["KW_CHARS"]; w = ENVIRON["KW_WIDTHS"]
+        split(w, a, " "); t = 0
+        for (i = 1; i <= length(s); i++) { p = index(c, substr(s, i, 1)); t += p ? a[p] : 8 }
+        print t }'
+}
+kernel_label() {
+    local banner susfs root ver rest kind="" last
+    banner="$(kscan_get BANNER)"; susfs="$(kscan_get SUSFS)"; root="$(kscan_get ROOT)"
+    [[ -n "$banner" ]] || return 0
+    ver="${banner%%-*}"; rest="${banner#"$ver"}"; rest="${rest#-}"
+    if [[ "$banner" =~ -android[0-9]+-[0-9]+-g[0-9a-f]+-ab[0-9]+$ && ( "$root" == none || "$root" == APatch ) ]]; then
+        kind=Stock                       # APatch patches Google's kernel; the root chip says APatch
+    elif [[ -n "$rest" && "$rest" != android* ]]; then
+        kind="${rest%%-*}"               # 6.1.162-Wild -> Wild
+    else
+        last="${banner##*-}"             # ...-android14-11-g<sha>-Wild -> Wild
+        if [[ "$last" =~ ^[A-Za-z][A-Za-z0-9_+]*$ && ! "$last" =~ ^(dirty|ab[0-9]+|g[0-9a-f]+|android[0-9]+)$ ]]; then
+            kind="$last"
+        fi
+    fi
+    kind="$(printf '%s' "$kind" | tr -cd 'A-Za-z0-9_+.')"
+    [[ -n "$kind" && ${#kind} -le 10 && "$kind" =~ [A-Za-z] ]] || kind=Custom
+    local label="Kernel $ver · $kind" w
+    w=$(( $(text_width "Kernel $ver$kind") + 26 ))       # " · " is 26 (both spaces)
+    if [[ "$susfs" == 1 ]]; then label+=" · SUSFS"; w=$(( w + 26 + $(text_width SUSFS) )); fi
+    w=$(( (w + 56 + 15) / 16 * 16 ))
+    (( w >= 240 )) || w=240
+    (( w <= 784 )) || w=784
+    echo "$w|$label"
+}
+
 # A property of the RUNNING slot's installed system, read from its build.prop on a
 # read-only mount - right whether or not /data is encrypted (the crypto script's
 # live props only exist when it ran), and on a pending update's slot too (super
@@ -327,6 +382,36 @@ ksud_for() {
 
 tool_name() { case "$1" in ksu) echo KernelSU ;; ksun) echo KernelSU-Next ;; suki) echo SukiSU ;; magisk) echo Magisk ;; apatch) echo APatch ;; esac; }
 
+# official app downloads (GitHub releases), for the "put the APK in Download" messages
+tool_url() {
+    case "$1" in
+        ksu)    echo "github.com/tiann/KernelSU/releases" ;;
+        ksun)   echo "github.com/KernelSU-Next/KernelSU-Next/releases" ;;
+        suki)   echo "github.com/SukiSU-Ultra/SukiSU-Ultra/releases" ;;
+        magisk) echo "github.com/topjohnwu/Magisk/releases" ;;
+        apatch) echo "github.com/bmax121/APatch/releases" ;;
+    esac
+}
+tool_glob() { case "$1" in ksu) echo KernelSU ;; ksun) echo KernelSU_Next ;; suki) echo SukiSU ;; magisk) echo Magisk ;; apatch) echo APatch ;; esac; }
+
+# apk_missing TOOL WHAT -> stop: this root is installed with tools from its own
+# app (no room in the recovery ramdisk to bundle every patcher), and its APK
+# isn't in Download/. Nothing has been changed when this runs.
+apk_missing() {
+    local name; name="$(tool_name "$1")"
+    say ""
+    say "! $name needs its app's APK: TWRP patches with the $2"
+    say "! inside it, so the root always matches your app version."
+    say "!"
+    say "!   1. Download the $name APK from"
+    say "!      $(tool_url "$1")"
+    say "!   2. Put it in /sdcard/Download  (Internal storage > Download)"
+    say "!      keep the downloaded name: $(tool_glob "$1")*.apk"
+    say "!   3. Run Advanced > ROOT > Install $name again"
+    say ""
+    die "No APK found. Nothing was changed."
+}
+
 do_install_ksu_family() {
     local tool="$1" name; name="$(tool_name "$tool")"
     # "Reinstall root after OTA" when the running slot's root is a custom kernel
@@ -345,11 +430,7 @@ do_install_ksu_family() {
     # before touching anything, instead of failing inside boot-patch (or
     # worse, producing an image whose kernelsu.ko never loads).
     local ksud
-    if ! ksud="$(ksud_for "$tool")"; then
-        say "! $name is installed with the patcher from its own app."
-        say "! Put the official $name APK in Download/ (from its GitHub releases),"
-        die "then run this again. Nothing was changed."
-    fi
+    ksud="$(ksud_for "$tool")" || apk_missing "$tool" "ksud"
     [[ "$tool" == ksu ]] || say "- Patcher: ksud from ${name}'s app ($(find_apk "$tool" | sed 's#/data/media/0/##'))"
     local k; k="$(kmi)"
     local kmis; kmis="$("$ksud" boot-info supported-kmis 2>/dev/null)"
@@ -430,9 +511,10 @@ app_setup() {
         apk="$fallback"
         say "- $name app: the bundled stub (it downloads the full app when first opened)"
     else
-        say "- To have the $name app installed automatically: download"
-        say "  $glob*.apk from the official GitHub releases to Download/"
-        say "  and run Install $name again - or install the app from Android."
+        say "- Root is installed. The $name app isn't, and no APK was found:"
+        say "  get it from $(tool_url "$tool")"
+        say "  and install it in Android - or put it in /sdcard/Download and run"
+        say "  Install $name again to have it installed at the next boot."
         return 0
     fi
     # What the app (KernelSU) or Magisk's zip installer (Magisk) normally puts
@@ -558,11 +640,7 @@ do_install_apatch() {
     if [[ -f "$KEYFILE" ]]; then key="$(cat "$KEYFILE")"; rm -f "$KEYFILE"; fi
     read_part "$W/current.img"
     require_state STOCK "use Remove root first - APatch replaces it"
-    if ! apatch_tools; then
-        say "! APatch is installed with kptools + kpimg from its own app."
-        say "! Put the official APatch APK in Download/ (github.com/bmax121/APatch releases),"
-        die "then run this again. Nothing was changed."
-    fi
+    apatch_tools || apk_missing apatch "kptools and kpimg"
     say "- Patcher: kptools + kpimg from APatch's app (${APATCH_APK#/data/media/0/})"
     # Reinstall after an OTA (other slot): the running kernel carries the key
     if [[ -z "$key" && "$SLOT" != "$RUN_SLOT" ]]; then
@@ -716,6 +794,7 @@ case "${1:-}" in
     info)           do_info ;;      # Root: Show status
     reroot-action)  do_reroot_action ;;
     android)        do_android ;;   # read-only: Android version of the running slot
+    kernel)         kernel_label ;; # read-only: main-page kernel chip (WIDTH|label)
     build)          do_build ;;     # read-only: build ID of the running slot
     stage-app)      app_setup "${2:-}" ;;   # the app-install part of install-ksu/-magisk alone (testing)
     kmi)            kmi ;;          # read-only: KMI of the (other) slot's kernel
