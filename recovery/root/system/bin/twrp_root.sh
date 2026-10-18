@@ -22,6 +22,8 @@
 #                                APK in Download/; the SuperKey comes from the
 #                                TWRP page ($W/apatch_key, 0600) or, for the
 #                                other slot after an OTA, from the running kernel
+#   twrp_root.sh flash-kernel IMG  a custom kernel's boot image onto boot
+#                                (KMI must match the kernel it replaces)
 #   twrp_root.sh remove          restore stock init_boot (either tool), or
 #                                unpatch APatch from boot
 #   ... ACTION other             act on the slot we are NOT running (after an
@@ -87,6 +89,19 @@ state_of() {
 # sukisu_ functions / "KernelSU Stealth"; APatch's KernelPatch carries the
 # magic KP1158. Cached per slot, keyed on the boot image's first MiB, so the
 # main-page chip doesn't unpack 64 MB after every operation.
+# kernel_root_of KERNEL -> none | APatch | KernelSU | KSU-Next | SukiSU
+kernel_root_of() {
+    if grep -a -q 'KP1158' "$1"; then echo APatch
+    elif grep -a -q -E 'KernelSU: |Android KernelSU|ksu_handle_' "$1"; then
+        if grep -a -q -E 'sukisu_|KernelSU Stealth' "$1"; then echo SukiSU
+        elif grep -a -q 'avc_spoof' "$1"; then echo KSU-Next
+        else echo KernelSU
+        fi
+    else echo none
+    fi
+}
+# kernel_banner_of KERNEL -> its release string (6.1.162-android14-11-g...)
+kernel_banner_of() { grep -a -m1 -o 'Linux version [^ ]*' "$1" | awk '{print $3}' || true; }
 kernel_scan() {
     local s="${1:-$SLOT}"
     local boot="/dev/block/by-name/boot${s}" d="$W/kdetect" key cache
@@ -101,15 +116,9 @@ kernel_scan() {
                 && ( cd "$d" && "$MAGISKBOOT" unpack boot.img >/dev/null 2>&1 ) \
                 && [[ -f "$d/kernel" ]]; then
             local k="$d/kernel"
-            if grep -a -q 'KP1158' "$k"; then root=APatch
-            elif grep -a -q -E 'KernelSU: |Android KernelSU|ksu_handle_' "$k"; then
-                if grep -a -q -E 'sukisu_|KernelSU Stealth' "$k"; then root=SukiSU
-                elif grep -a -q 'avc_spoof' "$k"; then root=KSU-Next
-                else root=KernelSU
-                fi
-            fi
+            root="$(kernel_root_of "$k")"
             grep -a -q -i 'susfs' "$k" && susfs=1
-            banner="$(grep -a -m1 -o 'Linux version [^ ]*' "$k" | awk '{print $3}' || true)"
+            banner="$(kernel_banner_of "$k")"
         fi
         rm -rf "$d"
         printf 'ROOT=%s\nSUSFS=%s\nBANNER=%s\n' "$root" "$susfs" "$banner" > "$cache"
@@ -152,6 +161,11 @@ kmi() {
     local r; r="$(kscan_get BANNER)"
     [[ -n "$r" || "$SLOT" != "$RUN_SLOT" ]] || r="$(uname -r)"
     [[ -n "$r" ]] || die "cannot read the kernel version in boot${SLOT}"
+    kmi_of "$r"
+}
+# kmi_of RELEASE -> its KMI (the same rules for an image that isn't flashed yet)
+kmi_of() {
+    local r="$1"
     local ver="${r%%.*}.$(echo "$r" | cut -d. -f2)"
     ver="${ver%%-*}"
     local rel; rel="$(echo "$r" | grep -o 'android[0-9]*' | head -1 || true)"
@@ -418,7 +432,9 @@ do_install_ksu_family() {
     # (KernelSU / KernelSU-Next built in, e.g. Sultan + SUSFS): our KernelSU LKM
     # would be a different root on the new slot, without that kernel. Its owner
     # reflashes the kernel instead - say so, change nothing.
-    if [[ "$SLOT" != "$RUN_SLOT" ]] && kernel_ksu "$RUN_SLOT"; then
+    # TW_ROOT_EXPLICIT=1: the user picked this tool for the updated slot
+    # (Root after an OTA) - install it even so.
+    if [[ "$SLOT" != "$RUN_SLOT" && "${TW_ROOT_EXPLICIT:-0}" != 1 ]] && kernel_ksu "$RUN_SLOT"; then
         say "- This slot is rooted by its kernel ($(kscan_get ROOT "$RUN_SLOT") built into boot${RUN_SLOT}),"
         say "  so TWRP doesn't install another root on the updated slot."
         say "  For root there: flash your custom kernel again after the update."
@@ -774,6 +790,48 @@ do_remove() {
 
 # reroot-action -> which install-* recreates the RUNNING slot's root on the
 # other slot after an OTA (twinstall.cpp, "Reinstall root after OTA"), or none
+# ---- Custom kernel (Root after an OTA > Custom kernel) ---------------------
+# flash-kernel [other] IMG: a whole boot image - a custom kernel, e.g. a GKI
+# kernel with KernelSU-Next built in - onto this slot's boot. Checks first: it
+# fits the partition, unpacks to a kernel with the same KMI as the kernel it
+# replaces (the slot's vendor modules must load), and its built-in root
+# doesn't stack on a root in init_boot. Then backup, readback verify, restore.
+do_flash_kernel() {
+    local img="${2:-}"; [[ "$img" == other ]] && img="${3:-}"
+    [[ -n "$img" && -f "$img" ]] || die "usage: $0 flash-kernel [other] BOOT_IMAGE - no file '$img'. Nothing was changed."
+    [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
+    local n psize; n="$(stat -c %s "$img")"; psize="$(blockdev --getsize64 "$BOOTPART")"
+    (( n <= psize )) || die "${img##*/} is $n bytes, boot${SLOT} only $psize. Nothing was changed."
+    local d="$W/newk"
+    boot_kernel_dir "$img" "$d" || die "${img##*/} isn't a boot image with a kernel. Nothing was changed."
+    local banner root; banner="$(kernel_banner_of "$d/kernel")"; root="$(kernel_root_of "$d/kernel")"
+    rm -rf "$d"
+    [[ -n "$banner" ]] || die "can't read the kernel version in ${img##*/}. Nothing was changed."
+    local newk oldk; newk="$(kmi_of "$banner")"; oldk="$(kmi)"
+    [[ "$newk" == "$oldk" ]] \
+        || die "${img##*/} has a $newk kernel, slot ${SLOT#_} needs $oldk (its vendor modules wouldn't load). Nothing was changed."
+    say "- Kernel: $banner (KMI $newk$([[ "$root" != none ]] && echo ", $root built in"))"
+    say "- Replaces: $(kscan_get BANNER)"
+    if [[ "$root" != none ]]; then
+        read_part "$W/current.img"
+        local st; st="$(state_of "$W/current.img")"
+        [[ "$st" == STOCK ]] \
+            || die "init_boot${SLOT} has $st root and this kernel has $root built in - two roots. Remove root first. Nothing was changed."
+    fi
+    [[ "${TW_DRY_RUN:-0}" == 1 ]] && { say "- Dry run: checks passed, nothing flashed"; return 0; }
+    local backup; backup="$(backup_boot)"
+    say "- Flashing boot${SLOT}"
+    dd if="$img" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null || die "write failed"
+    dd if="$BOOTPART" of="$W/readback.img" bs=1M 2>/dev/null
+    if ! cmp -s -n "$n" "$img" "$W/readback.img"; then
+        say "! Readback mismatch - restoring backup"
+        dd if="$backup" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null
+        die "flash verification failed; original boot restored"
+    fi
+    rm -f "$W/readback.img" "$W"/kernel_scan"${SLOT}".*
+    say "- Verified: boot${SLOT} is now ${img##*/}"
+}
+
 do_reroot_action() {
     local st; st="$(do_status)"
     case "$st" in
@@ -804,6 +862,7 @@ case "${1:-}" in
     install-suki)   do_install_ksu_family suki ;;
     install-magisk) do_install_magisk ;;
     install-apatch) do_install_apatch ;;
+    flash-kernel)   do_flash_kernel "$@" ;;
     remove)         do_remove ;;
-    *) echo "usage: $0 status|name|info|install-ksu|install-ksun|install-suki|install-magisk|install-apatch|remove" >&2; exit 2 ;;
+    *) echo "usage: $0 status|name|info|install-ksu|install-ksun|install-suki|install-magisk|install-apatch|flash-kernel|remove" >&2; exit 2 ;;
 esac

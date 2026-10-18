@@ -98,7 +98,7 @@ index 003586de..6711c571 100755
  					ss << val;
  					return ss.str();
 diff --git a/data.cpp b/data.cpp
-index c19fe4c2..2a90877a 100644
+index c19fe4c2..f3124d71 100644
 --- a/data.cpp
 +++ b/data.cpp
 @@ -417,11 +417,14 @@ int DataManager::SetValue(const string& varName, const string& value, const int
@@ -140,15 +140,18 @@ index c19fe4c2..2a90877a 100644
  #ifdef TW_INCLUDE_FASTBOOTD
  	printf("TW_INCLUDE_FASTBOOTD := true\n");
  	mConst.SetValue(TW_FASTBOOT_MODE, "1");
-@@ -764,6 +777,7 @@ void DataManager::SetDefaultValues()
+@@ -764,6 +777,10 @@ void DataManager::SetDefaultValues()
  	mPersist.SetValue(TW_TIME_ZONE_GUIOFFSET, "0");
  	mPersist.SetValue(TW_TIME_ZONE_GUIDST, "1");
  	mPersist.SetValue(TW_AUTO_REFLASHTWRP_VAR, "0");
-+	mPersist.SetValue("tw_auto_reroot", "0");	// shiba: reinstall root on the updated slot after an OTA
++	// shiba: root for the updated slot after an OTA - Off | Same as now |
++	// KernelSU | KernelSU-Next | SukiSU | APatch | Magisk | Custom kernel
++	mPersist.SetValue("tw_ota_root", "Off");
++	mPersist.SetValue("tw_ota_kernel_file", "");	// Custom kernel: boot image to flash
  #ifdef TW_NO_FLASH_CURRENT_TWRP
  	mConst.SetValue("tw_no_flash_current_twrp", "1");
  #else
-@@ -906,6 +920,11 @@ void DataManager::SetDefaultValues()
+@@ -906,6 +923,11 @@ void DataManager::SetDefaultValues()
  #ifdef TW_HAS_MTP
  	mConst.SetValue("tw_has_mtp", "1");
  	mPersist.SetValue("tw_mtp_enabled", "1");
@@ -160,7 +163,7 @@ index c19fe4c2..2a90877a 100644
  	mPersist.SetValue("tw_mtp_debug", "0");
  #else
  	LOGINFO("TW_EXCLUDE_MTP := true\n");
-@@ -1028,7 +1047,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+@@ -1028,7 +1050,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
  				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
  			cpuSecCheck = curTime.tv_sec + 5;
  		}
@@ -198,10 +201,26 @@ index fa626624..a7abe6a2 100644
      seclabel u:r:recovery:s0
 +    disabled
 diff --git a/gui/action.cpp b/gui/action.cpp
-index f47623da..593edaf7 100755
+index f47623da..600076ca 100755
 --- a/gui/action.cpp
 +++ b/gui/action.cpp
-@@ -541,6 +541,7 @@ void GUIAction::operation_end(const int operation_status)
+@@ -38,6 +38,7 @@
+ 
+ #include <string>
+ #include <sstream>
++#include <algorithm>
+ #include "../partitions.hpp"
+ #include "../twrp-functions.hpp"
+ #include "../twrpRepacker.hpp"
+@@ -173,6 +174,7 @@ GUIAction::GUIAction(xml_node<>* node)
+ 		ADD_ACTION(readBackup);
+ 		ADD_ACTION(set);
+ 		ADD_ACTION(clear);
++		ADD_ACTION(savesecret);
+ 		ADD_ACTION(mount);
+ 		ADD_ACTION(unmount);
+ 		ADD_ACTION_EX("umount", unmount);
+@@ -541,6 +543,7 @@ void GUIAction::operation_end(const int operation_status)
  			DataManager::SetValue("tw_operation_status", 0);
  		}
  	}
@@ -209,7 +228,44 @@ index f47623da..593edaf7 100755
  	DataManager::SetValue("tw_operation_state", 1);
  	DataManager::SetValue(TW_ACTION_BUSY, 0);
  	blankTimer.resetTimerAndUnblank();
-@@ -1765,6 +1766,7 @@ int GUIAction::startmtp(std::string arg __unused)
+@@ -634,6 +637,36 @@ int GUIAction::clear(std::string arg)
+ 	return 0;
+ }
+ 
++// shiba: savesecret VAR=PATH - write VAR's value to PATH (mode 0600) and clear
++// VAR. For secrets typed in TWRP (the APatch SuperKey) that a script needs:
++// passing them through "cmd" would log them (cmd logs its command line to
++// recovery.log, which is kept in /data/recovery and in Collect logs).
++int GUIAction::savesecret(std::string arg)
++{
++	size_t eq = arg.find('=');
++	if (eq == std::string::npos || eq == 0 || eq + 1 >= arg.size()) {
++		LOGERR("savesecret: expected VAR=PATH\n");
++		return 0;
++	}
++	std::string var = arg.substr(0, eq), path = arg.substr(eq + 1), value;
++	DataManager::GetValue(var, value);
++	DataManager::SetValue(var, "");
++	size_t slash = path.rfind('/');
++	if (slash != std::string::npos && slash > 0)
++		mkdir(path.substr(0, slash).c_str(), 0700);
++	unlink(path.c_str());
++	int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
++	if (fd < 0) {
++		LOGERR("savesecret: cannot write %s\n", path.c_str());
++	} else {
++		if (write(fd, value.data(), value.size()) != (ssize_t)value.size())
++			LOGERR("savesecret: short write to %s\n", path.c_str());
++		close(fd);
++	}
++	std::fill(value.begin(), value.end(), '\0');
++	return 0;
++}
++
+ int GUIAction::mount(std::string arg)
+ {
+ 	if (arg == "usb") {
+@@ -1765,6 +1798,7 @@ int GUIAction::startmtp(std::string arg __unused)
  	int op_status = 0;
  
  	operation_start("Start MTP");
@@ -217,7 +273,7 @@ index f47623da..593edaf7 100755
  	if (PartitionManager.Enable_MTP())
  		op_status = 0; // success
  	else
-@@ -1779,6 +1781,7 @@ int GUIAction::stopmtp(std::string arg __unused)
+@@ -1779,6 +1813,7 @@ int GUIAction::stopmtp(std::string arg __unused)
  	int op_status = 0;
  
  	operation_start("Stop MTP");
@@ -338,7 +394,7 @@ index 4ce595b2..8f25df2d 100755
  	if (mAction)		mAction->SetActionPos(mRenderX, mRenderY, mRenderW, mRenderH);
  	SetActionPos(mRenderX, mRenderY, mRenderW, mRenderH);
 diff --git a/gui/listbox.cpp b/gui/listbox.cpp
-index 91cb7a7b..c1ad1c99 100644
+index 91cb7a7b..9acc07cc 100644
 --- a/gui/listbox.cpp
 +++ b/gui/listbox.cpp
 @@ -116,6 +116,11 @@ GUIListBox::GUIListBox(xml_node<>* node) : GUIScrollList(node)
@@ -353,7 +409,26 @@ index 91cb7a7b..c1ad1c99 100644
  		item.variableValue = gui_parse_text(child->value());
  		item.selected = (child->value() == currentValue);
  		item.action = NULL;
-@@ -269,14 +274,36 @@ void GUIListBox::RenderItem(size_t itemindex, int yPos, bool selected)
+@@ -251,8 +256,18 @@ void GUIListBox::SetPageFocus(int inFocus)
+ 			isTextParsed = true;
+ 			for (size_t i = 0; i < mListItems.size(); i++) {
+ 				ListItem& item = mListItems[i];
++				// shiba: keep names that show a variable ("Root after an OTA:
++				// %tw_ota_root%") so they're current every time the page opens
++				if (item.displayName.find('%') != std::string::npos)
++					item.templateName = item.displayName;
+ 				item.displayName = gui_parse_text(item.displayName);
+ 			}
++		} else {
++			for (size_t i = 0; i < mListItems.size(); i++) {
++				ListItem& item = mListItems[i];
++				if (!item.templateName.empty())
++					item.displayName = gui_parse_text(item.templateName);
++			}
+ 		}
+ 		DataManager::GetValue(mVariable, currentValue);
+ 		NotifyVarChange(mVariable, currentValue);
+@@ -269,14 +284,39 @@ void GUIListBox::RenderItem(size_t itemindex, int yPos, bool selected)
  	// note: the "selected" parameter above is for the currently touched item
  	// don't confuse it with the more persistent "selected" flag per list item used below
  	ListItem& item = mListItems[mVisibleItems[itemindex]];
@@ -376,6 +451,9 @@ index 91cb7a7b..c1ad1c99 100644
 +	mCardCorners = corners;
 +	mCardSubtitle = item.subtitle.c_str();
  	ImageResource* icon = item.selected ? mIconSelected : mIconUnselected;
++	// shiba: an action row in a checklist (no variable) is a link, not a checkbox
++	if (isCheckList && item.variableName.empty())
++		icon = NULL;
  	const std::string& text = item.displayName;
  
  	RenderStdItem(yPos, selected, icon, text.c_str());
@@ -390,11 +468,30 @@ index 91cb7a7b..c1ad1c99 100644
  	if (!isCheckList) {
  		// deselect all items, even invisible ones
  		for (size_t i = 0; i < mListItems.size(); i++) {
+@@ -286,7 +326,9 @@ void GUIListBox::NotifySelect(size_t item_selected)
+ 
+ 	ListItem& item = mListItems[mVisibleItems[item_selected]];
+ 
+-	if (isCheckList) {
++	if (isCheckList && item.variableName.empty()) {
++		// shiba: action row in a checklist - nothing to toggle
++	} else if (isCheckList) {
+ 		int selected = 1 - item.selected;
+ 		item.selected = selected;
+ 		DataManager::SetValue(item.variableName, selected ? "1" : "0");
 diff --git a/gui/objects.hpp b/gui/objects.hpp
-index 7ca15ed8..06f46da3 100755
+index 7ca15ed8..2e34c54c 100755
 --- a/gui/objects.hpp
 +++ b/gui/objects.hpp
-@@ -418,6 +418,10 @@ protected:
+@@ -314,6 +314,7 @@ protected:
+ 	int readBackup(std::string arg);
+ 	int set(std::string arg);
+ 	int clear(std::string arg);
++	int savesecret(std::string arg);
+ 	int mount(std::string arg);
+ 	int unmount(std::string arg);
+ 	int restoredefaultsettings(std::string arg);
+@@ -418,6 +419,10 @@ protected:
  	GUIAction* mAction;
  	int mTextX, mTextY, mTextW, mTextH;
  	int mIconX, mIconY, mIconW, mIconH;
@@ -405,7 +502,7 @@ index 7ca15ed8..06f46da3 100755
  	bool mRendered;
  	bool hasHighlightColor;
  	bool renderHighlight;
-@@ -564,6 +568,15 @@ protected:
+@@ -564,6 +569,15 @@ protected:
  	int mFastScrollRectCurrentH; // current height of fastscroll rect
  	int mFastScrollRectTouchY; // offset from top of fastscroll rect where the user initially touched
  	bool hasScroll; // indicates that we have enough items in the list to scroll
@@ -421,12 +518,13 @@ index 7ca15ed8..06f46da3 100755
  	int firstDisplayedItem; // this item goes at the top of the display list - may only be partially visible
  	int scrollingSpeed; // on a touch release, this is set based on the difference in the y-axis between the last 2 touches and indicates how fast the kinetic scrolling will go
  	int y_offset; // this is how many pixels offset in the y axis for per pixel scrolling, is always <= 0 and should never be < -actualItemHeight
-@@ -661,6 +674,8 @@ protected:
+@@ -661,6 +675,9 @@ protected:
  		unsigned int selected;
  		GUIAction* action;
  		std::vector<Condition> mConditions;
 +		bool isHeader = false;  // shiba (Graphite): <listitem header="1"> section title
 +		std::string subtitle;   // shiba (Graphite): <listitem subtitle="...">
++		std::string templateName; // shiba: name with %variables%, re-parsed on each page focus
  	};
  
  protected:
@@ -590,7 +688,7 @@ index f7e366b8..af589231 100755
  
  			<text style="text_m">
 diff --git a/gui/theme/common/languages/en.xml b/gui/theme/common/languages/en.xml
-index e2840067..cf36a8a3 100755
+index e2840067..a5e9a91b 100755
 --- a/gui/theme/common/languages/en.xml
 +++ b/gui/theme/common/languages/en.xml
 @@ -35,7 +35,7 @@
@@ -610,8 +708,18 @@ index e2840067..cf36a8a3 100755
  		<string name="turning_off">Turning Off...</string>
  		<string name="swipe_power_off">Swipe to Power Off</string>
  		<string name="swipe_power_off_s">Power Off</string>
+@@ -734,6 +735,7 @@
+ 		<string name="unmount_system_err">Failed unmounting System</string>
+ 		<string name="flash_ab_inactive">Flashing A/B zip to inactive slot: {1}</string>
+ 		<string name="flash_ab_reboot">To flash additional zips, please reboot recovery to switch to the updated slot.</string>
++		<string name="auto_reflash_skipped">OTA did not install - TWRP not reflashed.</string>
+ 		<string name="flash_ab_both_slots">Flash to both slots</string>
+ 		<string name="ozip_decrypt_decryption">Starting Ozip Decryption...</string>
+ 		<string name="ozip_decrypt_finish">Ozip Decryption Finished!</string>
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
-index 99eeef6c..494c6de7 100755
+old mode 100755
+new mode 100644
+index 99eeef6c..25f1bf8e
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -629,7 +737,7 @@ index 99eeef6c..494c6de7 100755
  			</button>
  
  			<button style="main_button">
-@@ -415,11 +421,16 @@
+@@ -415,11 +421,20 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -640,14 +748,18 @@ index 99eeef6c..494c6de7 100755
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
  				</listitem>
-+				<listitem name="Reinstall root after flashing an OTA">
++				<!-- shiba: which root the updated slot gets (twinstall.cpp, tw_ota_root) -->
++				<listitem name="Root after an OTA: %tw_ota_root%">
 +					<condition var1="tw_has_boot_slots" var2="1"/>
-+					<data variable="tw_auto_reroot"/>
++					<actions>
++						<action function="set">tw_ota_root_back=flash_confirm</action>
++						<action function="page">shiba_ota_root</action>
++					</actions>
 +				</listitem>
  				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
  					<data variable="tw_install_reboot"/>
  				</listitem>
-@@ -1201,6 +1212,243 @@
+@@ -1201,6 +1216,496 @@
  			</action>
  		</page>
  
@@ -656,6 +768,259 @@ index 99eeef6c..494c6de7 100755
 +		       disable: encryption-disable.zip -> Format Data -> encryption-postformat.zip
 +		       enable:  encryption-enable.zip  -> Format Data
 +		     (action_page's tw_action2 runs unconditionally, so it can't be used.) -->
++		<!-- shiba: APatch SuperKey. Letters and digits only (APatch: 8-63, at
++		     least one letter and one digit - twrp_root.sh checks that). The key
++		     reaches the script through savesecret (a 0600 file in /tmp), never a
++		     logged command line. -->
++		<page name="shiba_apatch_key">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Install APatch</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>Choose a SuperKey</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%center_x%" y="%row2_y%" placement="5"/>
++				<text>APatch patches the kernel (boot).</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%center_x%" y="%row3_y%" placement="5"/>
++				<text>Use letters AND numbers, 8 or more.</text>
++			</text>
++
++			<text style="text_m_fail">
++				<placement x="%center_x%" y="%row4_y%" placement="5"/>
++				<text>Example: pixel8key2026. Write it down.</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%center_x%" y="%row5_y%" placement="5"/>
++				<text>The APatch APK must be in Download.</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%center_x%" y="%row8_y%" placement="5"/>
++				<text>Type the key, then Enter.  Back to cancel.</text>
++			</text>
++
++			<input>
++				<placement x="%indent%" y="%row10_y%" w="%content_width%" h="%input_height%"/>
++				<text>%tw_apatch_key%</text>
++				<data name="tw_apatch_key"/>
++				<restrict minlen="8" maxlen="63" allow="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"/>
++				<action function="page">shiba_apatch_start</action>
++			</input>
++
++			<fill color="%accent_color%">
++				<placement x="%indent%" y="row11_y" w="%content_width%" h="input_line_width"/>
++			</fill>
++
++			<template name="keyboardtemplate"/>
++
++			<action>
++				<touch key="home"/>
++				<actions>
++					<action function="set">tw_apatch_key=</action>
++					<action function="page">main</action>
++				</actions>
++			</action>
++
++			<action>
++				<touch key="back"/>
++				<actions>
++					<action function="set">tw_apatch_key=</action>
++					<action function="page">%tw_apatch_back%</action>
++				</actions>
++			</action>
++		</page>
++
++		<page name="shiba_apatch_start">
++			<action>
++				<conditions>
++					<condition var1="tw_apatch_go" var2="1"/>
++				</conditions>
++				<actions>
++					<action function="set">tw_apatch_go=0</action>
++					<action function="savesecret">tw_apatch_key=/tmp/twrp_root/apatch_key</action>
++					<action function="queueclear"/>
++					<action function="set">tw_filename=/system/etc/twrp_root/install-apatch.zip</action>
++					<action function="queuezip"/>
++					<action function="page">flash_confirm</action>
++				</actions>
++			</action>
++
++			<!-- shiba: tw_apatch_go=2 - the key is for Root after an OTA: save it for
++			     twinstall.cpp's install-apatch and go back, nothing is flashed now -->
++			<action>
++				<conditions>
++					<condition var1="tw_apatch_go" var2="2"/>
++				</conditions>
++				<actions>
++					<action function="set">tw_apatch_go=0</action>
++					<action function="savesecret">tw_apatch_key=/tmp/twrp_root/apatch_key</action>
++					<action function="set">tw_ota_root=APatch</action>
++					<action function="page">%tw_ota_root_back%</action>
++				</actions>
++			</action>
++
++			<!-- no fallback action on tw_apatch_go=0 here: setting it to 0 above
++			     would trigger it and bounce back to Advanced before flash_confirm -->
++		</page>
++
++		<!-- shiba: Root after an OTA - which root the slot an OTA installs to gets
++		     (tw_ota_root, used by twinstall.cpp after a successful OTA). Opened
++		     from Install options and Settings; tw_ota_root_back is the way back.
++		     A choice other than APatch drops a SuperKey saved for it earlier. -->
++		<page name="shiba_ota_root">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Root after an OTA</text>
++			</text>
++
++			<text style="text_m">
++				<condition var1="tw_ota_root" op="!=" var2="Custom kernel"/>
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>Now: %tw_ota_root%</text>
++			</text>
++
++			<text style="text_m">
++				<condition var1="tw_ota_root" var2="Custom kernel"/>
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>Now: %tw_ota_kernel_file%</text>
++			</text>
++
++			<listbox style="advanced_listbox">
++				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
++				<listitem name="For the slot the OTA installs to" header="1"></listitem>
++				<listitem name="Off" subtitle="Google's kernel, no root">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=Off</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="Same as now" subtitle="The root tool this slot has now">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=Same as now</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="APatch" subtitle="Asks for the SuperKey now. APK in /sdcard/Download">
++					<actions>
++						<action function="set">tw_apatch_key=</action>
++						<action function="set">tw_apatch_go=2</action>
++						<action function="set">tw_apatch_back=shiba_ota_root</action>
++						<action function="page">shiba_apatch_key</action>
++					</actions>
++				</listitem>
++				<listitem name="KernelSU" subtitle="App installs automatically">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=KernelSU</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="KernelSU-Next" subtitle="Needs the KernelSU-Next APK in /sdcard/Download">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=KernelSU-Next</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="Magisk" subtitle="App installs automatically">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=Magisk</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="SukiSU" subtitle="Needs the SukiSU APK in /sdcard/Download">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_root=SukiSU</action>
++						<action function="page">%tw_ota_root_back%</action>
++					</actions>
++				</listitem>
++				<listitem name="Custom kernel" subtitle="Flash a kernel's boot .img to the new slot - pick it next">
++					<actions>
++						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
++						<action function="set">tw_ota_kernel_pick=</action>
++						<action function="page">shiba_ota_kernel</action>
++					</actions>
++				</listitem>
++			</listbox>
++
++			<action>
++				<touch key="back"/>
++				<action function="page">%tw_ota_root_back%</action>
++			</action>
++
++			<action>
++				<touch key="home"/>
++				<action function="page">main</action>
++			</action>
++		</page>
++
++		<!-- shiba: Root after an OTA > Custom kernel - the boot image to flash to
++		     the updated slot (twrp_root.sh flash-kernel checks its KMI) -->
++		<page name="shiba_ota_kernel">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Custom kernel</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>Pick the kernel's boot image (.img)</text>
++			</text>
++
++			<template name="sort_options"/>
++
++			<fileselector>
++				<placement x="%indent%" y="%row3_y%" w="%content_width%" h="%fileselector_install_height%"/>
++				<text>%tw_ota_kernel_dir%</text>
++				<filter extn=".img" folders="1" files="1"/>
++				<path name="tw_ota_kernel_dir" default="/sdcard/Download"/>
++				<data name="tw_ota_kernel_pick"/>
++				<selection name="tw_ota_kernel_name"/>
++			</fileselector>
++
++			<!-- tw_ota_kernel_pick is cleared on the way in, so picking the same
++			     file again still counts; set VAR=OTHERVAR copies OTHERVAR's value -->
++			<action>
++				<conditions>
++					<condition var1="tw_ota_kernel_pick" op="modified"/>
++				</conditions>
++				<actions>
++					<action function="set">tw_ota_kernel_file=tw_ota_kernel_pick</action>
++					<action function="set">tw_ota_root=Custom kernel</action>
++					<action function="page">%tw_ota_root_back%</action>
++				</actions>
++			</action>
++
++			<action>
++				<touch key="back"/>
++				<action function="page">shiba_ota_root</action>
++			</action>
++
++			<action>
++				<touch key="home"/>
++				<action function="page">main</action>
++			</action>
++		</page>
++
 +		<page name="shiba_dfe_confirm">
 +			<template name="page"/>
 +
@@ -891,7 +1256,7 @@ index 99eeef6c..494c6de7 100755
  		<page name="formatdata">
  			<template name="page"/>
  
-@@ -1714,6 +1962,7 @@
+@@ -1714,6 +2219,7 @@
  				<placement x="%center_x%" y="%row18a_y%"/>
  				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
  				<actions>
@@ -899,7 +1264,7 @@ index 99eeef6c..494c6de7 100755
  					<action function="refreshsizes"/>
  					<action function="page">backup</action>
  				</actions>
-@@ -3473,11 +3722,15 @@
+@@ -3473,11 +3979,19 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -909,14 +1274,18 @@ index 99eeef6c..494c6de7 100755
  					</conditions>
  					<data variable="tw_auto_reflashtwrp"/>
  				</listitem>
-+				<listitem name="Reinstall root after flashing an OTA">
++				<!-- shiba: which root the updated slot gets (twinstall.cpp, tw_ota_root) -->
++				<listitem name="Root after an OTA: %tw_ota_root%">
 +					<condition var1="tw_has_boot_slots" var2="1"/>
-+					<data variable="tw_auto_reroot"/>
++					<actions>
++						<action function="set">tw_ota_root_back=settings</action>
++						<action function="page">shiba_ota_root</action>
++					</actions>
 +				</listitem>
  			</listbox>
  
  			<button style="main_button_half_height">
-@@ -3878,6 +4131,126 @@
+@@ -3878,6 +4392,137 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -947,6 +1316,16 @@ index 99eeef6c..494c6de7 100755
 +						<action function="page">flash_confirm</action>
 +					</actions>
 +				</listitem>
++				<!-- APatch: patches the KERNEL in boot (KernelPatch), not init_boot;
++				     needs a SuperKey (shiba_apatch_key) and the APatch APK in Download/ -->
++				<listitem name="Root: Install APatch">
++					<actions>
++						<action function="set">tw_apatch_key=</action>
++						<action function="set">tw_apatch_go=1</action>
++						<action function="set">tw_apatch_back=advanced</action>
++						<action function="page">shiba_apatch_key</action>
++					</actions>
++				</listitem>
 +				<listitem name="Root: Install KernelSU">
 +					<actions>
 +						<action function="queueclear"/>
@@ -956,7 +1335,8 @@ index 99eeef6c..494c6de7 100755
 +					</actions>
 +				</listitem>
 +				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
-+				     whose APK must be in Download/ (twrp_root.sh find_apk) -->
++				     whose APK must be in Download/ (twrp_root.sh find_apk).
++				     ROOT items are alphabetical: Show status first, Remove root last -->
 +				<listitem name="Root: Install KernelSU-Next">
 +					<actions>
 +						<action function="queueclear"/>
@@ -965,18 +1345,18 @@ index 99eeef6c..494c6de7 100755
 +						<action function="page">flash_confirm</action>
 +					</actions>
 +				</listitem>
-+				<listitem name="Root: Install SukiSU">
-+					<actions>
-+						<action function="queueclear"/>
-+						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
-+						<action function="queuezip"/>
-+						<action function="page">flash_confirm</action>
-+					</actions>
-+				</listitem>
 +				<listitem name="Root: Install Magisk">
 +					<actions>
 +						<action function="queueclear"/>
 +						<action function="set">tw_filename=/system/etc/twrp_root/install-magisk.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="Root: Install SukiSU">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
 +						<action function="queuezip"/>
 +						<action function="page">flash_confirm</action>
 +					</actions>
@@ -1043,7 +1423,7 @@ index 99eeef6c..494c6de7 100755
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4279,8 @@
+@@ -3906,6 +4551,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -1052,7 +1432,7 @@ index 99eeef6c..494c6de7 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4291,8 @@
+@@ -3916,6 +4563,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -1061,7 +1441,7 @@ index 99eeef6c..494c6de7 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4310,8 @@
+@@ -3933,6 +4582,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -1070,7 +1450,7 @@ index 99eeef6c..494c6de7 100755
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4322,8 @@
+@@ -3943,6 +4594,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>
@@ -1415,7 +1795,7 @@ index 8c53567e..dd982b8b 100755
  			if (!Was_Already_Mounted)
  				UnMount(false);
 diff --git a/partitionmanager.cpp b/partitionmanager.cpp
-index 171feccf..a692096b 100755
+index 171feccf..90ee4921 100755
 --- a/partitionmanager.cpp
 +++ b/partitionmanager.cpp
 @@ -114,6 +114,7 @@ extern "C" {
@@ -1752,7 +2132,7 @@ index 171feccf..a692096b 100755
  string TWPartitionManager::Get_Active_Slot_Suffix() {
  	if (Active_Slot_Display == "A")
  		return "_a";
-@@ -3610,9 +3740,54 @@ std::string TWPartitionManager::Get_Super_Partition() {
+@@ -3610,9 +3740,63 @@ std::string TWPartitionManager::Get_Super_Partition() {
  
  void TWPartitionManager::Setup_Super_Devices() {
  	std::string superPart = Get_Super_Partition();
@@ -1792,6 +2172,15 @@ index 171feccf..a692096b 100755
 +		LOGINFO("snapshot: update pending for the other slot (we are its source %s)\n", slot.c_str());
 +		return false;
 +	}
++	// VABC snapshots need snapuserd (dm-user), which recovery doesn't run, and a
++	// plain dm-linear map would show the source slot's blocks under this slot's
++	// names - so map nothing until Android's first boot has merged the update.
++	if (sm->UpdateUsesCompression()) {
++		LOGINFO("snapshot: pending VABC update on this slot %s - not mapping its partitions\n", slot.c_str());
++		gui_print_color("warning", "Update pending on this slot (VABC): system partitions can't be read in\n"
++			"TWRP until Android has booted once to finish the update.\n");
++		return true;
++	}
 +	LOGINFO("snapshot: pending update targets this slot %s - mapping partitions with snapshots\n", slot.c_str());
 +	auto r = sm->RecoveryCreateSnapshotDevices(metadata);
 +	if (r == android::snapshot::CreateResult::CREATED) {
@@ -1822,7 +2211,7 @@ index 8c686edd..0ebee7f1 100755
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index cccb1e78..43dbeb1e 100644
+index cccb1e78..f3037425 100644
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -483,6 +483,14 @@ void TWFunc::GUI_Operation_Text(string Read_Value, string Partition_Name, string
@@ -1905,7 +2294,7 @@ index cccb1e78..43dbeb1e 100644
  	string sdkverstr = System_Property_Get("ro.build.version.sdk");
  	int sdkver = 0;
  	if (!sdkverstr.empty()) {
-@@ -1655,4 +1691,51 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+@@ -1655,4 +1691,71 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
  	return ret;
  }
  
@@ -1954,6 +2343,26 @@ index cccb1e78..43dbeb1e 100644
 +	// the chip label: "Android 15", or "No Android" when the slot has no
 +	// readable system (e.g. the source slot after a virtual A/B merge released it)
 +	DataManager::SetValue("tw_android_label", (ver.empty() || ver == "?") ? "No Android" : "Android " + ver);
++
++	// Kernel chip, second row of the main page: "Kernel 6.1.162 · Stock" /
++	// "· Wild" / "· Custom" (+ " · SUSFS"), from the slot's boot kernel.
++	// twrp_root.sh kernel prints WIDTH|LABEL; WIDTH names the chip image
++	// (chip_kernel_WIDTH, the theme shows the one matching tw_kernel_chip).
++	std::string kout, kchip = "0", klabel;
++	if (Path_Exists(script) && Exec_Cmd(std::string(script) + " kernel", kout, false) == 0) {
++		size_t end = kout.find_last_not_of(" \r\n\t");
++		kout = (end == std::string::npos) ? "" : kout.substr(0, end + 1);
++		size_t nl = kout.find_last_of('\n');
++		if (nl != std::string::npos)
++			kout = kout.substr(nl + 1);
++		size_t bar = kout.find('|');
++		if (bar != std::string::npos && bar > 0 && bar + 1 < kout.size()) {
++			kchip = kout.substr(0, bar);
++			klabel = kout.substr(bar + 1);
++		}
++	}
++	DataManager::SetValue("tw_kernel_chip", kchip);
++	DataManager::SetValue("tw_kernel_label", klabel);
 +}
 +
  #endif // ndef BUILD_TWRPTAR_MAIN
@@ -2097,7 +2506,7 @@ index 1da19e26..b29d1543 100755
  			LOGERR("can not find ramdisk-files.txt");
  			return false;
 diff --git a/twrpinstall/twinstall.cpp b/twrpinstall/twinstall.cpp
-index 6abccea7..9e4646cd 100755
+index 6abccea7..a5fc4658 100755
 --- a/twrpinstall/twinstall.cpp
 +++ b/twrpinstall/twinstall.cpp
 @@ -22,6 +22,7 @@
@@ -2108,17 +2517,27 @@ index 6abccea7..9e4646cd 100755
  #include <errno.h>
  #include <fcntl.h>
  #include <limits.h>
-@@ -62,6 +63,58 @@ extern "C" {
+@@ -34,6 +35,7 @@
+ #include <stdio.h>
+ #include <cutils/properties.h>
+ 
++#include <android-base/strings.h>
+ #include <android-base/unique_fd.h>
+ 
+ #include "twcommon.h"
+@@ -62,6 +64,104 @@ extern "C" {
  
  #define AB_OTA "payload_properties.txt"
  
 +// shiba: an A/B OTA installed from recovery gets uncompressed dm-snapshots -
 +// libsnapshot hard-disables compressed/userspace snapshots in recovery
-+// ("Compression disabled: recovery"). Android 17's first-stage init can't map
-+// those (kernel panic, bootloop to fastboot). Targets from this Android
-+// version on are warned about first and never left as the active slot.
++// ("Compression disabled: recovery"). Android 17's first-stage init has no
++// legacy dm-snapshot code any more (kernel panic, bootloop to fastboot). For
++// targets from this Android version on, TWRP asks its patched libsnapshot for
++// VABC snapshots (SHIBA_OTA_VABC_PROP) and keeps the new slot active only if
++// the install really wrote them (tested on CP3A, both slot directions).
 +#define SHIBA_OTA_BAD_MAJOR 17
-+#define SHIBA_OTA_CONFIRM "/tmp/twrp_ota_confirm"
++#define SHIBA_OTA_VABC_PROP "twrp.ota.vabc"
 +
 +// Android major version the OTA installs (post-build fingerprint
 +// brand/product/device:RELEASE/ID/...), or -1 if the zip doesn't say.
@@ -2144,52 +2563,95 @@ index 6abccea7..9e4646cd 100755
 +	return atoi(fp.c_str() + c + 1);
 +}
 +
-+// Two-step confirmation without a GUI page: the first install of a zip only
-+// warns and records it; installing the same zip again within 5 minutes goes
-+// ahead. Works the same from the GUI, the queue and twrp/ORS commands.
-+static bool Ota_Confirmed(const char* path) {
-+	std::string rec;
-+	time_t now = time(NULL);
-+	if (TWFunc::read_file(SHIBA_OTA_CONFIRM, rec) == 0) {
-+		size_t tab = rec.find('\t');
-+		if (tab != std::string::npos && rec.substr(0, tab) == path) {
-+			long when = atol(rec.c_str() + tab + 1);
-+			if (now - when >= 0 && now - when <= 300) {
-+				unlink(SHIBA_OTA_CONFIRM);
-+				return true;
++// shiba: root for the slot an OTA just wrote (Install options: "Root after an
++// OTA", tw_ota_root). twrp_root.sh does the checks (KMI of the NEW slot's
++// kernel), the backup and the readback verify; "other" = the updated slot.
++//   Same as now    the running slot's root tool, onto the new init_boot
++//   KernelSU ...   that tool (TW_ROOT_EXPLICIT: also when the running slot's
++//                  root is a custom kernel)
++//   Custom kernel  tw_ota_kernel_file flashed to the new slot's boot
++static void Ota_Root_Updated_Slot(const std::string& method) {
++	static const struct { const char* name; const char* action; } kTools[] = {
++		{"APatch", "install-apatch"}, {"KernelSU", "install-ksu"},
++		{"KernelSU-Next", "install-ksun"}, {"Magisk", "install-magisk"},
++		{"SukiSU", "install-suki"},
++	};
++	std::string cmd, label = method;
++	if (method == "Same as now") {
++		std::string st;
++		TWFunc::Exec_Cmd("/system/bin/twrp_root.sh reroot-action", st, false);
++		st = android::base::Trim(st);
++		for (const auto& t : kTools) {
++			if (st == t.action) {
++				cmd = std::string("/system/bin/twrp_root.sh ") + t.action + " other";
++				label = t.name;
 +			}
 +		}
++		if (cmd.empty()) {
++			gui_print("- Root after OTA: this slot isn't rooted - nothing to reinstall.\n");
++			return;
++		}
++	} else if (method == "Custom kernel") {
++		std::string img;
++		DataManager::GetValue("tw_ota_kernel_file", img);
++		if (img.empty() || !TWFunc::Path_Exists(img)) {
++			gui_print_color("error", "!! Root after OTA: the custom kernel image isn't there ('%s') -\n"
++				"!! the updated slot keeps Google's kernel.\n", img.c_str());
++			return;
++		}
++		std::string quoted;
++		for (char c : img)
++			quoted += c == '\'' ? std::string("'\\''") : std::string(1, c);
++		cmd = "/system/bin/twrp_root.sh flash-kernel other '" + quoted + "'";
++	} else {
++		for (const auto& t : kTools)
++			if (method == t.name)
++				cmd = std::string("TW_ROOT_EXPLICIT=1 /system/bin/twrp_root.sh ") + t.action + " other";
++		if (cmd.empty()) {
++			LOGERR("Root after OTA: unknown choice '%s' - nothing installed\n", method.c_str());
++			return;
++		}
 +	}
-+	TWFunc::write_to_file(SHIBA_OTA_CONFIRM, std::string(path) + "\t" + std::to_string((long)now));
-+	return false;
++	gui_print("- Root after OTA: %s on the updated slot\n", label.c_str());
++	cmd += " 2>&1";
++	FILE* fp = popen(cmd.c_str(), "r");
++	int rc = -1;
++	if (fp) {
++		char line[512];
++		while (fgets(line, sizeof(line), fp))
++			gui_print("   %s", line);
++		rc = pclose(fp);
++	}
++	if (rc != 0)
++		gui_print_color("error", "!! %s was NOT installed on the updated slot - after its\n"
++			"!! first boot, use Advanced > ROOT in TWRP.\n", label.c_str());
 +}
 +
  enum zip_type {
  	UNKNOWN_ZIP_TYPE = 0,
  	UPDATE_BINARY_ZIP_TYPE,
-@@ -326,6 +379,21 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -326,6 +426,12 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  		ZipEntry64 ab_binary_entry;
  		if (FindEntry(Zip, ab_binary_name, &ab_binary_entry) == 0) {
  			LOGINFO("AB zip\n");
 +			std::string post_build;
 +			int target_major = Ota_Target_Major(Zip, &post_build);
 +			LOGINFO("OTA target: '%s' (Android %d)\n", post_build.c_str(), target_major);
-+			if (target_major >= SHIBA_OTA_BAD_MAJOR && !Ota_Confirmed(path)) {
-+				gui_print_color("warning", "\n!! This OTA installs Android %d. An update installed from\n"
-+					"!! recovery can't boot on Android %d+ (Android disables compressed\n"
-+					"!! snapshots in recovery). TWRP would install it but keep booting\n"
-+					"!! the current slot - the update would not take effect.\n"
-+					"!! To update: install it from Android (Settings > System update)\n"
-+					"!! or flash the factory image (fastboot update, without -w),\n"
-+					"!! then reinstall TWRP.\n"
-+					"!! To install anyway, install the same zip again within 5 minutes.\n",
-+					target_major, SHIBA_OTA_BAD_MAJOR);
-+				return INSTALL_ERROR;
-+			}
++			// shiba: ask libsnapshot for VABC snapshots (see SHIBA_OTA_BAD_MAJOR)
++			const bool want_vabc = target_major >= SHIBA_OTA_BAD_MAJOR;
++			android::base::SetProperty(SHIBA_OTA_VABC_PROP, want_vabc ? "1" : "0");
  			gui_msg(Msg(msg::kHighlight, "flash_ab_inactive=Flashing A/B zip to inactive slot: {1}")(PartitionManager.Get_Active_Slot_Display()=="A"?"B":"A"));
  			// We need this so backuptool can do its magic
  			bool system_mount_state = PartitionManager.Is_Mounted_By_Path(PartitionManager.Get_Android_Root_Path());
-@@ -348,9 +416,121 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+@@ -335,6 +441,7 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
+ 			TWFunc::copy_file("/system/bin/sh", "/tmp/sh", 0755);
+ 			mount("/tmp/sh", "/system/bin/sh", "auto", MS_BIND, NULL);
+ 			ret_val = Run_Update_Binary(path, wipe_cache, AB_OTA_ZIP_TYPE);
++			android::base::SetProperty(SHIBA_OTA_VABC_PROP, "0");
+ 			umount("/system/bin/sh");
+ 			unlink("/tmp/sh");
+ 			if (!vendor_mount_state)
+@@ -348,10 +455,101 @@ int TWinstall_zip(const char* path, int* wipe_cache, bool check_for_digest) {
  			}
  			gui_warn("flash_ab_reboot=To flash additional zips, please reboot recovery to switch to the updated slot.");
  			DataManager::GetValue(TW_AUTO_REFLASHTWRP_VAR, reflashtwrp);
@@ -2231,11 +2693,13 @@ index 6abccea7..9e4646cd 100755
 +			// recovery (no /metadata/ota/old-partition-metadata). Android 17's
 +			// first-stage init can't map those ("Could not map source device for:
 +			// system_X-cow" -> kernel panic). So never leave such an update as the
-+			// active slot: for Android 17+ targets always, otherwise whenever the
-+			// install left snapshots without old-partition-metadata. Booting the
-+			// current slot afterwards is a normal rollback - Android deletes the
-+			// snapshots by itself. update_engine unmounts /metadata at the end,
-+			// so mount it again before looking (it read as empty before v9.45).
++			// active slot: for Android 17+ targets unless the VABC opt-in really
++			// wrote VABC snapshots (libsnapshot writes old-partition-metadata only
++			// for those), otherwise whenever the install left snapshots without
++			// old-partition-metadata. Booting the current slot afterwards is a
++			// normal rollback - Android deletes the snapshots by itself.
++			// update_engine unmounts /metadata at the end, so mount it again
++			// before looking (it read as empty before v9.45).
 +			bool snap_guarded = false;
 +			if (ret_val == INSTALL_SUCCESS && !dfe_guarded) {
 +				PartitionManager.Mount_By_Path("/metadata", false);
@@ -2248,15 +2712,17 @@ index 6abccea7..9e4646cd 100755
 +					closedir(sd);
 +				}
 +				bool no_old_meta = !TWFunc::Path_Exists("/metadata/ota/old-partition-metadata");
-+				LOGINFO("snapshot guard: target Android %d, %d snapshot(s), old-partition-metadata %s\n",
-+					target_major, snaps, no_old_meta ? "missing" : "present");
-+				if (target_major >= SHIBA_OTA_BAD_MAJOR || (snaps > 0 && no_old_meta)) {
++				bool vabc_ok = want_vabc && snaps > 0 && !no_old_meta;
++				LOGINFO("snapshot guard: target Android %d, %d snapshot(s), old-partition-metadata %s, VABC %s\n",
++					target_major, snaps, no_old_meta ? "missing" : "present",
++					vabc_ok ? "ok" : want_vabc ? "NOT written" : "not requested");
++				std::string cur = PartitionManager.Get_Active_Slot_Display();
++				std::string upd = cur == "A" ? "B" : "A";
++				if ((target_major >= SHIBA_OTA_BAD_MAJOR && !vabc_ok) || (snaps > 0 && no_old_meta)) {
 +					snap_guarded = true;
-+					std::string cur = PartitionManager.Get_Active_Slot_Display();
-+					std::string upd = cur == "A" ? "B" : "A";
 +					if (target_major >= SHIBA_OTA_BAD_MAJOR)
-+						gui_print_color("error", "\n!! Slot %s got Android %d from recovery: it would not boot\n"
-+							"!! (uncompressed snapshots).\n", upd.c_str(), target_major);
++						gui_print_color("error", "\n!! Slot %s got Android %d from recovery without VABC\n"
++							"!! snapshots: it would not boot (see recovery.log).\n", upd.c_str(), target_major);
 +					else
 +						gui_print_color("error", "\n!! The update left %d snapshot(s) but no old-partition-metadata:\n"
 +							"!! slot %s would not boot.\n", snaps, upd.c_str());
@@ -2270,48 +2736,24 @@ index 6abccea7..9e4646cd 100755
 +						gui_print_color("error", "!! Could not switch back to slot %s. Do NOT boot Android:\n"
 +							"!! use Reboot > Slot %s first.\n", cur.c_str(), cur.c_str());
 +					}
-+				}
-+			}
-+			// shiba: "Reinstall root after OTA" - put the same root tool the running
-+			// slot has (KernelSU / Magisk) on the updated slot's init_boot, with
-+			// twrp_root.sh's checks (KMI of the NEW slot's kernel), backup, verify.
-+			int reroot = 0;
-+			DataManager::GetValue("tw_auto_reroot", reroot);
-+			if (reroot && ret_val == INSTALL_SUCCESS && !dfe_guarded && !snap_guarded
-+					&& TWFunc::Path_Exists("/system/bin/twrp_root.sh")) {
-+				// the same root tool the running slot has: KernelSU / KernelSU-Next /
-+				// SukiSU / Magisk (twrp_root.sh reroot-action; kernel-built-in root:
-+				// install-* explains that the kernel must be reflashed instead)
-+				std::string st;
-+				TWFunc::Exec_Cmd("/system/bin/twrp_root.sh reroot-action", st, false);
-+				const char* action = NULL;
-+				if (st.find("install-ksun") != std::string::npos) action = "install-ksun";
-+				else if (st.find("install-suki") != std::string::npos) action = "install-suki";
-+				else if (st.find("install-ksu") != std::string::npos) action = "install-ksu";
-+				else if (st.find("install-magisk") != std::string::npos) action = "install-magisk";
-+				if (!action) {
-+					gui_print("- Reinstall root: this slot isn't rooted - nothing to reinstall.\n");
-+				} else {
-+					gui_print("- Reinstalling root on the updated slot (%s)\n",
-+						strcmp(action, "install-ksun") == 0 ? "KernelSU-Next" :
-+						strcmp(action, "install-suki") == 0 ? "SukiSU" :
-+						strcmp(action, "install-ksu") == 0 ? "KernelSU" : "Magisk");
-+					std::string cmd = std::string("/system/bin/twrp_root.sh ") + action + " other 2>&1";
-+					FILE* fp = popen(cmd.c_str(), "r");
-+					int rc = -1;
-+					if (fp) {
-+						char line[512];
-+						while (fgets(line, sizeof(line), fp))
-+							gui_print("   %s", line);
-+						rc = pclose(fp);
-+					}
-+					if (rc != 0)
-+						gui_print_color("error", "!! Root was NOT reinstalled on the updated slot - after its\n"
-+							"!! first boot, use Advanced > Root in TWRP.\n");
++				} else if (vabc_ok) {
++					gui_print_color("highlight", "\nSlot %s got Android %d (VABC snapshots) and boots next.\n"
++						"Its first boot takes a little longer: Android finishes the update.\n"
++						"If it doesn't boot: in the bootloader run\n"
++						"  fastboot --set-active=%c\n"
++						"and boot - Android rolls the update back by itself.\n",
++						upd.c_str(), target_major, cur == "A" ? 'a' : 'b');
 +				}
  			}
++			// shiba: root for the updated slot (Install options: Root after an OTA)
++			std::string ota_root;
++			DataManager::GetValue("tw_ota_root", ota_root);
++			if (!ota_root.empty() && ota_root != "Off" && ret_val == INSTALL_SUCCESS
++					&& !dfe_guarded && !snap_guarded && TWFunc::Path_Exists("/system/bin/twrp_root.sh"))
++				Ota_Root_Updated_Slot(ota_root);
  		} else {
  			std::string binary_name("ui.xml");
+ 			ZipEntry64 binary_entry;
 diff --git a/variables.h b/variables.h
 index d4d7ec7b..1b73ee53 100755
 --- a/variables.h

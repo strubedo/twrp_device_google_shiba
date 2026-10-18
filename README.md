@@ -57,11 +57,16 @@ with TWRP. Android 16 and 17 support is prepared and checked offline (see
 - **MTP**, **USB OTG** (flash drives, keyboards) with auto-mount.
 
 **Updates**
-- **Install OTA zips from TWRP** with two options:
+- **Install OTA zips from TWRP, Android 17 included.** Android 17 only boots
+  compressed (VABC) snapshots; TWRP's patched libsnapshot and update_engine
+  write them in recovery, and a guard keeps the current slot active if an
+  install didn't. Two options:
   - *Reflash TWRP after flashing an OTA* — TWRP is grafted into the updated
     slot's `vendor_boot` and verified byte for byte.
-  - *Reinstall root after flashing an OTA* — the same root tool (KernelSU or
-    Magisk) is put on the updated slot, checked against **its** kernel.
+  - *Root after an OTA* — Off, Same as now, APatch, KernelSU, KernelSU-Next,
+    Magisk, SukiSU, or **Custom kernel** (a kernel's boot `.img`, flashed to
+    the updated slot's `boot` after a KMI check). Checked against the updated
+    slot's **own** kernel, backed up, verified.
 - **KEEP TWRP** menu: install TWRP to the other slot or both slots.
 - Working **slot switching** (Pixel's AIDL boot HAL, built from source; never
   touches the anti-rollback fuses).
@@ -217,7 +222,7 @@ repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifes
 repo sync
 git clone <this repo> device/google/shiba
 # apply patches/*.patch to bootable/recovery, frameworks/native, system/core, system/vold,
-# hardware/interfaces, system/tools/aidl, external/rust/crates/libc and
+# system/update_engine, hardware/interfaces, system/tools/aidl, external/rust/crates/libc and
 # external/rust/crates/downcast-rs (each file is named after its repository path)
 cd device/google/shiba && ./build.sh            # ./build.sh --flash to flash a connected phone
 ```
@@ -229,6 +234,24 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
+
+**v9.50** (2026-10-18) - **Android 17 OTA zips install from TWRP.** Recovery's
+libsnapshot always wrote uncompressed (legacy) snapshots, and Android 17's
+first-stage init can't boot those any more (kernel panic: "Could not map
+source device"). For Android 17+ OTAs TWRP now writes userspace (VABC)
+snapshots like Android's own updater: patched libsnapshot (opt-in per
+install), update_engine's verifier reading the new data straight from the
+snapshots, postinstall without the mount recovery can't do. The snapshot guard
+still keeps the current slot if an install didn't produce them. Tested on the
+October 2026 build (CP3A.261005.005) in both directions, slot a to b and b to a:
+install, first boot, update accepted, merge completed. The v9.45 warning and
+the "install the same zip again within 5 minutes" step are gone. **Root after
+an OTA** replaces the *Reinstall root* checkbox: pick Off, Same as now,
+APatch (asks for the SuperKey before the install starts), KernelSU,
+KernelSU-Next, Magisk, SukiSU or **Custom kernel** (a kernel's boot `.img`;
+TWRP checks its KMI against the updated slot's kernel, backs up `boot` and
+verifies the write). Picking a root tool installs it even when the running
+slot's root is a custom kernel.
 
 **v9.49** (2026-10-17) - **Kernel chip** on the main screen, under the others:
 "Kernel 6.1.162 · Stock", the kernel's own name for custom kernels (e.g. "Wild"),

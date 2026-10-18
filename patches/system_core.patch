@@ -1,3 +1,71 @@
+diff --git a/fs_mgr/libsnapshot/Android.bp b/fs_mgr/libsnapshot/Android.bp
+index f8b89549df..0db22ff1a2 100644
+--- a/fs_mgr/libsnapshot/Android.bp
++++ b/fs_mgr/libsnapshot/Android.bp
+@@ -156,11 +156,11 @@ cc_library_static {
+     ],
+     srcs: [":libsnapshot_sources"],
+     recovery_available: true,
+-    cflags: [
+-        "-DLIBSNAPSHOT_NO_COW_WRITE",
+-    ],
++    // shiba TWRP: no -DLIBSNAPSHOT_NO_COW_WRITE - update_engine_sideload writes the
++    // VABC COW itself when TWRP opts in (twrp.ota.vabc, see snapshot.cpp)
+     static_libs: [
+         "libfs_mgr",
++        "libsnapshot_cow",
+     ],
+ }
+ 
+diff --git a/fs_mgr/libsnapshot/snapshot.cpp b/fs_mgr/libsnapshot/snapshot.cpp
+index da6be2100d..6205581ead 100644
+--- a/fs_mgr/libsnapshot/snapshot.cpp
++++ b/fs_mgr/libsnapshot/snapshot.cpp
+@@ -106,6 +106,13 @@ static constexpr auto kUpdateStateCheckInterval = 2s;
+ static constexpr auto kCowReadAheadSizeKb = 32;
+ static constexpr auto kSourceReadAheadSizeKb = 32;
+ 
++// shiba TWRP: set by TWRP's installer for one OTA install (see CreateUpdateSnapshots).
++static constexpr char kTwrpRecoveryVabcProp[] = "twrp.ota.vabc";
++
++static bool RecoveryVabcOptIn() {
++    return android::base::GetBoolProperty(kTwrpRecoveryVabcProp, false);
++}
++
+ // Note: IImageManager is an incomplete type in the header, so the default
+ // destructor doesn't work.
+ SnapshotManager::~SnapshotManager() {}
+@@ -3200,10 +3207,16 @@ Return SnapshotManager::CreateUpdateSnapshots(const DeltaArchiveManifest& manife
+ 
+     const auto& dap_metadata = manifest.dynamic_partition_metadata();
+ 
++    // shiba TWRP: Android 17's first-stage init no longer maps legacy dm-snapshots, so
++    // an update written in recovery can't boot there. TWRP opts in per install
++    // (twrp.ota.vabc=1): the COW is written without snapuserd, and Android's
++    // first-stage snapuserd serves and merges it on the next boot.
++    const bool recovery_vabc = device_->IsRecovery() && RecoveryVabcOptIn();
++
+     std::string vabc_disable_reason;
+     if (!dap_metadata.vabc_enabled()) {
+         vabc_disable_reason = "not enabled metadata";
+-    } else if (device_->IsRecovery()) {
++    } else if (device_->IsRecovery() && !recovery_vabc) {
+         vabc_disable_reason = "recovery";
+     } else if (!KernelSupportsCompressedSnapshots()) {
+         vabc_disable_reason = "kernel missing userspace block device support";
+@@ -3212,6 +3225,12 @@ Return SnapshotManager::CreateUpdateSnapshots(const DeltaArchiveManifest& manife
+     // Deduce supported features.
+     bool userspace_snapshots = CanUseUserspaceSnapshots();
+     bool legacy_compression = GetLegacyCompressionEnabledProperty();
++    if (recovery_vabc && vabc_disable_reason.empty()) {
++        // recovery has no ro.virtual_ab.userspace.snapshots.enabled
++        LOG(INFO) << "VABC in recovery (TWRP opt-in): userspace snapshots";
++        userspace_snapshots = true;
++        legacy_compression = false;
++    }
+     if (!vabc_disable_reason.empty()) {
+         if (userspace_snapshots) {
+             LOG(INFO) << "Userspace snapshots disabled: " << vabc_disable_reason;
 diff --git a/trusty/storage/interface/Android.bp b/trusty/storage/interface/Android.bp
 index d031b0c1e9..9069d41225 100644
 --- a/trusty/storage/interface/Android.bp

@@ -820,9 +820,13 @@
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
 				</listitem>
-				<listitem name="Reinstall root after flashing an OTA">
+				<!-- shiba: which root the updated slot gets (twinstall.cpp, tw_ota_root) -->
+				<listitem name="Root after an OTA: %tw_ota_root%">
 					<condition var1="tw_has_boot_slots" var2="1"/>
-					<data variable="tw_auto_reroot"/>
+					<actions>
+						<action function="set">tw_ota_root_back=flash_confirm</action>
+						<action function="page">shiba_ota_root</action>
+					</actions>
 				</listitem>
 				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
 					<data variable="tw_install_reboot"/>
@@ -1678,7 +1682,7 @@
 				<touch key="back"/>
 				<actions>
 					<action function="set">tw_apatch_key=</action>
-					<action function="page">advanced</action>
+					<action function="page">%tw_apatch_back%</action>
 				</actions>
 			</action>
 		</page>
@@ -1698,8 +1702,169 @@
 				</actions>
 			</action>
 
+			<!-- shiba: tw_apatch_go=2 - the key is for Root after an OTA: save it for
+			     twinstall.cpp's install-apatch and go back, nothing is flashed now -->
+			<action>
+				<conditions>
+					<condition var1="tw_apatch_go" var2="2"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_apatch_go=0</action>
+					<action function="savesecret">tw_apatch_key=/tmp/twrp_root/apatch_key</action>
+					<action function="set">tw_ota_root=APatch</action>
+					<action function="page">%tw_ota_root_back%</action>
+				</actions>
+			</action>
+
 			<!-- no fallback action on tw_apatch_go=0 here: setting it to 0 above
 			     would trigger it and bounce back to Advanced before flash_confirm -->
+		</page>
+
+		<!-- shiba: Root after an OTA - which root the slot an OTA installs to gets
+		     (tw_ota_root, used by twinstall.cpp after a successful OTA). Opened
+		     from Install options and Settings; tw_ota_root_back is the way back.
+		     A choice other than APatch drops a SuperKey saved for it earlier. -->
+		<page name="shiba_ota_root">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>Root after an OTA</text>
+			</text>
+
+			<text style="text_m">
+				<condition var1="tw_ota_root" op="!=" var2="Custom kernel"/>
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Now: %tw_ota_root%</text>
+			</text>
+
+			<text style="text_m">
+				<condition var1="tw_ota_root" var2="Custom kernel"/>
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Now: %tw_ota_kernel_file%</text>
+			</text>
+
+			<listbox style="advanced_listbox">
+				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
+				<listitem name="For the slot the OTA installs to" header="1"></listitem>
+				<listitem name="Off" subtitle="Google's kernel, no root">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=Off</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="Same as now" subtitle="The root tool this slot has now">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=Same as now</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="APatch" subtitle="Asks for the SuperKey now. APK in /sdcard/Download">
+					<actions>
+						<action function="set">tw_apatch_key=</action>
+						<action function="set">tw_apatch_go=2</action>
+						<action function="set">tw_apatch_back=shiba_ota_root</action>
+						<action function="page">shiba_apatch_key</action>
+					</actions>
+				</listitem>
+				<listitem name="KernelSU" subtitle="App installs automatically">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=KernelSU</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="KernelSU-Next" subtitle="Needs the KernelSU-Next APK in /sdcard/Download">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=KernelSU-Next</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="Magisk" subtitle="App installs automatically">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=Magisk</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="SukiSU" subtitle="Needs the SukiSU APK in /sdcard/Download">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_root=SukiSU</action>
+						<action function="page">%tw_ota_root_back%</action>
+					</actions>
+				</listitem>
+				<listitem name="Custom kernel" subtitle="Flash a kernel's boot .img to the new slot - pick it next">
+					<actions>
+						<action function="cmd">rm -f /tmp/twrp_root/apatch_key</action>
+						<action function="set">tw_ota_kernel_pick=</action>
+						<action function="page">shiba_ota_kernel</action>
+					</actions>
+				</listitem>
+			</listbox>
+
+			<action>
+				<touch key="back"/>
+				<action function="page">%tw_ota_root_back%</action>
+			</action>
+
+			<action>
+				<touch key="home"/>
+				<action function="page">main</action>
+			</action>
+		</page>
+
+		<!-- shiba: Root after an OTA > Custom kernel - the boot image to flash to
+		     the updated slot (twrp_root.sh flash-kernel checks its KMI) -->
+		<page name="shiba_ota_kernel">
+			<template name="page"/>
+
+			<text style="text_l">
+				<placement x="%col1_x_header%" y="%row3_header_y%"/>
+				<text>Custom kernel</text>
+			</text>
+
+			<text style="text_m">
+				<placement x="%col1_x_header%" y="%row4_header_y%"/>
+				<text>Pick the kernel's boot image (.img)</text>
+			</text>
+
+			<template name="sort_options"/>
+
+			<fileselector>
+				<placement x="%indent%" y="%row3_y%" w="%content_width%" h="%fileselector_install_height%"/>
+				<text>%tw_ota_kernel_dir%</text>
+				<filter extn=".img" folders="1" files="1"/>
+				<path name="tw_ota_kernel_dir" default="/sdcard/Download"/>
+				<data name="tw_ota_kernel_pick"/>
+				<selection name="tw_ota_kernel_name"/>
+			</fileselector>
+
+			<!-- tw_ota_kernel_pick is cleared on the way in, so picking the same
+			     file again still counts; set VAR=OTHERVAR copies OTHERVAR's value -->
+			<action>
+				<conditions>
+					<condition var1="tw_ota_kernel_pick" op="modified"/>
+				</conditions>
+				<actions>
+					<action function="set">tw_ota_kernel_file=tw_ota_kernel_pick</action>
+					<action function="set">tw_ota_root=Custom kernel</action>
+					<action function="page">%tw_ota_root_back%</action>
+				</actions>
+			</action>
+
+			<action>
+				<touch key="back"/>
+				<action function="page">shiba_ota_root</action>
+			</action>
+
+			<action>
+				<touch key="home"/>
+				<action function="page">main</action>
+			</action>
 		</page>
 
 		<page name="shiba_dfe_confirm">
@@ -4212,9 +4377,13 @@
 					</conditions>
 					<data variable="tw_auto_reflashtwrp"/>
 				</listitem>
-				<listitem name="Reinstall root after flashing an OTA">
+				<!-- shiba: which root the updated slot gets (twinstall.cpp, tw_ota_root) -->
+				<listitem name="Root after an OTA: %tw_ota_root%">
 					<condition var1="tw_has_boot_slots" var2="1"/>
-					<data variable="tw_auto_reroot"/>
+					<actions>
+						<action function="set">tw_ota_root_back=settings</action>
+						<action function="page">shiba_ota_root</action>
+					</actions>
 				</listitem>
 			</listbox>
 
@@ -4599,6 +4768,7 @@
 					<actions>
 						<action function="set">tw_apatch_key=</action>
 						<action function="set">tw_apatch_go=1</action>
+						<action function="set">tw_apatch_back=advanced</action>
 						<action function="page">shiba_apatch_key</action>
 					</actions>
 				</listitem>
