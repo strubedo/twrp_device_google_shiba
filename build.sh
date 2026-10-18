@@ -193,6 +193,7 @@ gate "boot HAL built from source (no AR fuse blow)" "/bin/grep -a -q 'anti-rollb
 gate "root after OTA (picker + script)"            "grep -q 'page name=\"shiba_ota_root\"' $R/twres/portrait.xml && grep -q 'page name=\"shiba_ota_kernel\"' $R/twres/portrait.xml && grep -q 'ACTION other' $R/system/bin/twrp_root.sh && grep -q 'flash-kernel)' $R/system/bin/twrp_root.sh && /bin/grep -a -q 'Root after OTA: %s on the updated slot' $R/system/bin/recovery"
 gate "A17 OTA: VABC opt-in, no 5-minute confirm"   "/bin/grep -a -q 'twrp.ota.vabc' $R/system/bin/recovery && ! /bin/grep -a -q 'install the same zip again' $R/system/bin/recovery"
 gate "A17 OTA: update_engine VABC in recovery"     "/bin/grep -a -q 'VABC in recovery (TWRP opt-in)' $R/system/bin/update_engine_sideload && /bin/grep -a -q '(VABC in recovery)' $R/system/bin/update_engine_sideload"
+gate "CPU temperature governor (script + service)" "test -x $R/system/bin/twrp_thermal.sh && grep -q 'service twrp.thermal' $R/init.recovery.zuma.rc && grep -q 'start twrp.thermal' $R/init.recovery.zuma.rc"
 
 step "Shared library check (every ELF's NEEDED libs present in the ramdisk)"
 python3 "$DEVICE_DIR/check_libs.py" || { fail "missing libraries above - not repacking"; exit 1; }
