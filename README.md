@@ -236,6 +236,14 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.51** (2026-10-18) - **TWRP keeps the CPU cooler.** Recovery has no
+thermal service, so only the kernel's own limit (90 °C / 194 °F) slowed the CPU
+down, and long jobs like an OTA install ran at 91-93 °C (196-199 °F). A small
+temperature governor now lowers the big and mid cores' top speed one step at a
+time while the CPU is at 82 °C (180 °F) or more, and raises it again at 75 °C
+(167 °F) or less - a cool phone keeps full speed. Tested with all 9 cores
+loaded: held at 172-178 °F, back to full speed about 20 seconds after the load.
+
 **v9.50** (2026-10-18) - **Android 17 OTA zips install from TWRP.** Recovery's
 libsnapshot always wrote uncompressed (legacy) snapshots, and Android 17's
 first-stage init can't boot those any more (kernel panic: "Could not map
