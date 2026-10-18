@@ -25,16 +25,17 @@ Magisk (Option A). To update TWRP later, flash the zip from TWRP.
 > on real PCs). Both screenshots above were taken with it.
 > [More below](#twrp-remote-pc) · GPL-3.0.
 
-**Status:** tested on Android 14 and Android 15, including updating from 14 to 15
-with TWRP. Android 16 and 17 support is prepared and checked offline (see
-`COMPAT_A14-A17.md`); real-device testing is next.
+**Status:** tested on Android 14, 15 and 17, including updating from 14 to 15
+with TWRP and installing Android 17 OTAs from TWRP in both slot directions.
+Android 16 support is prepared and checked offline (see `COMPAT_A14-A17.md`),
+not yet tested on a real phone.
 
 | Android | Firmware tested | Kernel | Status |
 |---|---|---|---|
 | 14 | AP2A.240605.024, AP2A.240905.003 | 5.15 | ✅ tested, incl. OTA updates from TWRP |
 | 15 | BP1A.250405.007.B1 (April 2025) | 6.1 | ✅ tested: OTA 14 → 15 from TWRP (TWRP + root kept), TWRP before and after the first boot, decryption with Android 15's own security services |
-| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared (image fits; decryption services' library needs checked and covered), testing next |
-| 17 | CP3A.260905.009 | 6.1 | 🔧 prepared (image fits; decryption services' library needs checked and covered), testing next; new lock-screen format unverified |
+| 16 | CP1A.260505.005 | 6.1 | 🔧 prepared, not yet tested on a real phone (image fits; decryption services' library needs checked and covered) |
+| 17 | CP3A.261005.005 (October 2026) | 6.1 | ✅ tested: decryption, and an OTA installed from TWRP boots and finishes its merge in both directions (slot a → b and b → a) |
 
 ## Features
 
