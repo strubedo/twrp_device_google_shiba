@@ -78,14 +78,10 @@ CARD_GROUPED = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" p
                 '\n\t\t\t<separator color="%background_color%" height="2"/>')
 # Advanced page: (existing item name, new name or None, header before it or None, subtitle or None)
 ADV_ITEMS = [
-    # alphabetical (portrait.xml has them in this order); the subtitle says
-    # which ones need their app's APK in Download/ (twrp_root.sh apk_missing)
+    # the root tools and a custom kernel are on their own page (shiba_root_install,
+    # which says per row which ones need their app's APK in Download/)
     ('Root: Show status', 'Show status', "ROOT", None),
-    ('Root: Install APatch', 'Install APatch', None, "Needs the APatch APK in /sdcard/Download"),
-    ('Root: Install KernelSU', 'Install KernelSU', None, "App installs automatically"),
-    ('Root: Install KernelSU-Next', 'Install KernelSU-Next', None, "Needs the KernelSU-Next APK in /sdcard/Download"),
-    ('Root: Install Magisk', 'Install Magisk', None, "App installs automatically"),
-    ('Root: Install SukiSU', 'Install SukiSU', None, "Needs the SukiSU APK in /sdcard/Download"),
+    ('Root: Install root', 'Install root', None, None),
     ('Root: Remove root', 'Remove root', None, None),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
     ('TWRP: Install to both slots', 'Install to both slots', None, None),

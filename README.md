@@ -72,10 +72,13 @@ not yet tested on a real phone.
 - Working **slot switching** (Pixel's AIDL boot HAL, built from source; never
   touches the anti-rollback fuses).
 
-**Root** (Advanced → ROOT)
-- Install **KernelSU** (official v3.3.0, LKM mode) or **Magisk** (30.7), or
-  remove root. Every change is state-checked, backed up, verified after writing,
-  and rolled back on any mismatch. KernelSU refuses unsupported kernels (KMI check).
+**Root** (Advanced → ROOT: Show status, Install root, Remove root)
+- **Install root** opens one page with every option: APatch, **KernelSU**
+  (official v3.3.0, LKM mode), KernelSU-Next, **Magisk** (30.7), SukiSU, or a
+  **Custom kernel** (a kernel's boot `.img`, flashed to this slot, the other
+  slot or both - each slot gets its own KMI check). Every change is
+  state-checked, backed up, verified after writing, and rolled back on any
+  mismatch. KernelSU refuses unsupported kernels (KMI check).
 - **KernelSU app installed for you**: put the official `KernelSU_*.apk` in
   `Download/`; if the app isn't installed yet, Install KernelSU sets it up to
   install itself at the next boot (one-shot module, removes itself).
@@ -235,6 +238,16 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
+
+**v9.52** (2026-10-19) - **New ROOT menu.** Advanced → ROOT is now Show
+status, Install root and Remove root. *Install root* opens one page, laid out
+like *Root after an OTA*: APatch, KernelSU, KernelSU-Next, Magisk, SukiSU, and
+**Custom kernel** - pick a kernel's boot `.img`, then flash it to **both
+slots**, this slot or the other slot. Each slot is checked on its own (size,
+the kernel's KMI must match the one it replaces, no second root on top),
+backed up, written and read back; with both slots, the second is only written
+if the first succeeded. Tested on a Pixel 8 with Android 17: both slots
+rewritten and verified from the new page.
 
 **v9.51** (2026-10-18) - **TWRP keeps the CPU cooler.** Recovery has no
 thermal service, so only the kernel's own limit (90 °C / 194 °F) slowed the CPU

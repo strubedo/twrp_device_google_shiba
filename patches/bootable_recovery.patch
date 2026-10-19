@@ -719,7 +719,7 @@ index e2840067..a5e9a91b 100755
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..25f1bf8e
+index 99eeef6c..31de9450
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -759,7 +759,7 @@ index 99eeef6c..25f1bf8e
  				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
  					<data variable="tw_install_reboot"/>
  				</listitem>
-@@ -1201,6 +1216,496 @@
+@@ -1201,6 +1216,688 @@
  			</action>
  		</page>
  
@@ -1021,6 +1021,198 @@ index 99eeef6c..25f1bf8e
 +			</action>
 +		</page>
 +
++		<!-- shiba: Advanced > ROOT > Install root - laid out like Root after an
++		     OTA (shiba_ota_root), but a choice runs now: each row queues its
++		     twrp_root shim zip and flash_confirm asks for the swipe -->
++		<page name="shiba_root_install">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Install root</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>To slot %tw_active_slot% - you swipe to confirm next</text>
++			</text>
++
++			<listbox style="advanced_listbox">
++				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
++				<listitem name="Root tool" header="1"></listitem>
++				<!-- APatch patches the KERNEL in boot (KernelPatch), not init_boot;
++				     it needs a SuperKey (shiba_apatch_key) and its APK in Download/ -->
++				<listitem name="APatch" subtitle="Asks for a SuperKey. APK in /sdcard/Download">
++					<actions>
++						<action function="set">tw_apatch_key=</action>
++						<action function="set">tw_apatch_go=1</action>
++						<action function="set">tw_apatch_back=shiba_root_install</action>
++						<action function="page">shiba_apatch_key</action>
++					</actions>
++				</listitem>
++				<listitem name="KernelSU" subtitle="App installs automatically">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-ksu.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
++				     whose APK must be in Download/ (twrp_root.sh find_apk) -->
++				<listitem name="KernelSU-Next" subtitle="Needs the KernelSU-Next APK in /sdcard/Download">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-ksun.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="Magisk" subtitle="App installs automatically">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-magisk.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="SukiSU" subtitle="Needs the SukiSU APK in /sdcard/Download">
++					<actions>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="Kernel" header="1"></listitem>
++				<listitem name="Custom kernel" subtitle="Flash a kernel's boot .img - pick it next">
++					<actions>
++						<action function="set">tw_root_kernel_pick=</action>
++						<action function="page">shiba_root_kernel</action>
++					</actions>
++				</listitem>
++			</listbox>
++
++			<action>
++				<touch key="back"/>
++				<action function="page">advanced</action>
++			</action>
++
++			<action>
++				<touch key="home"/>
++				<action function="page">main</action>
++			</action>
++		</page>
++
++		<!-- shiba: Install root > Custom kernel - the boot image (.img) -->
++		<page name="shiba_root_kernel">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Custom kernel</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>Pick the kernel's boot image (.img)</text>
++			</text>
++
++			<template name="sort_options"/>
++
++			<fileselector>
++				<placement x="%indent%" y="%row3_y%" w="%content_width%" h="%fileselector_install_height%"/>
++				<text>%tw_root_kernel_dir%</text>
++				<filter extn=".img" folders="1" files="1"/>
++				<path name="tw_root_kernel_dir" default="/sdcard/Download"/>
++				<data name="tw_root_kernel_pick"/>
++				<selection name="tw_root_kernel_name"/>
++			</fileselector>
++
++			<!-- tw_root_kernel_pick is cleared on the way in, so picking the
++			     same file again still counts -->
++			<action>
++				<conditions>
++					<condition var1="tw_root_kernel_pick" op="modified"/>
++				</conditions>
++				<actions>
++					<action function="page">shiba_root_kernel_slot</action>
++				</actions>
++			</action>
++
++			<action>
++				<touch key="back"/>
++				<action function="page">shiba_root_install</action>
++			</action>
++
++			<action>
++				<touch key="home"/>
++				<action function="page">main</action>
++			</action>
++		</page>
++
++		<!-- shiba: Install root > Custom kernel > which slot. The path reaches
++		     twrp_root.sh flash-kernel through a file (savesecret: no shell, so
++		     any file name is safe; set VAR=OTHERVAR copies the value first) -->
++		<page name="shiba_root_kernel_slot">
++			<template name="page"/>
++
++			<text style="text_l">
++				<placement x="%col1_x_header%" y="%row3_header_y%"/>
++				<text>Custom kernel</text>
++			</text>
++
++			<text style="text_m">
++				<placement x="%col1_x_header%" y="%row4_header_y%"/>
++				<text>%tw_root_kernel_name%</text>
++			</text>
++
++			<listbox style="advanced_listbox">
++				<placement x="%indent%" y="176" w="%content_width%" h="1600"/>
++				<listitem name="Flash it to" header="1"></listitem>
++				<listitem name="Both slots" subtitle="Same kernel on A and B">
++					<actions>
++						<action function="set">tw_root_kernel_arg=tw_root_kernel_pick</action>
++						<action function="savesecret">tw_root_kernel_arg=/tmp/twrp_root/kernel_img</action>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/flash-kernel-both.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="This slot (%tw_active_slot%)" subtitle="The slot running now">
++					<actions>
++						<action function="set">tw_root_kernel_arg=tw_root_kernel_pick</action>
++						<action function="savesecret">tw_root_kernel_arg=/tmp/twrp_root/kernel_img</action>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/flash-kernel-this.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++				<listitem name="Other slot" subtitle="The slot not running - e.g. after an update">
++					<actions>
++						<action function="set">tw_root_kernel_arg=tw_root_kernel_pick</action>
++						<action function="savesecret">tw_root_kernel_arg=/tmp/twrp_root/kernel_img</action>
++						<action function="queueclear"/>
++						<action function="set">tw_filename=/system/etc/twrp_root/flash-kernel-other.zip</action>
++						<action function="queuezip"/>
++						<action function="page">flash_confirm</action>
++					</actions>
++				</listitem>
++			</listbox>
++
++			<action>
++				<touch key="back"/>
++				<action function="page">shiba_root_kernel</action>
++			</action>
++
++			<action>
++				<touch key="home"/>
++				<action function="page">main</action>
++			</action>
++		</page>
++
 +		<page name="shiba_dfe_confirm">
 +			<template name="page"/>
 +
@@ -1256,7 +1448,7 @@ index 99eeef6c..25f1bf8e
  		<page name="formatdata">
  			<template name="page"/>
  
-@@ -1714,6 +2219,7 @@
+@@ -1714,6 +2411,7 @@
  				<placement x="%center_x%" y="%row18a_y%"/>
  				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
  				<actions>
@@ -1264,7 +1456,7 @@ index 99eeef6c..25f1bf8e
  					<action function="refreshsizes"/>
  					<action function="page">backup</action>
  				</actions>
-@@ -3473,11 +3979,19 @@
+@@ -3473,11 +4171,19 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -1285,7 +1477,7 @@ index 99eeef6c..25f1bf8e
  			</listbox>
  
  			<button style="main_button_half_height">
-@@ -3878,6 +4392,137 @@
+@@ -3878,6 +4584,99 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -1316,49 +1508,11 @@ index 99eeef6c..25f1bf8e
 +						<action function="page">flash_confirm</action>
 +					</actions>
 +				</listitem>
-+				<!-- APatch: patches the KERNEL in boot (KernelPatch), not init_boot;
-+				     needs a SuperKey (shiba_apatch_key) and the APatch APK in Download/ -->
-+				<listitem name="Root: Install APatch">
++				<!-- shiba: every root tool and a custom kernel on one page
++				     (shiba_root_install). ROOT rows: Show status, Install root, Remove root -->
++				<listitem name="Root: Install root">
 +					<actions>
-+						<action function="set">tw_apatch_key=</action>
-+						<action function="set">tw_apatch_go=1</action>
-+						<action function="set">tw_apatch_back=advanced</action>
-+						<action function="page">shiba_apatch_key</action>
-+					</actions>
-+				</listitem>
-+				<listitem name="Root: Install KernelSU">
-+					<actions>
-+						<action function="queueclear"/>
-+						<action function="set">tw_filename=/system/etc/twrp_root/install-ksu.zip</action>
-+						<action function="queuezip"/>
-+						<action function="page">flash_confirm</action>
-+					</actions>
-+				</listitem>
-+				<!-- KernelSU-Next / SukiSU: patched with the ksud from their own app,
-+				     whose APK must be in Download/ (twrp_root.sh find_apk).
-+				     ROOT items are alphabetical: Show status first, Remove root last -->
-+				<listitem name="Root: Install KernelSU-Next">
-+					<actions>
-+						<action function="queueclear"/>
-+						<action function="set">tw_filename=/system/etc/twrp_root/install-ksun.zip</action>
-+						<action function="queuezip"/>
-+						<action function="page">flash_confirm</action>
-+					</actions>
-+				</listitem>
-+				<listitem name="Root: Install Magisk">
-+					<actions>
-+						<action function="queueclear"/>
-+						<action function="set">tw_filename=/system/etc/twrp_root/install-magisk.zip</action>
-+						<action function="queuezip"/>
-+						<action function="page">flash_confirm</action>
-+					</actions>
-+				</listitem>
-+				<listitem name="Root: Install SukiSU">
-+					<actions>
-+						<action function="queueclear"/>
-+						<action function="set">tw_filename=/system/etc/twrp_root/install-suki.zip</action>
-+						<action function="queuezip"/>
-+						<action function="page">flash_confirm</action>
++						<action function="page">shiba_root_install</action>
 +					</actions>
 +				</listitem>
 +				<listitem name="Root: Remove root">
@@ -1423,7 +1577,7 @@ index 99eeef6c..25f1bf8e
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4551,8 @@
+@@ -3906,6 +4705,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -1432,7 +1586,7 @@ index 99eeef6c..25f1bf8e
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4563,8 @@
+@@ -3916,6 +4717,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -1441,7 +1595,7 @@ index 99eeef6c..25f1bf8e
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4582,8 @@
+@@ -3933,6 +4736,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -1450,7 +1604,7 @@ index 99eeef6c..25f1bf8e
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4594,8 @@
+@@ -3943,6 +4748,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>

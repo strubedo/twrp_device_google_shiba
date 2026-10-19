@@ -27,6 +27,13 @@ ACTIONS = {
     # the SuperKey comes from the TWRP page (savesecret -> /tmp/twrp_root/apatch_key)
     "install-apatch": "/system/bin/twrp_root.sh install-apatch",
     "remove": "/system/bin/twrp_root.sh remove",
+    # Install root > Custom kernel: the picked .img comes from the TWRP page
+    # (savesecret -> /tmp/twrp_root/kernel_img)
+    "flash-kernel-this": '/system/bin/twrp_root.sh flash-kernel "$(cat /tmp/twrp_root/kernel_img)"',
+    "flash-kernel-other": '/system/bin/twrp_root.sh flash-kernel other "$(cat /tmp/twrp_root/kernel_img)"',
+    # this slot first; the other slot only if that worked (each has its own KMI check)
+    "flash-kernel-both": '( img="$(cat /tmp/twrp_root/kernel_img)"; /system/bin/twrp_root.sh flash-kernel "$img"'
+                         ' && /system/bin/twrp_root.sh flash-kernel other "$img" )',
     # keep TWRP after an OTA (twrp_install_slot.sh)
     "twrp-install-other": "/system/bin/twrp_install_slot.sh other",
     "twrp-install-both": "/system/bin/twrp_install_slot.sh both",

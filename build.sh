@@ -36,6 +36,10 @@ user() { printf '%s>> %s%s\n' "$Y" "$*" "$N"; }            # YOU do this
 warn() { printf '   %s! %s%s\n' "$W" "$*" "$N"; }          # notice
 fail() { printf '%sFAIL: %s%s\n' "$RD" "$*" "$N" >&2; }    # error line (caller exits)
 
+# total time on every exit (failed builds too), so build durations get measured
+build_time() { local s=$SECONDS; step "Build time: $((s / 60))m $((s % 60))s"; }
+trap build_time EXIT
+
 DEVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP="$(cd "$DEVICE_DIR/../../.." && pwd)"
 cd "$TOP"
@@ -191,6 +195,7 @@ gate "libc++ compat shim for A15+ Titan HALs"      "/bin/grep -a -q _ZNSt3__122_
 gate "our kernel modules carry no build paths"     "! /bin/grep -a -l '/home/' $R/lib/modules/5.15/otg_host_ready.ko $R/lib/modules/6.1/otg_host_ready.ko"
 gate "boot HAL built from source (no AR fuse blow)" "/bin/grep -a -q 'anti-rollback fuse blow skipped' $R/system/bin/hw/android.hardware.boot-service.default_recovery-pixel && test -f $R/system/etc/vintf/manifest/android.hardware.boot-service.default_recovery-pixel.xml && test -f $R/system/etc/init/android.hardware.boot-service.default_recovery-pixel.rc"
 gate "root after OTA (picker + script)"            "grep -q 'page name=\"shiba_ota_root\"' $R/twres/portrait.xml && grep -q 'page name=\"shiba_ota_kernel\"' $R/twres/portrait.xml && grep -q 'ACTION other' $R/system/bin/twrp_root.sh && grep -q 'flash-kernel)' $R/system/bin/twrp_root.sh && /bin/grep -a -q 'Root after OTA: %s on the updated slot' $R/system/bin/recovery"
+gate "Install root page (tools + custom kernel)"   "grep -q 'page name=\"shiba_root_install\"' $R/twres/portrait.xml && grep -q 'page name=\"shiba_root_kernel_slot\"' $R/twres/portrait.xml && grep -q 'name=\"Install root\"' $R/twres/portrait.xml && test -f $R/system/etc/twrp_root/flash-kernel-this.zip -a -f $R/system/etc/twrp_root/flash-kernel-other.zip -a -f $R/system/etc/twrp_root/flash-kernel-both.zip"
 gate "A17 OTA: VABC opt-in, no 5-minute confirm"   "/bin/grep -a -q 'twrp.ota.vabc' $R/system/bin/recovery && ! /bin/grep -a -q 'install the same zip again' $R/system/bin/recovery"
 gate "A17 OTA: update_engine VABC in recovery"     "/bin/grep -a -q 'VABC in recovery (TWRP opt-in)' $R/system/bin/update_engine_sideload && /bin/grep -a -q '(VABC in recovery)' $R/system/bin/update_engine_sideload"
 gate "CPU temperature governor (script + service)" "test -x $R/system/bin/twrp_thermal.sh && grep -q 'service twrp.thermal' $R/init.recovery.zuma.rc && grep -q 'start twrp.thermal' $R/init.recovery.zuma.rc"
