@@ -239,6 +239,17 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.53** (2026-10-19) - **Steady temperature, faster start, tidier menus.**
+The status-bar temperature now comes from the board sensor next to the chip
+(`soc_therm`) instead of the big CPU cores' own sensor, which jumped by up to
+45 °F whenever the screen redrew; TWRP finds the sensor by name. With a large
+custom kernel (all drivers built in, ~46 MB) the splash no longer waits ~20 s
+before the PIN screen: the root check behind the main page's root chip now
+searches the kernel for fixed text instead of patterns (1.5 s). Advanced →
+TOOLS loses *Reload Theme* and *Partition SD card* (the Pixel 8 has no SD
+slot); Settings loses the theme-testing *Simulate actions* switches. Tested on
+a Pixel 8 with Android 17 (CP3A.261005.005).
+
 **v9.52** (2026-10-19) - **New ROOT menu.** Advanced → ROOT is now Show
 status, Install root and Remove root. *Install root* opens one page, laid out
 like *Root after an OTA*: APatch, KernelSU, KernelSU-Next, Magisk, SukiSU, and
