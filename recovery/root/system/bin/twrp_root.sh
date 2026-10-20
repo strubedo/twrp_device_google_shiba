@@ -90,10 +90,12 @@ state_of() {
 # magic KP1158. Cached per slot, keyed on the boot image's first MiB, so the
 # main-page chip doesn't unpack 64 MB after every operation.
 # kernel_root_of KERNEL -> none | APatch | KernelSU | KSU-Next | SukiSU
+# Fixed strings (-F) only: toybox grep -E with | alternatives takes ~10 s per
+# pattern on a 46 MB monolithic kernel (Infinity) - 20 s of TWRP splash.
 kernel_root_of() {
     if grep -a -q 'KP1158' "$1"; then echo APatch
-    elif grep -a -q -E 'KernelSU: |Android KernelSU|ksu_handle_' "$1"; then
-        if grep -a -q -E 'sukisu_|KernelSU Stealth' "$1"; then echo SukiSU
+    elif grep -a -q -F -e 'KernelSU: ' -e 'Android KernelSU' -e ksu_handle_ "$1"; then
+        if grep -a -q -F -e sukisu_ -e 'KernelSU Stealth' "$1"; then echo SukiSU
         elif grep -a -q 'avc_spoof' "$1"; then echo KSU-Next
         else echo KernelSU
         fi
@@ -138,7 +140,7 @@ lkm_family() {
     local fam=KernelSU
     if ( cd "$d" && "$MAGISKBOOT" unpack "$1" >/dev/null 2>&1 \
             && "$MAGISKBOOT" cpio ramdisk.cpio "extract kernelsu.ko kernelsu.ko" >/dev/null 2>&1 ); then
-        if grep -a -q -E 'sukisu_|KernelSU Stealth' "$d/kernelsu.ko"; then fam=SukiSU
+        if grep -a -q -F -e sukisu_ -e 'KernelSU Stealth' "$d/kernelsu.ko"; then fam=SukiSU
         elif grep -a -q 'avc_spoof' "$d/kernelsu.ko"; then fam=KSU-Next
         fi
     fi
