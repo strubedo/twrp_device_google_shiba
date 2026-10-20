@@ -116,6 +116,11 @@ TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 TW_MAX_BRIGHTNESS := 3827
 TW_DEFAULT_BRIGHTNESS := 1500
 TW_CUSTOM_BATTERY_PATH := "/sys/class/power_supply/battery"
+# Status-bar temperature: thermal_zone0 (TWRP's default) is the BIG cores'
+# on-die sensor, which jumps 20-30 C whenever the GUI redraws. soc_therm is the
+# board thermistor next to the SoC: smooth, and it tracks real heat. Found by
+# type (bootable/recovery data.cpp), falls back to zone0 until it exists.
+TW_CUSTOM_CPU_TEMP_TYPE := soc_therm
 # Read the battery from sysfs (the path above). Without this, TWRP asks the
 # health HAL, which recovery doesn't run: "Using fake battery capacity 100" -
 # the status bar always showed 100%+ (and logged that every second).

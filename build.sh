@@ -149,6 +149,8 @@ gate "root menu in theme"                         "grep -q 'twrp_root/install-ks
 gate "root shim zips present"                     "test -f $R/system/etc/twrp_root/status.zip -a -f $R/system/etc/twrp_root/install-ksu.zip -a -f $R/system/etc/twrp_root/install-magisk.zip -a -f $R/system/etc/twrp_root/remove.zip"
 gate "boot-repack menu items hidden"              "grep -q tw_shiba_never $R/twres/portrait.xml"
 gate "CPU temp label in Fahrenheit"               "grep -q 'tw_cpu_temp% &#xB0;F' $R/twres/languages/en.xml"
+gate "temp read from soc_therm (by zone type)"    "/bin/grep -a -q soc_therm $R/system/bin/recovery"
+gate "SD-card + theme-dev menu items hidden"     "! grep -q -e part_sd_btn= -e reload_theme_btn= -e simact_chk= -e simfail_chk= $R/twres/portrait.xml"
 gate "recovery storageproxyd (no wakelock) present" "test -x $R/system/bin/storageproxyd && ! /bin/grep -a -q acquire_wake_lock $R/system/bin/storageproxyd"
 gate "twrp_crypto_start.sh (SPL-gated KeyMint) present" "test -x $R/system/bin/twrp_crypto_start.sh && grep -q REFUSING $R/system/bin/twrp_crypto_start.sh"
 gate "resetprop present"                          "test -x $R/system/bin/resetprop"

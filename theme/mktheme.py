@@ -102,6 +102,15 @@ ADV_BUTTONS = [          # (label string, action page) - mockup order
     ("{@terminal_btn=Terminal}", "terminalcommand"),
     ("{@copy_log_btn=Copy Log}", "copylog"),
 ]
+# stock rows that do nothing useful on a Pixel 8 (no SD card slot) or are
+# theme-developer tools - taken out of the menus (each must match exactly once).
+# Reload Theme stays the TOOLS anchor in ADV_ITEMS: it goes after patch_lists.
+HIDDEN_ITEMS = [
+    '{@reload_theme_btn=Reload Theme}',                      # Advanced > TOOLS
+    '{@part_sd_btn=Partition SD Card}',                      # Advanced > TOOLS
+    '{@simact_chk=Simulate actions for theme testing}',      # Settings
+    '{@simfail_chk=Simulate failure for actions}',           # Settings (shown by the one above)
+]
 ADV_LIST_PLACEMENT = '<placement x="%indent%" y="176" w="%content_width%" h="1600"/>'
 
 
@@ -166,6 +175,14 @@ def patch_lists(xml):
             return out + f'<listitem name="{new or old}"{sub}>'
         page = pat.sub(repl, page)
     return xml[:a] + page + xml[b:]
+
+def drop_listitems(xml):
+    for label in HIDDEN_ITEMS:
+        blk = re.compile(r'\n\t*<listitem name="' + re.escape(label) + r'">.*?</listitem>', re.S)
+        if len(blk.findall(xml)) != 1:
+            fail(f"expected one listitem '{label}' to hide")
+        xml = blk.sub("", xml)
+    return xml
 
 # Main page header (mockup): big TWRP title + live chips. Chip widths/text x
 # come from measured Plex Sans 33 text (see mkimages.py). TWRP clears
@@ -550,7 +567,7 @@ def build_portrait():
     if s < 0 or xml[s:e].count('<template name="keyboardnum"/>') != 1 \
             or 'name="tw_crypto_password"' not in xml[s:e]:
         fail("decrypt_pin page not as expected in TWRP's portrait.xml")
-    return patch_lists(xml[:s] + PIN_PAGE + xml[e:])
+    return drop_listitems(patch_lists(xml[:s] + PIN_PAGE + xml[e:]))
 
 
 def changed_files(ui_xml):

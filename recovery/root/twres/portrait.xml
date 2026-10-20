@@ -4547,13 +4547,6 @@
 				<listitem name="{@rev_navbar_chk=Reversed navbar layout}">
 					<data variable="tw_samsung_navbar"/>
 				</listitem>
-				<listitem name="{@simact_chk=Simulate actions for theme testing}">
-					<data variable="tw_simulate_actions"/>
-				</listitem>
-				<listitem name="{@simfail_chk=Simulate failure for actions}">
-					<condition var1="tw_simulate_actions" var2="1"/>
-					<data variable="tw_simulate_fail"/>
-				</listitem>
 				<listitem name="{@sha2_chk=Use SHA2 for hashing}">
 					<condition var1="tw_no_sha2" var2="0"/>
 					<data variable="tw_use_sha2"/>
@@ -5048,16 +5041,6 @@
 					<actions>
 						<action function="set">tw_crypto_user_id=</action>
 						<action function="page">decrypt_users</action>
-					</actions>
-				</listitem>
-				<listitem name="{@reload_theme_btn=Reload Theme}">
-					<action function="reload"/>
-				</listitem>
-				<listitem name="{@part_sd_btn=Partition SD Card}">
-					<condition var1="tw_allow_partition_sdcard" var2="1"/>
-					<actions>
-						<action function="set">partitionlisterror=0</action>
-						<action function="page">partsdcardsel</action>
 					</actions>
 				</listitem>
 				<listitem name="{@fix_context_btn=Fix Contexts}">
