@@ -22,7 +22,9 @@
 #                                APK in Download/; the SuperKey comes from the
 #                                TWRP page ($W/apatch_key, 0600) or, for the
 #                                other slot after an OTA, from the running kernel
-#   twrp_root.sh flash-kernel IMG  a custom kernel's boot image onto boot
+#   twrp_root.sh flash-kernel IMG  a custom kernel's boot image onto boot, plus
+#                                its vendor_kernel_boot image when one sits
+#                                beside it (same name, boot -> vendor_kernel_boot)
 #                                (KMI must match the kernel it replaces)
 #   twrp_root.sh remove          restore stock init_boot (either tool), or
 #                                unpatch APatch from boot
@@ -616,18 +618,21 @@ boot_kernel_dir() {
 # digit. The TWRP page only allows letters and digits.
 key_ok() { [[ "$1" =~ ^[A-Za-z0-9]{8,63}$ && "$1" =~ [A-Za-z] && "$1" =~ [0-9] ]]; }
 
-backup_boot() {
-    local b="$W/boot${SLOT}.backup.$(date +%Y%m%d-%H%M%S).img"
-    dd if="$BOOTPART" of="$b" bs=1M 2>/dev/null || die "cannot read boot${SLOT}"
-    local keep=/data/media/0/TWRP/boot_backups
+# backup_part NAME -> path of a copy of NAME${SLOT} in $W (for the rollback),
+# plus one on Internal Storage (TWRP/NAME_backups/) that survives a reboot
+backup_part() {
+    local b="$W/$1${SLOT}.backup.$(date +%Y%m%d-%H%M%S).img"
+    dd if="/dev/block/by-name/$1${SLOT}" of="$b" bs=1M 2>/dev/null || die "cannot read $1${SLOT}"
+    local keep="/data/media/0/TWRP/$1_backups"
     if [[ -d /data/media/0 ]] && mkdir -p "$keep" && cp "$b" "$keep/" 2>/dev/null; then
         chown -R 0:1023 /data/media/0/TWRP 2>/dev/null; chmod 660 "$keep/${b##*/}" 2>/dev/null
-        say "- Backed up boot${SLOT} to Internal Storage: TWRP/boot_backups/${b##*/}" >&2
+        say "- Backed up $1${SLOT} to Internal Storage: TWRP/$1_backups/${b##*/}" >&2
     else
-        say "- Backed up boot${SLOT} to $b (Internal Storage not available - lost at reboot)" >&2
+        say "- Backed up $1${SLOT} to $b (Internal Storage not available - lost at reboot)" >&2
     fi
     echo "$b"
 }
+backup_boot() { backup_part boot; }
 
 # flash_boot_verified IMG BACKUP WANT(patched|stock)
 flash_boot_verified() {
@@ -793,15 +798,25 @@ do_remove() {
 # reroot-action -> which install-* recreates the RUNNING slot's root on the
 # other slot after an OTA (twinstall.cpp, "Reinstall root after OTA"), or none
 # ---- Custom kernel (Root after an OTA > Custom kernel) ---------------------
+# is_vendor_boot IMG -> true for a vendor_boot / vendor_kernel_boot image
+is_vendor_boot() { [[ "$(head -c 8 "$1" 2>/dev/null)" == VNDRBOOT ]]; }
+
 # flash-kernel [other] IMG: a whole boot image - a custom kernel, e.g. a GKI
 # kernel with KernelSU-Next built in - onto this slot's boot. Checks first: it
 # fits the partition, unpacks to a kernel with the same KMI as the kernel it
 # replaces (the slot's vendor modules must load), and its built-in root
 # doesn't stack on a root in init_boot. Then backup, readback verify, restore.
+# Sultan-based kernels (Infinity) also ship their own vendor_kernel_boot (it
+# carries their device tree): when the boot image's folder has one with the
+# same name, boot -> vendor_kernel_boot (boot-infinity-v5.img ->
+# vendor_kernel_boot-infinity-v5.img), it goes onto the same slot, checked,
+# backed up and verified the same way; if it fails, both are restored.
 do_flash_kernel() {
     local img="${2:-}"; [[ "$img" == other ]] && img="${3:-}"
     [[ -n "$img" && -f "$img" ]] || die "usage: $0 flash-kernel [other] BOOT_IMAGE - no file '$img'. Nothing was changed."
     [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
+    is_vendor_boot "$img" \
+        && die "${img##*/} is a vendor boot image - pick the kernel's boot image; a vendor_kernel_boot image with the same name comes along. Nothing was changed."
     local n psize; n="$(stat -c %s "$img")"; psize="$(blockdev --getsize64 "$BOOTPART")"
     (( n <= psize )) || die "${img##*/} is $n bytes, boot${SLOT} only $psize. Nothing was changed."
     local d="$W/newk"
@@ -814,6 +829,19 @@ do_flash_kernel() {
         || die "${img##*/} has a $newk kernel, slot ${SLOT#_} needs $oldk (its vendor modules wouldn't load). Nothing was changed."
     say "- Kernel: $banner (KMI $newk$([[ "$root" != none ]] && echo ", $root built in"))"
     say "- Replaces: $(kscan_get BANNER)"
+    local base="${img##*/}" vkb="" vn=0 vpart="/dev/block/by-name/vendor_kernel_boot${SLOT}"
+    [[ "$base" == *boot* ]] && vkb="${img%/*}/${base/boot/vendor_kernel_boot}"
+    if [[ -n "$vkb" && -f "$vkb" ]]; then
+        is_vendor_boot "$vkb" || die "${vkb##*/} isn't a vendor boot image. Nothing was changed."
+        [[ -b "$vpart" ]] || die "cannot find vendor_kernel_boot${SLOT}. Nothing was changed."
+        vn="$(stat -c %s "$vkb")"
+        (( vn <= $(blockdev --getsize64 "$vpart") )) \
+            || die "${vkb##*/} is $vn bytes, bigger than vendor_kernel_boot${SLOT}. Nothing was changed."
+        say "- With: ${vkb##*/} -> vendor_kernel_boot${SLOT}"
+    else
+        say "- Only boot${SLOT}: no vendor_kernel_boot image beside it${vkb:+ (looked for ${vkb##*/})}"
+        vkb=""
+    fi
     if [[ "$root" != none ]]; then
         read_part "$W/current.img"
         local st; st="$(state_of "$W/current.img")"
@@ -821,7 +849,8 @@ do_flash_kernel() {
             || die "init_boot${SLOT} has $st root and this kernel has $root built in - two roots. Remove root first. Nothing was changed."
     fi
     [[ "${TW_DRY_RUN:-0}" == 1 ]] && { say "- Dry run: checks passed, nothing flashed"; return 0; }
-    local backup; backup="$(backup_boot)"
+    local backup vbackup=""; backup="$(backup_boot)"
+    [[ -n "$vkb" ]] && vbackup="$(backup_part vendor_kernel_boot)"
     say "- Flashing boot${SLOT}"
     dd if="$img" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null || die "write failed"
     dd if="$BOOTPART" of="$W/readback.img" bs=1M 2>/dev/null
@@ -832,6 +861,18 @@ do_flash_kernel() {
     fi
     rm -f "$W/readback.img" "$W"/kernel_scan"${SLOT}".*
     say "- Verified: boot${SLOT} is now ${img##*/}"
+    [[ -n "$vkb" ]] || return 0
+    say "- Flashing vendor_kernel_boot${SLOT}"
+    if ! dd if="$vkb" of="$vpart" bs=1M conv=fsync 2>/dev/null \
+        || ! dd if="$vpart" of="$W/readback.img" bs=1M 2>/dev/null \
+        || ! cmp -s -n "$vn" "$vkb" "$W/readback.img"; then
+        say "! vendor_kernel_boot${SLOT} write or readback failed - restoring both backups"
+        dd if="$vbackup" of="$vpart" bs=1M conv=fsync 2>/dev/null
+        dd if="$backup" of="$BOOTPART" bs=1M conv=fsync 2>/dev/null
+        die "flash failed; original boot${SLOT} and vendor_kernel_boot${SLOT} restored"
+    fi
+    rm -f "$W/readback.img"
+    say "- Verified: vendor_kernel_boot${SLOT} is now ${vkb##*/}"
 }
 
 do_reroot_action() {

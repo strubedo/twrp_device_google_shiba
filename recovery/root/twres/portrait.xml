@@ -2381,13 +2381,6 @@
 						<action function="page">flash_confirm</action>
 					</actions>
 				</listitem>
-				<listitem name="Kernel" header="1"></listitem>
-				<listitem name="Custom kernel" subtitle="Flash a kernel's boot .img - pick it next">
-					<actions>
-						<action function="set">tw_root_kernel_pick=</action>
-						<action function="page">shiba_root_kernel</action>
-					</actions>
-				</listitem>
 			</listbox>
 
 			<action>
@@ -2401,7 +2394,7 @@
 			</action>
 		</page>
 
-		<!-- shiba: Install root > Custom kernel - the boot image (.img) -->
+		<!-- shiba: Advanced > Install custom kernel - the boot image (.img) -->
 		<page name="shiba_root_kernel">
 			<template name="page"/>
 
@@ -2412,7 +2405,7 @@
 
 			<text style="text_m">
 				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-				<text>Pick the kernel's boot image (.img)</text>
+				<text>Pick its boot .img (vendor_kernel_boot comes along)</text>
 			</text>
 
 			<template name="sort_options"/>
@@ -2439,7 +2432,7 @@
 
 			<action>
 				<touch key="back"/>
-				<action function="page">shiba_root_install</action>
+				<action function="page">advanced</action>
 			</action>
 
 			<action>
@@ -2448,7 +2441,7 @@
 			</action>
 		</page>
 
-		<!-- shiba: Install root > Custom kernel > which slot. The path reaches
+		<!-- shiba: Advanced > Install custom kernel > which slot. The path reaches
 		     twrp_root.sh flash-kernel through a file (savesecret: no shell, so
 		     any file name is safe; set VAR=OTHERVAR copies the value first) -->
 		<page name="shiba_root_kernel_slot">
@@ -5411,6 +5404,15 @@
 						<action function="set">tw_filename=/system/etc/twrp_root/remove.zip</action>
 						<action function="queuezip"/>
 						<action function="page">flash_confirm</action>
+					</actions>
+				</listitem>
+				<!-- shiba: a custom kernel's boot image (+ its vendor_kernel_boot image
+				     when one with the matching name sits beside it) onto a slot -->
+				<listitem name="KERNEL" header="1"></listitem>
+				<listitem name="Install custom kernel" subtitle="Boot .img + its vendor_kernel_boot">
+					<actions>
+						<action function="set">tw_root_kernel_pick=</action>
+						<action function="page">shiba_root_kernel</action>
 					</actions>
 				</listitem>
 				<!-- shiba: keep TWRP after an OTA - rebuild a slot's vendor_boot with

@@ -86,11 +86,12 @@ CARD_GROUPED = ('<itemcard color="#121212" selectedcolor="#242424" radius="28" p
                 '\n\t\t\t<separator color="%background_color%" height="2"/>')
 # Advanced page: (existing item name, new name or None, header before it or None, subtitle or None)
 ADV_ITEMS = [
-    # the root tools and a custom kernel are on their own page (shiba_root_install,
-    # which says per row which ones need their app's APK in Download/)
+    # the root tools are on their own page (shiba_root_install, which says per
+    # row which ones need their app's APK in Download/)
     ('Root: Show status', 'Show status', "ROOT", None),
     ('Root: Install root', 'Install root', None, None),
     ('Root: Remove root', 'Remove root', None, None),
+    ('Kernel: Install custom kernel', 'Install custom kernel', "KERNEL", "Boot .img + its vendor_kernel_boot"),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
     ('TWRP: Install to both slots', 'Install to both slots', None, None),
     ('Encryption: Status', 'Status', "ENCRYPTION", None),
