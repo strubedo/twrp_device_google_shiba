@@ -207,6 +207,7 @@ gate "Graphite fonts not overridden by languages" "! grep -q 'Graphite' $R/twres
 gate "theme images match mkimages.py (not stale)" "python3 $DEVICE_DIR/theme/check_images.py"
 gate "Enable USB debugging: menu item + zip"     "grep -q 'twrp_tools/enable-adb.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_tools/enable-adb.zip >/dev/null"
 gate "Collect logs: script + menu item + zip"     "test -x $R/system/bin/twrp_collect_logs.sh && grep -q 'twrp_root/collect-logs.zip' $R/twres/portrait.xml && unzip -tq $R/system/etc/twrp_root/collect-logs.zip >/dev/null"
+gate "init.recovery stub for every twrp_devices.conf row" "( for c in \$(grep -v '^#' $R/system/etc/twrp_devices.conf | cut -d'|' -f1); do grep -qF 'import /init.recovery.\${ro.board.platform}.rc' $R/init.recovery.\$c.rc || exit 1; done )"
 gate "twrp_remote daemon + service"               "test -x $R/system/bin/twrp_remote && grep -q 'start twrp.remote' $R/init.recovery.zuma.rc"
 gate "OTG module for kernel 6.1 (Android 15-17)"   "/bin/grep -a -q 'vermagic=6\.1\.' $R/lib/modules/6.1/otg_host_ready.ko"
 gate "modules.dep lists OTG for 5.15 and 6.1"      "grep -qx 'otg_host_ready.ko:' $R/lib/modules/5.15/modules.dep && grep -qx 'otg_host_ready.ko:' $R/lib/modules/6.1/modules.dep"

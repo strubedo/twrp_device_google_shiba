@@ -1,4 +1,6 @@
-# Pixel 8 (shiba) recovery init. Loaded as init.recovery.${ro.hardware}.rc (zuma).
+# Pixel 8 / 8 Pro / 8a (zuma) recovery init. Imported by init.recovery.<codename>.rc
+# (shiba, husky, akita - the rows of system/etc/twrp_devices.conf) as
+# init.recovery.${ro.board.platform}.rc.
 #
 # Note: /system/bin/bootstrap/linker64 (needed by the relinked system
 # servicemanager, a bootstrap binary) ships as a symlink in the ramdisk
