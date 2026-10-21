@@ -71,7 +71,9 @@ mkdir -p "$W"
 # kmi_of says each "doesn't name its KMI" note once per run; per-PID ($$ is the
 # same in $(...) subshells) because the GUI runs this script for its chips too
 KMI_NOTED="$W/kmi_noted.$$"
-trap 'rm -f "$KMI_NOTED"' EXIT
+# kernel_from_zip unpacks into $W/kzip.$$ (128 MB of RAM for a boot + vendor_kernel_boot
+# pair) - per-PID too, and removed when this run ends
+trap 'rm -f "$KMI_NOTED"; rm -rf "$W/kzip.$$"' EXIT
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -819,7 +821,7 @@ is_vendor_boot() { [[ "$(head -c 8 "$1" 2>/dev/null)" == VNDRBOOT ]]; }
 # and that name - a vendor_boot image has the same header). Any other .img, or
 # an AnyKernel3 zip (it has its own installer: TWRP's Install), is refused.
 kernel_from_zip() {
-    local zip="$1" d="$W/kzip" bb="$W/tools/busybox" f n boot="" vkb=""
+    local zip="$1" d="$W/kzip.$$" bb="$W/tools/busybox" f n boot="" vkb=""
     mkdir -p "$W/tools"
     [[ -x "$bb" ]] || { cp "$TOOLS/magisk/busybox" "$bb" && chmod 755 "$bb"; } \
         || die "no unzip tool in this TWRP. Nothing was changed."
@@ -844,6 +846,8 @@ kernel_from_zip() {
     done
     [[ -n "$boot" ]] || die "${zip##*/} has no boot image. Nothing was changed."
     say "- From ${zip##*/}: ${boot##*/}${vkb:+ + ${vkb##*/}}" >&2
+    # their own names, for do_flash_kernel's messages (the files get renamed below)
+    printf '%s|%s|%s\n' "${boot##*/}" "${vkb##*/}" "${zip##*/}" > "$d/names"
     [[ "$boot" == "$d/boot.img" ]] || mv "$boot" "$d/boot.img"
     [[ -z "$vkb" || "$vkb" == "$d/vendor_kernel_boot.img" ]] || mv "$vkb" "$d/vendor_kernel_boot.img"
     echo "$d/boot.img"
@@ -864,31 +868,38 @@ do_flash_kernel() {
     [[ -n "$img" && -f "$img" ]] || die "usage: $0 flash-kernel [other] BOOT_IMAGE|KERNEL_ZIP - no file '$img'. Nothing was changed."
     [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
     [[ "$img" != *.zip ]] || img="$(kernel_from_zip "$img")"
+    # names in messages: a kernel zip's images were unpacked as boot.img /
+    # vendor_kernel_boot.img (for the pairing below); show the zip's own names
+    local bname="${img##*/}" vname="" zname=""
+    if [[ "${img%/*}" == "$W/kzip.$$" && -f "$W/kzip.$$/names" ]]; then
+        IFS='|' read -r bname vname zname < "$W/kzip.$$/names"
+    fi
     is_vendor_boot "$img" \
-        && die "${img##*/} is a vendor boot image - pick the kernel's boot image; a vendor_kernel_boot image with the same name comes along. Nothing was changed."
+        && die "$bname is a vendor boot image - pick the kernel's boot image; a vendor_kernel_boot image with the same name comes along. Nothing was changed."
     local n psize; n="$(stat -c %s "$img")"; psize="$(blockdev --getsize64 "$BOOTPART")"
-    (( n <= psize )) || die "${img##*/} is $n bytes, boot${SLOT} only $psize. Nothing was changed."
+    (( n <= psize )) || die "$bname is $n bytes, boot${SLOT} only $psize. Nothing was changed."
     local d="$W/newk"
-    boot_kernel_dir "$img" "$d" || die "${img##*/} isn't a boot image with a kernel. Nothing was changed."
+    boot_kernel_dir "$img" "$d" || die "$bname isn't a boot image with a kernel. Nothing was changed."
     local banner root; banner="$(kernel_banner_of "$d/kernel")"; root="$(kernel_root_of "$d/kernel")"
     rm -rf "$d"
-    [[ -n "$banner" ]] || die "can't read the kernel version in ${img##*/}. Nothing was changed."
+    [[ -n "$banner" ]] || die "can't read the kernel version in $bname. Nothing was changed."
     local newk oldk; newk="$(kmi_of "$banner")"; oldk="$(kmi)"
     [[ "$newk" == "$oldk" ]] \
-        || die "${img##*/} has a $newk kernel, slot ${SLOT#_} needs $oldk (its vendor modules wouldn't load). Nothing was changed."
+        || die "$bname has a $newk kernel, slot ${SLOT#_} needs $oldk (its vendor modules wouldn't load). Nothing was changed."
     say "- Kernel: $banner (KMI $newk$([[ "$root" != none ]] && echo ", $root built in"))"
     say "- Replaces: $(kscan_get BANNER)"
     local base="${img##*/}" vkb="" vn=0 vpart="/dev/block/by-name/vendor_kernel_boot${SLOT}"
     [[ "$base" == *boot* ]] && vkb="${img%/*}/${base/boot/vendor_kernel_boot}"
     if [[ -n "$vkb" && -f "$vkb" ]]; then
-        is_vendor_boot "$vkb" || die "${vkb##*/} isn't a vendor boot image. Nothing was changed."
+        is_vendor_boot "$vkb" || die "${vname:-${vkb##*/}} isn't a vendor boot image. Nothing was changed."
         [[ -b "$vpart" ]] || die "cannot find vendor_kernel_boot${SLOT}. Nothing was changed."
         vn="$(stat -c %s "$vkb")"
         (( vn <= $(blockdev --getsize64 "$vpart") )) \
-            || die "${vkb##*/} is $vn bytes, bigger than vendor_kernel_boot${SLOT}. Nothing was changed."
-        say "- With: ${vkb##*/} -> vendor_kernel_boot${SLOT}"
+            || die "${vname:-${vkb##*/}} is $vn bytes, bigger than vendor_kernel_boot${SLOT}. Nothing was changed."
+        say "- With: ${vname:-${vkb##*/}} -> vendor_kernel_boot${SLOT}"
     else
-        say "- Only boot${SLOT}: no vendor_kernel_boot image beside it${vkb:+ (looked for ${vkb##*/})}"
+        if [[ -n "$zname" ]]; then say "- Only boot${SLOT}: $zname has no vendor_kernel_boot image"
+        else say "- Only boot${SLOT}: no vendor_kernel_boot image beside it${vkb:+ (looked for ${vkb##*/})}"; fi
         vkb=""
     fi
     if [[ "$root" != none ]]; then
@@ -909,7 +920,7 @@ do_flash_kernel() {
         die "flash verification failed; original boot restored"
     fi
     rm -f "$W/readback.img" "$W"/kernel_scan"${SLOT}".*
-    say "- Verified: boot${SLOT} is now ${img##*/}"
+    say "- Verified: boot${SLOT} is now $bname"
     [[ -n "$vkb" ]] || return 0
     say "- Flashing vendor_kernel_boot${SLOT}"
     if ! dd if="$vkb" of="$vpart" bs=1M conv=fsync 2>/dev/null \
@@ -921,7 +932,7 @@ do_flash_kernel() {
         die "flash failed; original boot${SLOT} and vendor_kernel_boot${SLOT} restored"
     fi
     rm -f "$W/readback.img"
-    say "- Verified: vendor_kernel_boot${SLOT} is now ${vkb##*/}"
+    say "- Verified: vendor_kernel_boot${SLOT} is now ${vname:-${vkb##*/}}"
 }
 
 do_reroot_action() {
