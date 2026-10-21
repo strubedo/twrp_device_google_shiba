@@ -15,6 +15,8 @@ import os
 
 import cairosvg
 
+import devices
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "graphite", "images")
 STRETCH = 1.25                  # vertical stretch TWRP applies to non-retainaspect images
@@ -172,14 +174,25 @@ IMAGES = {
         '<text x="232" y="305" text-anchor="middle" font-family="Space Grotesk" '
         f'font-weight="600" font-size="168" letter-spacing="-4" fill="{TEXT}">TWRP</text>'
         f'<circle cx="452" cy="294" r="17" fill="{ACCENT}"/>')),
-    "splashteamwin": (708, 96, lambda: (
-        '<text x="354" y="62" text-anchor="middle" font-family="IBM Plex Sans" '
-        f'font-weight="500" font-size="40" letter-spacing="8" fill="#A1A1A1">PIXEL 8 · SHIBA</text>')),
 }
 # kernel chip (main page, second row): one plain chip per width bucket -
 # twrp_root.sh kernel_label measures "Kernel 6.1.162 · Stock" and picks one
 IMAGES.update({f"chip_kernel_{w}": (w, 64, (lambda w=w: rrect(0, 0, w, 64, 32, TRACK)))
                for w in range(240, 785, 16)})
+
+
+def splash_line(text):
+    return ('<text x="354" y="62" text-anchor="middle" font-family="IBM Plex Sans" '
+            f'font-weight="500" font-size="40" letter-spacing="8" fill="#A1A1A1">{text}</text>')
+
+
+# per phone in twrp_devices.conf (devices.py): the slot chip, sized for
+# "<model> · Slot a", and the splash line "PIXEL 8 · SHIBA" (mktheme shows the
+# one matching tw_device; chip_slot above is the chip for a phone without a row)
+for _cn, _model in devices.rows():
+    IMAGES[f"chip_slot_{_cn}"] = (devices.slot_chip_width(_model), 64,
+                                  (lambda w=devices.slot_chip_width(_model): rrect(0, 0, w, 64, 32, TRACK)))
+    IMAGES[f"splash_{_cn}"] = (708, 96, (lambda t=f"{_model} · {_cn}".upper(): splash_line(t)))
 NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 
 

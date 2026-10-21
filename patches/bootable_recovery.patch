@@ -1,5 +1,5 @@
 diff --git a/Android.mk b/Android.mk
-index 78b94308..dedc69ff 100755
+index 78b94308..dba9a317 100755
 --- a/Android.mk
 +++ b/Android.mk
 @@ -297,6 +297,9 @@ endif
@@ -48,7 +48,20 @@ index 78b94308..dedc69ff 100755
      LOCAL_CFLAGS += -DTW_INCLUDE_FBE_METADATA_DECRYPT
  
      ifeq ($(TARGET_HW_DISK_ENCRYPTION),true)
-@@ -494,8 +505,6 @@ TWRP_REQUIRED_MODULES += \
+@@ -392,6 +403,12 @@ endif
+ ifneq ($(TW_CUSTOM_CPU_TEMP_PATH),)
+ 	LOCAL_CFLAGS += -DTW_CUSTOM_CPU_TEMP_PATH=$(TW_CUSTOM_CPU_TEMP_PATH)
+ endif
++ifneq ($(TW_CUSTOM_CPU_TEMP_TYPE),)
++	LOCAL_CFLAGS += -DTW_CUSTOM_CPU_TEMP_TYPE=$(TW_CUSTOM_CPU_TEMP_TYPE)
++endif
++ifneq ($(TW_DEVICES_CONF),)
++	LOCAL_CFLAGS += -DTW_DEVICES_CONF=$(TW_DEVICES_CONF)
++endif
+ ifneq ($(TW_EXCLUDE_ENCRYPTED_BACKUPS),)
+     LOCAL_SHARED_LIBRARIES += libopenaes
+ else
+@@ -494,8 +511,6 @@ TWRP_REQUIRED_MODULES += \
      minadbd \
      twrpbu \
      adbd_system_api_recovery \
@@ -57,7 +70,7 @@ index 78b94308..dedc69ff 100755
      adbd_system_api_recovery \
      libsync.recovery \
      libandroidicu.recovery \
-@@ -509,6 +518,13 @@ TWRP_REQUIRED_MODULES += \
+@@ -509,6 +524,13 @@ TWRP_REQUIRED_MODULES += \
      libadbd.recovery \
      libadbd_services.recovery
  
@@ -98,10 +111,21 @@ index 003586de..6711c571 100755
  					ss << val;
  					return ss.str();
 diff --git a/data.cpp b/data.cpp
-index c19fe4c2..f3124d71 100644
+index c19fe4c2..213d4e45 100644
 --- a/data.cpp
 +++ b/data.cpp
-@@ -417,11 +417,14 @@ int DataManager::SetValue(const string& varName, const string& value, const int
+@@ -23,7 +23,10 @@
+ #include <fstream>
+ #include <cctype>
+ #include <cutils/properties.h>
++#include <android-base/properties.h>
+ #include <unistd.h>
++#include <dirent.h>
++#include <string.h>
+ 
+ #include "variables.h"
+ #include "data.hpp"
+@@ -417,11 +420,14 @@ int DataManager::SetValue(const string& varName, const string& value, const int
  		return -1;
  	}
  
@@ -116,7 +140,7 @@ index c19fe4c2..f3124d71 100644
  			mPersist.SetValue(varName, value);
  		} else {
  			mData.SetValue(varName, value);
-@@ -430,6 +433,12 @@ int DataManager::SetValue(const string& varName, const string& value, const int
+@@ -430,6 +436,12 @@ int DataManager::SetValue(const string& varName, const string& value, const int
  
  	pthread_mutex_unlock(&m_valuesLock);
  
@@ -129,7 +153,69 @@ index c19fe4c2..f3124d71 100644
  #ifndef TW_NO_SCREEN_TIMEOUT
  	if (varName == "tw_screen_timeout_secs") {
  		blankTimer.setTime(atoi(value.c_str()));
-@@ -712,6 +721,10 @@ void DataManager::SetDefaultValues()
+@@ -562,6 +574,33 @@ void DataManager::SetBackupFolder()
+ 	}
+ }
+ 
++#ifdef TW_CUSTOM_CPU_TEMP_TYPE
++// The thermal zone whose type is TW_CUSTOM_CPU_TEMP_TYPE: zone numbers depend
++// on driver probe order, so look it up by type. Until that zone exists (its
++// driver may come up after TWRP starts) read zone0 and look again next time.
++static string Cpu_Temp_File(void)
++{
++	static string found;
++	if (!found.empty())
++		return found;
++	DIR* d = opendir("/sys/class/thermal");
++	if (d) {
++		struct dirent* de;
++		while ((de = readdir(d)) != NULL) {
++			if (strncmp(de->d_name, "thermal_zone", 12) != 0)
++				continue;
++			string zone = string("/sys/class/thermal/") + de->d_name, type;
++			if (TWFunc::read_file(zone + "/type", type) == 0 && type == EXPAND(TW_CUSTOM_CPU_TEMP_TYPE)) {
++				found = zone + "/temp";
++				break;
++			}
++		}
++		closedir(d);
++	}
++	return found.empty() ? "/sys/class/thermal/thermal_zone0/temp" : found;
++}
++#endif
++
+ void DataManager::SetDefaultValues()
+ {
+ 	string str, path;
+@@ -579,6 +618,15 @@ void DataManager::SetDefaultValues()
+ 
+ 	mConst.SetValue(TW_VERSION_VAR, TW_VERSION_STR);
+ 
++	// This phone's codename + model from TW_DEVICES_CONF, for the splash and
++	// the main page's slot chip (set before gui_init draws the splash). No row:
++	// the bootloader's codename for both, the theme shows its generic chip.
++	string tw_device = TWFunc::Device_Info(0), tw_model = TWFunc::Device_Info(1);
++	if (tw_device.empty())
++		tw_device = tw_model = android::base::GetProperty("ro.boot.hardware", "");
++	mConst.SetValue("tw_device", tw_device);
++	mConst.SetValue("tw_device_model", tw_model);
++
+ #ifndef TW_NO_HAPTICS
+ 	mPersist.SetValue("tw_button_vibrate", "80");
+ 	mPersist.SetValue("tw_keyboard_vibrate", "40");
+@@ -650,8 +698,10 @@ void DataManager::SetDefaultValues()
+ 	mConst.SetValue("tw_no_cpu_temp", "1");
+ #else
+ 	string cpu_temp_file;
+-#ifdef TW_CUSTOM_CPU_TEMP_PATH
++#if defined(TW_CUSTOM_CPU_TEMP_PATH)
+ 	cpu_temp_file = EXPAND(TW_CUSTOM_CPU_TEMP_PATH);
++#elif defined(TW_CUSTOM_CPU_TEMP_TYPE)
++	cpu_temp_file = Cpu_Temp_File();
+ #else
+ 	cpu_temp_file = "/sys/class/thermal/thermal_zone0/temp";
+ #endif
+@@ -712,6 +762,10 @@ void DataManager::SetDefaultValues()
  	printf("TW_HAS_EDL_MODE := true\n");
  	mConst.SetValue(TW_EDL_MODE, "1");
  #endif
@@ -140,7 +226,7 @@ index c19fe4c2..f3124d71 100644
  #ifdef TW_INCLUDE_FASTBOOTD
  	printf("TW_INCLUDE_FASTBOOTD := true\n");
  	mConst.SetValue(TW_FASTBOOT_MODE, "1");
-@@ -764,6 +777,10 @@ void DataManager::SetDefaultValues()
+@@ -764,6 +818,10 @@ void DataManager::SetDefaultValues()
  	mPersist.SetValue(TW_TIME_ZONE_GUIOFFSET, "0");
  	mPersist.SetValue(TW_TIME_ZONE_GUIDST, "1");
  	mPersist.SetValue(TW_AUTO_REFLASHTWRP_VAR, "0");
@@ -151,7 +237,7 @@ index c19fe4c2..f3124d71 100644
  #ifdef TW_NO_FLASH_CURRENT_TWRP
  	mConst.SetValue("tw_no_flash_current_twrp", "1");
  #else
-@@ -906,6 +923,11 @@ void DataManager::SetDefaultValues()
+@@ -906,6 +964,11 @@ void DataManager::SetDefaultValues()
  #ifdef TW_HAS_MTP
  	mConst.SetValue("tw_has_mtp", "1");
  	mPersist.SetValue("tw_mtp_enabled", "1");
@@ -163,7 +249,23 @@ index c19fe4c2..f3124d71 100644
  	mPersist.SetValue("tw_mtp_debug", "0");
  #else
  	LOGINFO("TW_EXCLUDE_MTP := true\n");
-@@ -1028,7 +1050,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+@@ -1012,10 +1075,14 @@ int DataManager::GetMagicValue(const string& varName, string& value)
+ 		gettimeofday(&curTime, NULL);
+ 		if (curTime.tv_sec > cpuSecCheck)
+ 		{
+-#ifdef TW_CUSTOM_CPU_TEMP_PATH
++#if defined(TW_CUSTOM_CPU_TEMP_PATH)
+ 			cpu_temp_file = EXPAND(TW_CUSTOM_CPU_TEMP_PATH);
+ 			if (TWFunc::read_file(cpu_temp_file, results) != 0)
+ 				return -1;
++#elif defined(TW_CUSTOM_CPU_TEMP_TYPE)
++			cpu_temp_file = Cpu_Temp_File();
++			if (TWFunc::read_file(cpu_temp_file, results) != 0)
++				return -1;
+ #else
+ 			cpu_temp_file = "/sys/class/thermal/thermal_zone0/temp";
+ 			if (TWFunc::read_file(cpu_temp_file, results) != 0)
+@@ -1028,7 +1095,8 @@ int DataManager::GetMagicValue(const string& varName, string& value)
  				convert_temp = strtoul(results.c_str(), NULL, 0) / 10;
  			cpuSecCheck = curTime.tv_sec + 5;
  		}
@@ -1635,6 +1737,67 @@ index 104c3f66..78495189 100755
  			</text>
  
  			<text color="%text_color%">
+diff --git a/kernel_module_loader.cpp b/kernel_module_loader.cpp
+index 47ca4a30..ce0bc97d 100644
+--- a/kernel_module_loader.cpp
++++ b/kernel_module_loader.cpp
+@@ -2,7 +2,19 @@
+ #include "common.h"
+ #include "variables.h"
+ 
+-const std::vector<std::string> kernel_modules_requested = TWFunc::split_string(EXPAND(TW_LOAD_VENDOR_MODULES), ' ', true);
++// TW_LOAD_VENDOR_MODULES plus this phone's touch modules from TW_DEVICES_CONF,
++// so one build loads the right touchscreen driver on each device. Built on
++// first use (the module loader runs long after init set ro.boot.hardware).
++static const std::vector<std::string>& Requested_Modules() {
++	static const std::vector<std::string> modules = [] {
++		std::vector<std::string> list = TWFunc::split_string(EXPAND(TW_LOAD_VENDOR_MODULES), ' ', true);
++		for (auto&& m : TWFunc::split_string(TWFunc::Device_Info(2), ' ', true))
++			if (std::find(list.begin(), list.end(), m) == list.end())
++				list.push_back(m);
++		return list;
++	}();
++	return modules;
++}
+ 
+ BOOT_MODE KernelModuleLoader::Get_Boot_Mode() {
+ 	std::string cmdline;
+@@ -52,7 +64,7 @@ bool KernelModuleLoader::Load_Vendor_Modules() {
+ 
+ 	std::string rls(uts.release);
+ 	std::vector<std::string> release = TWFunc::split_string(rls, '.', true);
+-	int expected_module_count = kernel_modules_requested.size();
++	int expected_module_count = Requested_Modules().size();
+ 	module_dirs.push_back(base_dir + "/" + release[0] + "." + release[1]);
+ #ifndef TW_LOAD_VENDOR_MODULES_EXCLUDE_GKI
+ 	std::string gki = "/" + release[0] + "." + release[1] + "-gki";
+@@ -121,7 +133,7 @@ int KernelModuleLoader::Try_And_Load_Modules(std::string module_dir, bool vendor
+ 		TWFunc::Recursive_Mkdir(dest_module_dir);
+ 		Copy_Modules_To_Tmpfs(module_dir);
+ 		if (!Write_Module_List(dest_module_dir))
+-			return kernel_modules_requested.size();
++			return Requested_Modules().size();
+ 		if (!vendor_is_mounted && module_dir == "/vendor/lib/modules") {
+ 			module_dir = "/lib/modules";
+ 		}
+@@ -137,7 +149,7 @@ int KernelModuleLoader::Try_And_Load_Modules(std::string module_dir, bool vendor
+ }
+ 
+ std::vector<string> KernelModuleLoader::Skip_Loaded_Kernel_Modules() {
+-	std::vector<string> kernel_modules = kernel_modules_requested;
++	std::vector<string> kernel_modules = Requested_Modules();
+ 	std::vector<string> loaded_modules;
+ 	std::string kernel_module_file = "/proc/modules";
+ 	if (TWFunc::read_file(kernel_module_file, loaded_modules) < 0)
+@@ -172,7 +184,7 @@ bool KernelModuleLoader::Write_Module_List(std::string module_dir) {
+ 			std::string kernel_module = de->d_name;
+ 			if (de->d_type == DT_REG) {
+ 				if (android::base::EndsWith(kernel_module, ".ko")) {
+-					for (auto&& requested:kernel_modules_requested) {
++					for (auto&& requested:Requested_Modules()) {
+ 						if (kernel_module == requested) {
+ 							kernel_modules.push_back(kernel_module);
+ 							continue;
 diff --git a/libtar/Android.mk b/libtar/Android.mk
 index c3bb691f..008125a5 100755
 --- a/libtar/Android.mk
@@ -1840,6 +2003,45 @@ index 3e10eb34..9ee80a62 100644
          gr_backend = open_drm();
          gr_draw = gr_backend->init(gr_backend);
          if (gr_draw)
+diff --git a/minuitwrp/graphics_fbdev.cpp b/minuitwrp/graphics_fbdev.cpp
+index 499e0eaf..aab8154b 100644
+--- a/minuitwrp/graphics_fbdev.cpp
++++ b/minuitwrp/graphics_fbdev.cpp
+@@ -61,7 +61,9 @@ minui_backend* open_fbdev() {
+ 
+ static void fbdev_blank(minui_backend* backend __unused, bool blank)
+ {
+-#if defined(TW_NO_SCREEN_BLANK) && defined(TW_BRIGHTNESS_PATH) && defined(TW_MAX_BRIGHTNESS)
++// soong passes -DTW_MAX_BRIGHTNESS= (empty) when the board leaves it unset and
++// TWRP reads max_brightness from sysfs: treat empty as unset
++#if defined(TW_NO_SCREEN_BLANK) && defined(TW_BRIGHTNESS_PATH) && defined(TW_MAX_BRIGHTNESS) && (TW_MAX_BRIGHTNESS + 0 > 0)
+     int fd;
+     char brightness[4];
+     snprintf(brightness, 4, "%03d", TW_MAX_BRIGHTNESS/2);
+@@ -90,6 +92,8 @@ static void fbdev_blank(minui_backend* backend __unused, bool blank)
+     ret = ioctl(fb_fd, FBIOBLANK, blank ? FB_BLANK_POWERDOWN : FB_BLANK_UNBLANK);
+     if (ret < 0)
+         perror("ioctl(): blank");
++#else
++    (void)blank;        // TW_NO_SCREEN_BLANK and no brightness to set: nothing to do
+ #endif
+ #endif
+ }
+diff --git a/minuitwrp/graphics_overlay.cpp b/minuitwrp/graphics_overlay.cpp
+index a53faa86..b29f37c2 100644
+--- a/minuitwrp/graphics_overlay.cpp
++++ b/minuitwrp/graphics_overlay.cpp
+@@ -150,7 +150,9 @@ minui_backend* open_overlay() {
+ 
+ static void overlay_blank(minui_backend* backend __unused, bool blank)
+ {
+-#if defined(TW_NO_SCREEN_BLANK) && defined(TW_BRIGHTNESS_PATH) && defined(TW_MAX_BRIGHTNESS)
++// soong passes -DTW_MAX_BRIGHTNESS= (empty) when the board leaves it unset and
++// TWRP reads max_brightness from sysfs: treat empty as unset
++#if defined(TW_NO_SCREEN_BLANK) && defined(TW_BRIGHTNESS_PATH) && defined(TW_MAX_BRIGHTNESS) && (TW_MAX_BRIGHTNESS + 0 > 0)
+     int fd;
+     char brightness[4];
+     snprintf(brightness, 4, "%03d", TW_MAX_BRIGHTNESS/2);
 diff --git a/minuitwrp/resources.cpp b/minuitwrp/resources.cpp
 index 0508eb5a..42e3131c 100644
 --- a/minuitwrp/resources.cpp
@@ -2365,7 +2567,7 @@ index 8c686edd..0ebee7f1 100755
  	string Get_Active_Slot_Display();                                         // Returns active slot A or B for display purposes
  	string Get_Android_Root_Path();                                           // Returns path of ANDROID_ROOT environment variable
 diff --git a/twrp-functions.cpp b/twrp-functions.cpp
-index cccb1e78..f3037425 100644
+index cccb1e78..b43710fe 100644
 --- a/twrp-functions.cpp
 +++ b/twrp-functions.cpp
 @@ -483,6 +483,14 @@ void TWFunc::GUI_Operation_Text(string Read_Value, string Partition_Name, string
@@ -2448,10 +2650,42 @@ index cccb1e78..f3037425 100644
  	string sdkverstr = System_Property_Get("ro.build.version.sdk");
  	int sdkver = 0;
  	if (!sdkverstr.empty()) {
-@@ -1655,4 +1691,71 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
+@@ -1655,4 +1691,103 @@ bool TWFunc::Get_Service_From_Manifest(std::string basepath, std::string service
  	return ret;
  }
  
++// The phone's row in TW_DEVICES_CONF ("codename|model|touch modules"), found
++// by androidboot.hardware - in recovery ro.product.device is the build's own.
++// Read once; "" for every field when the file or the row is missing.
++string TWFunc::Device_Info(size_t field) {
++#ifdef TW_DEVICES_CONF
++	static vector<string> row;
++	static bool loaded = false;
++	if (!loaded) {
++		loaded = true;
++		string hw = android::base::GetProperty("ro.boot.hardware", "");
++		vector<string> lines;
++		if (!hw.empty() && read_file(EXPAND(TW_DEVICES_CONF), lines) == 0) {
++			for (auto&& line : lines) {
++				if (line.empty() || line[0] == '#')
++					continue;
++				vector<string> f = split_string(line, '|', false);
++				if (f.size() == 3 && f[0] == hw) {
++					row = f;
++					break;
++				}
++			}
++		}
++		if (row.empty())
++			LOGINFO("Device_Info: no row for '%s' in %s\n", hw.c_str(), EXPAND(TW_DEVICES_CONF));
++	}
++	return field < row.size() ? row[field] : "";
++#else
++	(void)field;
++	return "";
++#endif
++}
++
 +// shiba: root state of the active slot's init_boot for the main page chip.
 +// twrp_root.sh status prints STOCK | KERNELSU | MAGISK | UNKNOWN (~0.1 s).
 +// Called at startup and after every GUI operation (root install/remove).
@@ -2521,7 +2755,7 @@ index cccb1e78..f3037425 100644
 +
  #endif // ndef BUILD_TWRPTAR_MAIN
 diff --git a/twrp-functions.hpp b/twrp-functions.hpp
-index 203638a6..3228dff8 100644
+index 203638a6..a80b200b 100644
 --- a/twrp-functions.hpp
 +++ b/twrp-functions.hpp
 @@ -42,7 +42,8 @@ typedef enum
@@ -2534,11 +2768,12 @@ index 203638a6..3228dff8 100644
  } RebootCommand;
  
  enum Archive_Type {
-@@ -60,6 +61,7 @@ public:
+@@ -60,6 +61,8 @@ public:
  	static string Get_Path(const string& Path);                                 // Trims everything after the last / in the string
  	static string Get_Filename(const string& Path);                             // Trims the path off of a filename
  
 +	static void Update_Root_State();                                            // shiba: tw_root_state = twrp_root.sh status (main page chip)
++	static string Device_Info(size_t field);                                    // TW_DEVICES_CONF row for ro.boot.hardware: 0 codename, 1 model, 2 touch modules ("" = no row)
  	static int Exec_Cmd(const string& cmd, string &result, bool combine_stderr);     //execute a command and return the result as a string by reference, set combined_stderror to add stderr
  	static int Exec_Cmd(const string& cmd, bool Show_Errors = true);            //execute a command, displays an error to the GUI if Show_Errors is true, Show_Errors is true by default
  	static int Wait_For_Child(pid_t pid, int *status, string Child_Name, bool Show_Errors = true); // Waits for pid to exit and checks exit status, displays an error to the GUI if Show_Errors is true which is the default

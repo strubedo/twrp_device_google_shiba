@@ -82,6 +82,9 @@
 		<image name="chip_kernel_752" filename="chip_kernel_752" retainaspect="1"/>
 		<image name="chip_kernel_768" filename="chip_kernel_768" retainaspect="1"/>
 		<image name="chip_kernel_784" filename="chip_kernel_784" retainaspect="1"/>
+		<image name="chip_slot_shiba" filename="chip_slot_shiba" retainaspect="1"/>
+		<image name="chip_slot_husky" filename="chip_slot_husky" retainaspect="1"/>
+		<image name="chip_slot_akita" filename="chip_slot_akita" retainaspect="1"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>

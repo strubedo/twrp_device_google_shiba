@@ -11,7 +11,9 @@
 	<resources>
 		<font name="font_l" filename="IBMPlexSans-Regular.ttf" size="34"/>
 		<image name="splashlogo" filename="splashlogo" retainaspect="1"/>
-		<image name="splashteamwin" filename="splashteamwin" retainaspect="1"/>
+		<image name="splash_shiba" filename="splash_shiba" retainaspect="1"/>
+		<image name="splash_husky" filename="splash_husky" retainaspect="1"/>
+		<image name="splash_akita" filename="splash_akita" retainaspect="1"/>
 	</resources>
 
 	<variables>
@@ -36,7 +38,18 @@
 			</image>
 
 			<image>
-				<image resource="splashteamwin"/>
+				<conditions><condition var1="tw_device" var2="shiba"/></conditions>
+				<image resource="splash_shiba"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="husky"/></conditions>
+				<image resource="splash_husky"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="akita"/></conditions>
+				<image resource="splash_akita"/>
 				<placement x="540" y="1080" placement="4"/>
 			</image>
 

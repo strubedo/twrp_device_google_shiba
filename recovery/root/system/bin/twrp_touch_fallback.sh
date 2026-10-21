@@ -8,6 +8,10 @@
 # exact match for its kernel, so that stays first. This script only acts if
 # the touch driver is still not loaded.
 #
+# Which modules: this phone's row in /system/etc/twrp_devices.conf (by
+# androidboot.hardware), loaded in that order - the last is the driver itself
+# (Pixel 8 / 8a goodix_brl_touch, 8 Pro ftm5).
+#
 # Sets: /system/etc/touch_fallback/<kernel release>/ (heatmap,
 # goog_touch_interface, goodix_brl_touch) from Google's factory images, one per
 # kernel build. Exact `uname -r` match first; else the newest set of the same
@@ -21,8 +25,17 @@
 LOG=/tmp/twrp_touch.log
 log() { echo "$(date +%T) $*" >> "$LOG"; }
 BASE=/system/etc/touch_fallback
+DEVICES=/system/etc/twrp_devices.conf
 
-if grep -q '^goodix_brl_touch ' /proc/modules; then
+hw="$(getprop ro.boot.hardware)"
+mods="$(grep -v '^#' "$DEVICES" 2>/dev/null | awk -F'|' -v d="$hw" '$1 == d { print $3; exit }' | sed 's/\.ko//g')"
+if [ -z "$mods" ]; then
+    log "no touch modules for '$hw' in $DEVICES"
+    exit 0
+fi
+driver="${mods##* }"
+
+if grep -q "^$driver " /proc/modules; then
     log "touch driver already loaded - nothing to do"
     exit 0
 fi
@@ -67,7 +80,7 @@ if [ -z "$dir" ] || [ ! -d "$dir" ]; then
     exit 0
 fi
 
-for m in heatmap goog_touch_interface goodix_brl_touch; do
+for m in $mods; do
     grep -q "^$m " /proc/modules && continue
     if insmod "$dir/$m.ko" 2>>"$LOG"; then
         log "loaded $m ($(basename "$dir"))"

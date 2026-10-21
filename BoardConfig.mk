@@ -113,7 +113,8 @@ TW_THEME := portrait_hdpi
 # `+` when there are changes since the tag). Plain `m` builds show shiba-dev.
 TW_DEVICE_VERSION := $(if $(SHIBA_VERSION),$(SHIBA_VERSION),shiba-dev)
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
-TW_MAX_BRIGHTNESS := 3827
+# No TW_MAX_BRIGHTNESS: TWRP reads the panel's max_brightness (3827 on the
+# bigsurf Pixel 8 panel, 4095 on the shoreline Pixel 8 panel, 8 Pro and 8a).
 TW_DEFAULT_BRIGHTNESS := 1500
 TW_CUSTOM_BATTERY_PATH := "/sys/class/power_supply/battery"
 # Status-bar temperature: thermal_zone0 (TWRP's default) is the BIG cores'
@@ -208,10 +209,12 @@ TW_NO_HAPTICS := true
 # guard that falls back to adb if MTP isn't ready in 10 s.
 # (Previously excluded: without that rule, enabling MTP unbound the gadget.)
 
-# Touch: Goodix BRL chain from vendor_dlkm (first stage already has
-# touch_offload, touch_bus_negotiator, systrace).
+# Touch: each phone's driver chain (Pixel 8 / 8a Goodix BRL, 8 Pro ftm5) is its
+# row in twrp_devices.conf, which TWRP adds to the modules below (first stage
+# already has touch_offload, touch_bus_negotiator, systrace).
 # Primary source: ramdisk copies in /lib/modules/5.15 (checked because of
 # TW_LOAD_VENDOR_BOOT_MODULES). Fallback: the mounted vendor_dlkm, which always
 # matches the installed kernel.
-TW_LOAD_VENDOR_MODULES := "heatmap.ko goog_touch_interface.ko goodix_brl_touch.ko otg_host_ready.ko"
+TW_DEVICES_CONF := /system/etc/twrp_devices.conf
+TW_LOAD_VENDOR_MODULES := "otg_host_ready.ko"
 TW_LOAD_VENDOR_BOOT_MODULES := true

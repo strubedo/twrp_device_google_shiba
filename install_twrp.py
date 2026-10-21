@@ -34,7 +34,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "vbgraft"))
 
-DEVICE = "shiba"
+# Phones this installer has been TESTED on: codename (ro.product.device) -> name.
+# The Pixel 8 Pro (husky) and 8a (akita) are in this TWRP's device table
+# (twrp_devices.conf) - add them here after a tester confirms them.
+TESTED_DEVICES = {"shiba": "Pixel 8"}
 PARTITION_SIZE = 64 * 1024 * 1024      # vendor_boot_a/_b on shiba; re-read in fastboot
 MAX_FRAGMENT = 46_000_000              # largest recovery fragment proven to boot (+~1 MB);
                                        # a 55.4 MB one dropped to fastboot (see build.sh)
@@ -134,10 +137,10 @@ def from_root(phone, slot):
     return data
 
 
-def find_factory_zip(build_id, explicit):
+def find_factory_zip(device, build_id, explicit):
     if explicit:
         return explicit
-    pattern = "%s-%s-factory-*.zip" % (DEVICE, build_id.lower())
+    pattern = "%s-%s-factory-*.zip" % (device, build_id.lower())
     for d in (os.getcwd(), os.path.expanduser("~/Downloads"), HERE):
         hits = sorted(glob.glob(os.path.join(d, pattern)))
         if hits:
@@ -145,21 +148,21 @@ def find_factory_zip(build_id, explicit):
     return None
 
 
-def from_factory(zip_path, build_id):
+def from_factory(device, zip_path, build_id):
     """vendor_boot.img from the factory zip for exactly this build."""
     say("- Factory image: %s" % zip_path)
     try:
         outer = zipfile.ZipFile(zip_path)
     except (OSError, zipfile.BadZipFile) as e:
         fail("cannot open %s: %s" % (zip_path, e))
-    want = "image-%s-%s.zip" % (DEVICE, build_id.lower())
-    inner_names = [n for n in outer.namelist() if os.path.basename(n).startswith("image-%s-" % DEVICE)]
+    want = "image-%s-%s.zip" % (device, build_id.lower())
+    inner_names = [n for n in outer.namelist() if os.path.basename(n).startswith("image-%s-" % device)]
     if not inner_names:
-        fail("%s is not a %s factory image (no image-%s-*.zip inside)" % (zip_path, DEVICE, DEVICE))
+        fail("%s is not a %s factory image (no image-%s-*.zip inside)" % (zip_path, device, device))
     inner_name = inner_names[0]
     if os.path.basename(inner_name) != want:
         fail("factory image is for %s, but the phone runs %s - download the factory image for %s"
-             % (os.path.basename(inner_name)[len("image-%s-" % DEVICE):-4].upper(), build_id, build_id))
+             % (os.path.basename(inner_name)[len("image-%s-" % device):-4].upper(), build_id, build_id))
     info = outer.getinfo(inner_name)
     if info.compress_type == zipfile.ZIP_STORED:
         # read straight through the outer zip (seekable when stored)
@@ -222,8 +225,9 @@ def main():
     build_id = phone.prop("ro.build.id")
     slot = phone.prop("ro.boot.slot_suffix")
     say("- %s, build %s, slot %s" % (device, build_id, slot))
-    if device != DEVICE:
-        fail("this installer is for the Pixel 8 (%s), not '%s'" % (DEVICE, device))
+    if device not in TESTED_DEVICES:
+        fail("this installer is for the %s, not '%s'"
+             % (" / ".join("%s (%s)" % (n, c) for c, n in TESTED_DEVICES.items()), device))
     if slot not in ("_a", "_b") or not build_id:
         fail("could not read the build ID / slot from the phone")
 
@@ -232,13 +236,13 @@ def main():
     data = None if args.no_root else from_root(phone, slot)
     source = "phone (root)"
     if data is None:
-        z = find_factory_zip(build_id, args.factory)
+        z = find_factory_zip(device, build_id, args.factory)
         if not z:
             fail("no root, and no factory image for %s found.\n"
                  "Download it from https://developers.google.com/android/images#shiba\n"
                  "(the %s row) and run again with --factory <zip>, or put it in ~/Downloads."
                  % (build_id, build_id))
-        data = from_factory(z, build_id)
+        data = from_factory(device, z, build_id)
         source = "factory image " + os.path.basename(z)
     if len(data) > PARTITION_SIZE:
         fail("vendor_boot is %d bytes, larger than the partition" % len(data))
@@ -287,8 +291,8 @@ def main():
     size = phone.getvar("partition-size:vendor_boot" + slot)
     say("- fastboot: product %s, unlocked %s, current slot %s, vendor_boot%s %s"
         % (product, unlocked, cur, slot, size))
-    if product != DEVICE:
-        fail("fastboot reports product '%s', not %s" % (product, DEVICE))
+    if product != device:
+        fail("fastboot reports product '%s', not %s" % (product, device))
     if unlocked != "yes":
         fail("the bootloader is locked - unlock it first (this wipes the phone)")
     if "_" + cur != slot:

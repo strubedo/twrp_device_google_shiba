@@ -23,9 +23,16 @@ ui_print " TWRP for Google Pixel 8 (shiba) - installer"
 ui_print "*********************************************"
 
 # --- the phone ---------------------------------------------------------------
-dev="$(getprop ro.product.device)"
-[ "$dev" = shiba ] || [ "$(getprop ro.build.product)" = shiba ] \
-    || die "this is for the Pixel 8 (shiba), not '$dev'"
+# By the bootloader's codename (androidboot.hardware): ro.product.device is
+# the build's own in any recovery - in this TWRP always "shiba", on every phone.
+# Tested devices only: the Pixel 8 Pro (husky) and 8a (akita) are in TWRP's
+# device table (twrp_devices.conf) - add them after a tester confirms them.
+TESTED_DEVICES="shiba"
+dev="$(getprop ro.boot.hardware)"
+case " $TESTED_DEVICES " in
+    *" $dev "*) ;;
+    *) die "this is for the Pixel 8 (shiba), not '${dev:-unknown}'" ;;
+esac
 CUR="$(getprop ro.boot.slot_suffix)"
 case "$CUR" in _a) OTHER=_b ;; _b) OTHER=_a ;; *) die "unknown slot '$CUR'" ;; esac
 

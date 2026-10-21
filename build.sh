@@ -133,7 +133,10 @@ gate "bootstrap/linker64 symlink in fragment" \
      "lz4 -dc $FRAG | cpio -tv 2>/dev/null | grep 'bootstrap/linker64 -> ../linker64' >/dev/null"
 gate "fastbootd present"                          "test -x $R/system/bin/fastbootd"
 gate "bash present"                               "test -x $R/system/bin/bash"
-gate "touch modules requested (from firmware vendor_dlkm)" "/bin/grep -a -q 'goodix_brl_touch.ko' $R/system/bin/recovery && ! test -e $R/lib/modules/5.15/goodix_brl_touch.ko"
+# Touch modules come from each phone's row in twrp_devices.conf (TWRP adds them
+# to TW_LOAD_VENDOR_MODULES by androidboot.hardware) and load from vendor_dlkm.
+gate "touch modules per device (twrp_devices.conf, from vendor_dlkm)" "grep -q '^shiba|Pixel 8|.* goodix_brl_touch\.ko$' $R/system/etc/twrp_devices.conf && /bin/grep -a -q /system/etc/twrp_devices.conf $R/system/bin/recovery && ! test -e $R/lib/modules/5.15/goodix_brl_touch.ko"
+gate "max brightness read from the panel (no TW_MAX_BRIGHTNESS)" "! grep -q '^TW_MAX_BRIGHTNESS' $DEVICE_DIR/BoardConfig.mk && /bin/grep -a -q 'Got max brightness' $R/system/bin/recovery"
 # The bootloader can't load an oversized vendor ramdisk: a 55.4 MB recovery
 # fragment (113 MB unpacked) dropped to fastboot; 45.0 MB (102 MB) boots. Never
 # build past the largest size proven to boot (+~1 MB); raise only after proving more.
@@ -182,7 +185,21 @@ gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to en
 gate "encryption: script, lptool, vbgraft --fstab-set, shims, pages, no DFE-NEO" "test -x $R/system/bin/twrp_encryption.sh && test -x $R/system/bin/lptool && /bin/grep -a -q -- '--fstab-set' $R/system/bin/vbgraft && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml && ! test -e $R/system/etc/twrp_dfe"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
-gate "touch fallback: hook, script, 5.15 + 6.1 sets" "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && ls $R/system/etc/touch_fallback/5.15.*/goodix_brl_touch.ko >/dev/null 2>&1 && ls $R/system/etc/touch_fallback/6.1.*/goodix_brl_touch.ko >/dev/null 2>&1"
+gate "touch fallback: hook, script, 5.15 + 6.1 sets" "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && grep -q twrp_devices.conf $R/system/bin/twrp_touch_fallback.sh && ls $R/system/etc/touch_fallback/5.15.*/goodix_brl_touch.ko >/dev/null 2>&1 && ls $R/system/etc/touch_fallback/6.1.*/goodix_brl_touch.ko >/dev/null 2>&1"
+# every row of the device table has its own slot chip + splash line, and TWRP
+# sets the variables that pick them (data.cpp: tw_device, tw_device_model)
+device_theme_ok() {
+    local cn n=0
+    for cn in $(grep -v '^#' "$R/system/etc/twrp_devices.conf" | cut -d'|' -f1); do
+        test -f "$R/twres/images/chip_slot_$cn.png" && test -f "$R/twres/images/splash_$cn.png" \
+            && grep -q "resource=\"chip_slot_$cn\"" "$R/twres/portrait.xml" \
+            && grep -q "resource=\"splash_$cn\"" "$R/twres/splash.xml" || return 1
+        n=$((n + 1))
+    done
+    [ "$n" -ge 1 ] && grep -q '%tw_device_model%' "$R/twres/portrait.xml" \
+        && /bin/grep -a -q tw_device_model "$R/system/bin/recovery"
+}
+gate "theme: slot chip + splash line per device" "device_theme_ok"
 gate "fallback decryption: AOSP KeyMint + Gatekeeper, Weaver daemon" "test -f $R/system/bin/android.hardware.security.keymint-service.rust.trusty && test -f $R/system/bin/android.hardware.gatekeeper-service.trusty && test -f $R/system/bin/recovery-tensor-daemon && grep -q 'service twrp.fb.weaver' $R/init.recovery.zuma.rc"
 gate "neutral build identity (no user/host name)" "grep -q -x 'ro.build.user=shiba-twrp' $R/prop.default && grep -q -x 'ro.build.host=build' $R/prop.default && ! grep -r -q -F '$(id -un)' $R/prop.default && ! grep -r -q -F '$(hostname)' $R/prop.default"
 gate "KernelSU install checks KMI support first"  "grep -q 'boot-info supported-kmis' $R/system/bin/twrp_root.sh"

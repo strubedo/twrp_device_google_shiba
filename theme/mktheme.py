@@ -21,6 +21,8 @@ import shutil
 import sys
 import zipfile
 
+import devices
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(HERE, "base")
 GRAPHITE = os.path.join(HERE, "graphite")
@@ -53,7 +55,13 @@ FRAME_IMAGES = {"navbar_bg": False, "chip_slot": True, "chip_decrypted": True,
                 "main_button_accent": False}             # Install = primary (blue) tile
 KERNEL_CHIP_WIDTHS = range(240, 785, 16)                  # chip_kernel_W (twrp_root.sh kernel_label)
 FRAME_IMAGES.update({f"chip_kernel_{w}": True for w in KERNEL_CHIP_WIDTHS})
-NEW_IMAGES = set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES) | {"tile_install"}
+# per phone in twrp_devices.conf (devices.py): slot chip on the main page,
+# model line on the splash (declared in splash.xml by build_splash)
+DEVICES = devices.rows()
+FRAME_IMAGES.update({f"chip_slot_{cn}": True for cn, _ in DEVICES})
+SPLASH_IMAGES = [f"splash_{cn}" for cn, _ in DEVICES]
+NEW_IMAGES = (set(TILE_ICONS.values()) | set(PIN_IMAGES) | set(FRAME_IMAGES) | set(SPLASH_IMAGES)
+              | {"tile_install"})
 # primary tile style: blue image, black label (button parts resolve node-first,
 # then style - pages.cpp FindNode - so only the Install button uses it)
 ACCENT_STYLE = '''
@@ -193,56 +201,70 @@ MAIN_HEADER = '''<text color="%text_color%">
 				<placement x="36" y="84"/>
 				<text>TWRP</text>
 			</text>
+'''
 
+# Slot chip: "Pixel 8 · Slot a" - the model is tw_device_model (TWRP, from
+# twrp_devices.conf), so each phone has its own chip image sized for its name
+# (devices.py) and everything after it on the row moves by the difference:
+# the data + root chips below are placed once per phone. A phone without a
+# row (tw_device = its codename) gets the Pixel 8 sized chip_slot.
+_SLOT_CHIPS = [   # device conditions, slot chip image, x shift of the rest of the row
+    (f'<condition var1="tw_device" var2="{cn}"/>', f"chip_slot_{cn}",
+     devices.slot_chip_width(model) - devices.SLOT_CHIP_WIDTH) for cn, model in DEVICES
+] + [("".join(f'<condition var1="tw_device" op="!=" var2="{cn}"/>' for cn, _ in DEVICES), "chip_slot", 0)]
+for _devc, _img, _ in _SLOT_CHIPS:
+    MAIN_HEADER += f'''
 			<image>
-				<image resource="chip_slot"/>
+				<conditions>{_devc}</conditions>
+				<image resource="{_img}"/>
 				<placement x="36" y="196"/>
 			</image>
-			<text color="#CFCFCF">
+'''
+MAIN_HEADER += '''			<text color="#CFCFCF">
 				<font resource="font_s"/>
 				<placement x="64" y="204"/>
-				<text>Pixel 8 \u00b7 Slot %tw_active_slot%</text>
+				<text>%tw_device_model% · Slot %tw_active_slot%</text>
 			</text>
-''' + "".join(f'''
-			<image>
-				<conditions>{conds}</conditions>
-				<image resource="{img}"/>
-				<placement x="322" y="196"/>
-			</image>
-			<text color="#CFCFCF">
-				<conditions>{conds}</conditions>
-				<font resource="font_s"/>
-				<placement x="{tx}" y="204"/>
-				<text>{label}</text>
-			</text>
-''' for img, tx, label, conds in [
-    ("chip_plain", 350, "Unencrypted",
-     '<condition var1="tw_is_fbe" var2="0"/>'),
-    ("chip_decrypted", 374, "Decrypted",
-     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>'),
-    ("chip_locked", 374, "Locked",
-     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>'),
-])
-MAIN_HEADER = MAIN_HEADER.replace("\\u00b7", "\u00b7")
+'''
 
-# Root chip (tw_root_state, set by TWRP from twrp_root.sh status) after the
-# data chip - whose width depends on its state, so one placement per pair.
-# It also shows the running slot's Android version (tw_android_ver, from
-# twrp_root.sh android): "KernelSU · Android 15". Widths in mkimages.py.
-_DATA_CHIPS = [   # data chip conditions, x where that chip ends (322 + width)
-    ('<condition var1="tw_is_fbe" var2="0"/>', 322 + 247),
-    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>', 322 + 233),
-    ('<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 322 + 185),
+# Data chip after the slot chip, then the root chip (tw_root_state, set by
+# TWRP from twrp_root.sh status) - whose x depends on the data chip's width,
+# so one placement per pair. The root chip also shows the running slot's
+# Android version (tw_android_ver, from twrp_root.sh android): "KernelSU ·
+# Android 15". Widths in mkimages.py. On the Pixel 8 the data chip is at 322.
+_DATA_CHIPS = [   # image, text x, label, conditions, chip width
+    ("chip_plain", 350, "Unencrypted",
+     '<condition var1="tw_is_fbe" var2="0"/>', 247),
+    ("chip_decrypted", 374, "Decrypted",
+     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/>', 233),
+    ("chip_locked", 374, "Locked",
+     '<condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/>', 185),
 ]
 _ROOT_CHIPS = [   # image, label, text offset (after dot 52, plain 28), tw_root_state
-    ("chip_ksu", "%tw_root_name% \u00b7 %tw_android_label%", 52, "KERNELSU"),   # KernelSU / KSU-Next / SukiSU / APatch
-    ("chip_magisk", "Magisk \u00b7 %tw_android_label%", 52, "MAGISK"),
-    ("chip_noroot", "Not rooted \u00b7 %tw_android_label%", 28, "STOCK"),
+    ("chip_ksu", "%tw_root_name% · %tw_android_label%", 52, "KERNELSU"),   # KernelSU / KSU-Next / SukiSU / APatch
+    ("chip_magisk", "Magisk · %tw_android_label%", 52, "MAGISK"),
+    ("chip_noroot", "Not rooted · %tw_android_label%", 28, "STOCK"),
 ]
-for _dc, _end in _DATA_CHIPS:
-    for _img, _label, _off, _val in _ROOT_CHIPS:
-        _c = _dc + f'<condition var1="tw_root_state" var2="{_val}"/>'
+for _devc, _, _dx in _SLOT_CHIPS:
+    for _img, _tx, _label, _dc, _w in _DATA_CHIPS:
         MAIN_HEADER += f'''
+			<image>
+				<conditions>{_devc}{_dc}</conditions>
+				<image resource="{_img}"/>
+				<placement x="{322 + _dx}" y="196"/>
+			</image>
+			<text color="#CFCFCF">
+				<conditions>{_devc}{_dc}</conditions>
+				<font resource="font_s"/>
+				<placement x="{_tx + _dx}" y="204"/>
+				<text>{_label}</text>
+			</text>
+'''
+    for _, _, _, _dc, _w in _DATA_CHIPS:
+        _end = 322 + _dx + _w
+        for _img, _label, _off, _val in _ROOT_CHIPS:
+            _c = _devc + _dc + f'<condition var1="tw_root_state" var2="{_val}"/>'
+            MAIN_HEADER += f'''
 			<image>
 				<conditions>{_c}</conditions>
 				<image resource="{_img}"/>
@@ -468,9 +490,11 @@ def patch_page_template(xml):
 
 
 def build_splash():
-    """Graphite splash: black, 'TWRP.' wordmark centred, PIXEL 8 · SHIBA below,
-    'Unofficial build · <version>' at the bottom (images from mkimages.py).
-    Splash loads before the language files, so its own font setting sticks."""
+    """Graphite splash: black, 'TWRP.' wordmark centred, the phone's line below
+    (PIXEL 8 · SHIBA - one splash_<codename> image per twrp_devices.conf row,
+    shown by tw_device; none for a phone without a row), 'Unofficial build ·
+    <version>' at the bottom (images from mkimages.py). Splash loads before the
+    language files, so its own font setting sticks."""
     xml = open(os.path.join(BASE, "splash.xml"), encoding="utf-8").read()
     subs = [
         ('<variable name="background_color" value="#222222"/>', '<variable name="background_color" value="#000000"/>'),
@@ -487,6 +511,19 @@ def build_splash():
         if xml.count(old) != 1:
             fail(f"splash.xml: expected 1x {old}")
         xml = xml.replace(old, new)
+    # TeamWin's "splashteamwin" line -> one image per phone, same place
+    res = '<image name="splashteamwin" filename="splashteamwin" retainaspect="1"/>'
+    img = ('\t\t\t<image>\n\t\t\t\t<image resource="splashteamwin"/>\n'
+           '\t\t\t\t<placement x="540" y="1080" placement="4"/>\n\t\t\t</image>\n')
+    for old in (res, img):
+        if xml.count(old) != 1:
+            fail(f"splash.xml: expected 1x {old!r}")
+    xml = xml.replace(res, "\n\t\t".join(f'<image name="{i}" filename="{i}" retainaspect="1"/>'
+                                          for i in SPLASH_IMAGES))
+    xml = xml.replace(img, "".join(
+        f'\t\t\t<image>\n\t\t\t\t<conditions><condition var1="tw_device" var2="{cn}"/></conditions>\n'
+        f'\t\t\t\t<image resource="splash_{cn}"/>\n'
+        '\t\t\t\t<placement x="540" y="1080" placement="4"/>\n\t\t\t</image>\n' for cn, _ in DEVICES))
     return xml
 
 

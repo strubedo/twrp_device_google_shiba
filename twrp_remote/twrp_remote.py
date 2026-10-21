@@ -130,6 +130,8 @@ REBOOT_STANDARD = [("System", "system"), ("Recovery", "recovery"), ("Bootloader"
                    ("Fastboot", "fastboot"), ("Power off", "poweroff")]
 DEVICES = {
     "shiba": ("Pixel 8", REBOOT_STANDARD),
+    "husky": ("Pixel 8 Pro", REBOOT_STANDARD),
+    "akita": ("Pixel 8a", REBOOT_STANDARD),
     # no fastbootd in this TWRP; ADNL = Amlogic USB burning mode (reboot,update)
     "yoc": ("onn 4K Google TV", [("System", "system"), ("Recovery", "recovery"),
                                  ("Bootloader", "bootloader"), ("ADNL", "update"),
@@ -323,9 +325,15 @@ class Remote:
         window and swap in that device's Reboot menu (on the Tk thread)."""
         try:
             dev = run([self.adb, "shell", "getprop", "ro.product.device"], timeout=5).stdout.strip()
+            # in a recovery ro.product.device is the build's own (the Pixel TWRP
+            # says "shiba" on every phone): the bootloader's codename names the
+            # real one when this table knows it
+            hw = run([self.adb, "shell", "getprop", "ro.boot.hardware"], timeout=5).stdout.strip()
             model = run([self.adb, "shell", "getprop", "ro.product.model"], timeout=5).stdout.strip()
         except (subprocess.SubprocessError, OSError):
             return
+        if hw.lower() in DEVICES:
+            dev = hw
         if not dev:
             return
         name, menu = DEVICES.get(dev.lower(), (model or dev, REBOOT_STANDARD))
