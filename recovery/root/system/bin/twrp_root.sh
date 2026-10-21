@@ -66,6 +66,10 @@ die()  { echo "ERROR: $*" >&2; exit 1; }
 
 [[ -n "$SLOT" && -b "$PART" ]] || die "cannot find init_boot for slot '$SLOT'"
 mkdir -p "$W"
+# kmi_of says each "doesn't name its KMI" note once per run; per-PID ($$ is the
+# same in $(...) subshells) because the GUI runs this script for its chips too
+KMI_NOTED="$W/kmi_noted.$$"
+trap 'rm -f "$KMI_NOTED"' EXIT
 
 # ---- helpers ---------------------------------------------------------------
 
@@ -180,7 +184,11 @@ kmi_of() {
             6.12) rel=android16 ;;
             *)    die "cannot derive the KMI from kernel '$r' (no androidNN in its name, and Linux $ver is used by more than one Android release). Nothing was changed." ;;
         esac
-        echo "- Kernel '$r' doesn't name its KMI; Linux $ver is ${rel}-${ver}" >&2
+        # once per kernel name: kmi_of runs in $(...), so it remembers in a file
+        if ! grep -qxF -- "$r" "$KMI_NOTED" 2>/dev/null; then
+            echo "- Kernel '$r' doesn't name its KMI; Linux $ver is ${rel}-${ver}" >&2
+            echo "$r" >> "$KMI_NOTED"
+        fi
     fi
     echo "${rel}-${ver}"
 }
