@@ -25,7 +25,9 @@
 #   twrp_root.sh flash-kernel IMG  a custom kernel's boot image onto boot, plus
 #                                its vendor_kernel_boot image when one sits
 #                                beside it (same name, boot -> vendor_kernel_boot)
-#                                (KMI must match the kernel it replaces)
+#                                (KMI must match the kernel it replaces); or a
+#                                .zip holding the boot image and, optionally,
+#                                its vendor_kernel_boot image
 #   twrp_root.sh remove          restore stock init_boot (either tool), or
 #                                unpatch APatch from boot
 #   ... ACTION other             act on the slot we are NOT running (after an
@@ -809,6 +811,44 @@ do_remove() {
 # is_vendor_boot IMG -> true for a vendor_boot / vendor_kernel_boot image
 is_vendor_boot() { [[ "$(head -c 8 "$1" 2>/dev/null)" == VNDRBOOT ]]; }
 
+# kernel_from_zip ZIP -> path of the boot image unpacked from a kernel zip, next
+# to vendor_kernel_boot.img when the zip has one - so the pairing by name in
+# do_flash_kernel picks it up. A kernel zip holds just those .img files (other
+# files are ignored): exactly one boot image (ANDROID! header, "boot" in the
+# name, not init_boot) and at most one vendor_kernel_boot image (VNDRBOOT header
+# and that name - a vendor_boot image has the same header). Any other .img, or
+# an AnyKernel3 zip (it has its own installer: TWRP's Install), is refused.
+kernel_from_zip() {
+    local zip="$1" d="$W/kzip" bb="$W/tools/busybox" f n boot="" vkb=""
+    mkdir -p "$W/tools"
+    [[ -x "$bb" ]] || { cp "$TOOLS/magisk/busybox" "$bb" && chmod 755 "$bb"; } \
+        || die "no unzip tool in this TWRP. Nothing was changed."
+    "$bb" unzip -l "$zip" >/dev/null 2>&1 || die "${zip##*/} isn't a readable zip. Nothing was changed."
+    "$bb" unzip -l "$zip" 2>/dev/null | grep -q 'anykernel.sh' \
+        && die "${zip##*/} is an AnyKernel3 zip - flash it with TWRP's Install. Nothing was changed."
+    rm -rf "$d"; mkdir -p "$d"
+    "$bb" unzip -o -q -j "$zip" '*.img' -d "$d" 2>/dev/null || true
+    for f in "$d"/*.img; do
+        [[ -f "$f" ]] || continue
+        n="${f##*/}"
+        if [[ "$n" == *vendor_kernel_boot* ]] && is_vendor_boot "$f"; then
+            [[ -z "$vkb" ]] || die "${zip##*/} has more than one vendor_kernel_boot image. Nothing was changed."
+            vkb="$f"
+        elif [[ "$n" == *boot* && "$n" != *init_boot* && "$n" != *vendor* \
+                && "$(head -c 8 "$f" 2>/dev/null)" == 'ANDROID!' ]]; then
+            [[ -z "$boot" ]] || die "${zip##*/} has more than one boot image. Nothing was changed."
+            boot="$f"
+        else
+            die "${zip##*/} has $n - only a boot image and its vendor_kernel_boot image are installed from a kernel zip. Nothing was changed."
+        fi
+    done
+    [[ -n "$boot" ]] || die "${zip##*/} has no boot image. Nothing was changed."
+    say "- From ${zip##*/}: ${boot##*/}${vkb:+ + ${vkb##*/}}" >&2
+    [[ "$boot" == "$d/boot.img" ]] || mv "$boot" "$d/boot.img"
+    [[ -z "$vkb" || "$vkb" == "$d/vendor_kernel_boot.img" ]] || mv "$vkb" "$d/vendor_kernel_boot.img"
+    echo "$d/boot.img"
+}
+
 # flash-kernel [other] IMG: a whole boot image - a custom kernel, e.g. a GKI
 # kernel with KernelSU-Next built in - onto this slot's boot. Checks first: it
 # fits the partition, unpacks to a kernel with the same KMI as the kernel it
@@ -821,8 +861,9 @@ is_vendor_boot() { [[ "$(head -c 8 "$1" 2>/dev/null)" == VNDRBOOT ]]; }
 # backed up and verified the same way; if it fails, both are restored.
 do_flash_kernel() {
     local img="${2:-}"; [[ "$img" == other ]] && img="${3:-}"
-    [[ -n "$img" && -f "$img" ]] || die "usage: $0 flash-kernel [other] BOOT_IMAGE - no file '$img'. Nothing was changed."
+    [[ -n "$img" && -f "$img" ]] || die "usage: $0 flash-kernel [other] BOOT_IMAGE|KERNEL_ZIP - no file '$img'. Nothing was changed."
     [[ -b "$BOOTPART" ]] || die "cannot find boot${SLOT}"
+    [[ "$img" != *.zip ]] || img="$(kernel_from_zip "$img")"
     is_vendor_boot "$img" \
         && die "${img##*/} is a vendor boot image - pick the kernel's boot image; a vendor_kernel_boot image with the same name comes along. Nothing was changed."
     local n psize; n="$(stat -c %s "$img")"; psize="$(blockdev --getsize64 "$BOOTPART")"

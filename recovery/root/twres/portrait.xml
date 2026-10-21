@@ -2405,15 +2405,17 @@
 
 			<text style="text_m">
 				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-				<text>Pick its boot .img (vendor_kernel_boot comes along)</text>
+				<text>Pick its boot .img or a kernel .zip</text>
 			</text>
 
 			<template name="sort_options"/>
 
+			<!-- .zip = a kernel zip holding the boot image (+ its vendor_kernel_boot
+			     image), unpacked by twrp_root.sh kernel_from_zip -->
 			<fileselector>
 				<placement x="%indent%" y="%row3_y%" w="%content_width%" h="%fileselector_install_height%"/>
 				<text>%tw_root_kernel_dir%</text>
-				<filter extn=".img" folders="1" files="1"/>
+				<filter extn=".img;.zip" folders="1" files="1"/>
 				<path name="tw_root_kernel_dir" default="/sdcard/Download"/>
 				<data name="tw_root_kernel_pick"/>
 				<selection name="tw_root_kernel_name"/>
@@ -5409,7 +5411,7 @@
 				<!-- shiba: a custom kernel's boot image (+ its vendor_kernel_boot image
 				     when one with the matching name sits beside it) onto a slot -->
 				<listitem name="KERNEL" header="1"></listitem>
-				<listitem name="Install custom kernel" subtitle="Boot .img + its vendor_kernel_boot">
+				<listitem name="Install custom kernel" subtitle="Boot .img or a kernel .zip">
 					<actions>
 						<action function="set">tw_root_kernel_pick=</action>
 						<action function="page">shiba_root_kernel</action>

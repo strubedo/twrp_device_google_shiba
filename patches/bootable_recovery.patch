@@ -821,7 +821,7 @@ index e2840067..a5e9a91b 100755
 diff --git a/gui/theme/common/portrait.xml b/gui/theme/common/portrait.xml
 old mode 100755
 new mode 100644
-index 99eeef6c..29dd0079
+index 99eeef6c..1a9b36fb
 --- a/gui/theme/common/portrait.xml
 +++ b/gui/theme/common/portrait.xml
 @@ -216,7 +216,13 @@
@@ -861,7 +861,7 @@ index 99eeef6c..29dd0079
  				<listitem name="{@install_reboot_chk=Reboot after installation is complete}">
  					<data variable="tw_install_reboot"/>
  				</listitem>
-@@ -1201,6 +1216,681 @@
+@@ -1201,6 +1216,683 @@
  			</action>
  		</page>
  
@@ -1210,15 +1210,17 @@ index 99eeef6c..29dd0079
 +
 +			<text style="text_m">
 +				<placement x="%col1_x_header%" y="%row4_header_y%"/>
-+				<text>Pick its boot .img (vendor_kernel_boot comes along)</text>
++				<text>Pick its boot .img or a kernel .zip</text>
 +			</text>
 +
 +			<template name="sort_options"/>
 +
++			<!-- .zip = a kernel zip holding the boot image (+ its vendor_kernel_boot
++			     image), unpacked by twrp_root.sh kernel_from_zip -->
 +			<fileselector>
 +				<placement x="%indent%" y="%row3_y%" w="%content_width%" h="%fileselector_install_height%"/>
 +				<text>%tw_root_kernel_dir%</text>
-+				<filter extn=".img" folders="1" files="1"/>
++				<filter extn=".img;.zip" folders="1" files="1"/>
 +				<path name="tw_root_kernel_dir" default="/sdcard/Download"/>
 +				<data name="tw_root_kernel_pick"/>
 +				<selection name="tw_root_kernel_name"/>
@@ -1543,7 +1545,7 @@ index 99eeef6c..29dd0079
  		<page name="formatdata">
  			<template name="page"/>
  
-@@ -1714,6 +2404,7 @@
+@@ -1714,6 +2406,7 @@
  				<placement x="%center_x%" y="%row18a_y%"/>
  				<text>{@refresh_sizes_btn=Refresh Sizes}</text>
  				<actions>
@@ -1551,7 +1553,7 @@ index 99eeef6c..29dd0079
  					<action function="refreshsizes"/>
  					<action function="page">backup</action>
  				</actions>
-@@ -3473,11 +4164,19 @@
+@@ -3473,11 +4166,19 @@
  				<listitem name="{@auto_reflashtwrp_chk=Automatically Reflash TWRP after flashing a ROM}">
  					<conditions>
  						<condition var1="tw_has_boot_slots" var2="1"/>
@@ -1572,7 +1574,7 @@ index 99eeef6c..29dd0079
  			</listbox>
  
  			<button style="main_button_half_height">
-@@ -3878,6 +4577,107 @@
+@@ -3878,6 +4579,107 @@
  						<action function="page">decrypt_users</action>
  					</actions>
  				</listitem>
@@ -1680,7 +1682,7 @@ index 99eeef6c..29dd0079
  				<listitem name="{@reload_theme_btn=Reload Theme}">
  					<action function="reload"/>
  				</listitem>
-@@ -3906,6 +4706,8 @@
+@@ -3906,6 +4708,8 @@
  				</listitem>
  				<listitem name="{@install_twrp_ramdisk=Install Recovery Ramdisk}">
  					<conditions>
@@ -1689,7 +1691,7 @@ index 99eeef6c..29dd0079
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3916,6 +4718,8 @@
+@@ -3916,6 +4720,8 @@
  				</listitem>
  				<listitem name="{@reflash_twrp=Flash Current TWRP}">
  					<conditions>
@@ -1698,7 +1700,7 @@ index 99eeef6c..29dd0079
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  						<condition var1="tw_no_flash_current_twrp" var2="0"/>
-@@ -3933,6 +4737,8 @@
+@@ -3933,6 +4739,8 @@
  				</listitem>
  				<listitem name="{@install_kernel=Install Kernel}">
  					<conditions>
@@ -1707,7 +1709,7 @@ index 99eeef6c..29dd0079
  						<condition var1="tw_has_boot_slots" var2="1"/>
  						<condition var1="tw_has_repack_tools" var2="1"/>
  					</conditions>
-@@ -3943,6 +4749,8 @@
+@@ -3943,6 +4751,8 @@
  				</listitem>
  				<listitem name="{@fix_recovery_loop=Fix Recovery Bootloop}">
  					<conditions>

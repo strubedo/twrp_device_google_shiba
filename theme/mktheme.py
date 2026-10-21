@@ -91,7 +91,7 @@ ADV_ITEMS = [
     ('Root: Show status', 'Show status', "ROOT", None),
     ('Root: Install root', 'Install root', None, None),
     ('Root: Remove root', 'Remove root', None, None),
-    ('Kernel: Install custom kernel', 'Install custom kernel', "KERNEL", "Boot .img + its vendor_kernel_boot"),
+    ('Kernel: Install custom kernel', 'Install custom kernel', "KERNEL", "Boot .img or a kernel .zip"),
     ('TWRP: Install to other slot', 'Install to other slot', "KEEP TWRP", "After an update"),
     ('TWRP: Install to both slots', 'Install to both slots', None, None),
     ('Encryption: Status', 'Status', "ENCRYPTION", None),
