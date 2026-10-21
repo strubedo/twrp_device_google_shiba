@@ -185,7 +185,47 @@ gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to en
 gate "encryption: script, lptool, vbgraft --fstab-set, shims, pages, no DFE-NEO" "test -x $R/system/bin/twrp_encryption.sh && test -x $R/system/bin/lptool && /bin/grep -a -q -- '--fstab-set' $R/system/bin/vbgraft && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml && ! test -e $R/system/etc/twrp_dfe"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
-gate "touch fallback: hook, script, 5.15 + 6.1 sets" "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && grep -q twrp_devices.conf $R/system/bin/twrp_touch_fallback.sh && ls $R/system/etc/touch_fallback/5.15.*/goodix_brl_touch.ko >/dev/null 2>&1 && ls $R/system/etc/touch_fallback/6.1.*/goodix_brl_touch.ko >/dev/null 2>&1"
+gate "touch fallback: hook + script"              "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && grep -q twrp_devices.conf $R/system/bin/twrp_touch_fallback.sh"
+# every row of the device table has a full touch set (all of the row's
+# modules, like the script's has_mods) for each kernel major.minor we ship sets
+# for - at least 5.15 (A14) and 6.1 (A15+). One set per major.minor is enough:
+# husky's ftm5.ko isn't in every set.
+touch_sets_ok() {
+    local T="$R/system/etc/touch_fallback" cn model mods mm d m found mms
+    mms="$(ls "$T" | cut -d. -f1-2 | sort -u)"
+    grep -qx 5.15 <<< "$mms" && grep -qx 6.1 <<< "$mms" || { echo "   no 5.15 or no 6.1 sets"; return 1; }
+    while IFS='|' read -r cn model mods; do
+        [ -n "$cn" ] || continue
+        for mm in $mms; do
+            found=""
+            for d in "$T/$mm".*/; do
+                for m in $mods; do test -f "$d$m" || continue 2; done
+                found="$d"; break
+            done
+            [ -n "$found" ] || { echo "   $cn: no $mm set with $mods"; return 1; }
+        done
+    done < <(grep -v '^#' "$R/system/etc/twrp_devices.conf")
+}
+gate "touch fallback: full set per device per 5.15 / 6.1" "touch_sets_ok"
+# each set: FROM_BUILD, every .ko built for the set's name (vermagic), and
+# KERNELS (if there) only stock kernel releases of the same major.minor
+touch_set_files_ok() {
+    local T="$R/system/etc/touch_fallback" d n mm f n_sets=0
+    for d in "$T"/*/; do
+        n="$(basename "$d")"; mm="$(echo "$n" | cut -d. -f1-2)"
+        test -s "$d/FROM_BUILD" || { echo "   $n: no FROM_BUILD"; return 1; }
+        for f in "$d"*.ko; do
+            /bin/grep -a -q -F "vermagic=$n " "$f" || { echo "   $n: ${f##*/} is not built for $n"; return 1; }
+        done
+        if test -e "$d/KERNELS"; then
+            test -s "$d/KERNELS" && ! grep -v -x -E "${mm//./\\.}\.[0-9]+-android[0-9]+-[0-9]+-g[0-9a-f]{12}-ab[0-9]+" "$d/KERNELS" >/dev/null \
+                || { echo "   $n: KERNELS has a line that isn't a $mm kernel release"; return 1; }
+        fi
+        n_sets=$((n_sets + 1))
+    done
+    [ "$n_sets" -ge 2 ]
+}
+gate "touch fallback: sets have FROM_BUILD, vermagic, KERNELS" "touch_set_files_ok"
 # every row of the device table has its own slot chip + splash line, and TWRP
 # sets the variables that pick them (data.cpp: tw_device, tw_device_model)
 device_theme_ok() {

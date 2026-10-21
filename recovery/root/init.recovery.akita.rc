@@ -1,3 +1,18 @@
 # Entry point on the Pixel 8a (akita): init loads init.recovery.${ro.hardware}.rc,
 # which pulls in the SoC file (zuma, shared with shiba), same as stock recovery does.
 import /init.recovery.${ro.board.platform}.rc
+
+# akita's stock recovery rc (CP3A.261005.005) also sets the USB B-session bit
+# once the gadget is up; copied as-is (untested on a real 8a: may be what makes
+# ADB / fastbootd enumerate). Plus the same for TWRP's own state "mtp,adb"
+# (TWRP enables MTP at every boot), which the stock triggers don't match.
+# DELETE ME USB BRINGUP b/188672439.  Delete the following two lines after
+# USB is brought up completely.
+on property:sys.usb.state=fastboot
+    write /sys/devices/platform/11210000.usb/dwc3_exynos_otg_b_sess 1
+
+on property:sys.usb.state=adb
+    write /sys/devices/platform/11210000.usb/dwc3_exynos_otg_b_sess 1
+
+on property:sys.usb.state=mtp,adb
+    write /sys/devices/platform/11210000.usb/dwc3_exynos_otg_b_sess 1

@@ -6,21 +6,22 @@
 # Run by TWRP (partitionmanager.cpp, patched) right after its own module
 # loader, which takes the drivers from the slot's own vendor_dlkm - always the
 # exact match for its kernel, so that stays first. This script only acts if
-# the touch driver is still not loaded.
+# no touchscreen is registered yet and the touch driver is not loaded.
 #
 # Which modules: this phone's row in /system/etc/twrp_devices.conf (by
 # androidboot.hardware), loaded in that order - the last is the driver itself
 # (Pixel 8 / 8a goodix_brl_touch, 8 Pro ftm5).
 #
 # Sets: /system/etc/touch_fallback/<release>/ (heatmap, goog_touch_interface,
-# goodix_brl_touch) from Google's factory images, one per vendor_dlkm build,
-# named after the drivers' vermagic. FROM_BUILD names the factory build,
-# KERNELS lists the `uname -r` of that build's own kernel (boot.img "Linux
-# version") - not the same string: Google builds the kernel and the drivers
-# separately. Order: exact `uname -r` match; a set whose KERNELS lists it (stock
-# kernels); same kernel git hash; same version number; else the newest set of
-# the same major.minor (custom kernels; a kernel module only loads into a
-# compatible kernel - if it doesn't, insmod just fails and nothing changes).
+# goodix_brl_touch, ftm5 where we have it) from Google's factory images, one
+# per vendor_dlkm build, named after the drivers' vermagic. FROM_BUILD names
+# the factory build, KERNELS lists the `uname -r` of that build's own kernel
+# (boot.img "Linux version") - not the same string: Google builds the kernel
+# and the drivers separately. Order: exact `uname -r` match; a set whose
+# KERNELS lists it (stock kernels); same kernel git hash; same version number;
+# else the newest set of the same major.minor (custom kernels; a kernel module
+# only loads into a compatible kernel - if it doesn't, insmod just fails and
+# nothing changes).
 # Only sets that have every module of this phone's row count (husky's ftm5 is
 # not in every set). Dependencies (systrace, touch_offload,
 # touch_bus_negotiator, the display drivers) are loaded by the first stage
@@ -32,6 +33,19 @@ LOG=/tmp/twrp_touch.log
 log() { echo "$(date +%T) $*" >> "$LOG"; }
 BASE=/system/etc/touch_fallback
 DEVICES=/system/etc/twrp_devices.conf
+
+# Touch already working: an input device with INPUT_PROP_DIRECT (bit 1 of
+# "B: PROP=" in /proc/bus/input/devices; goodix_ts0 has 2, gpio_keys and the
+# twrp_remote keyboard 0). Catches drivers built into a custom kernel (never in
+# /proc/modules) and TWRP's second call per boot. PROP is hex, so bit 1 is set
+# when the last digit is 2, 3, 6, 7, a, b, e or f. twrp_remote's virtual
+# touchscreen (TV boxes only) doesn't count.
+ts="$(awk '/^N: Name=/ { n = substr($0, 9) }
+    /^B: PROP=/ && n !~ /twrp_remote/ && /[2367abef]$/ { print n; exit }' /proc/bus/input/devices 2>/dev/null)"
+if [ -n "$ts" ]; then
+    log "touch already working ($ts) - nothing to do"
+    exit 0
+fi
 
 hw="$(getprop ro.boot.hardware)"
 mods="$(grep -v '^#' "$DEVICES" 2>/dev/null | awk -F'|' -v d="$hw" '$1 == d { print $3; exit }' | sed 's/\.ko//g')"
