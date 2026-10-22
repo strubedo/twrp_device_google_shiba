@@ -257,9 +257,22 @@
 				<placement x="36" y="196"/>
 			</image>
 			<text color="#CFCFCF">
+				<conditions><condition var1="tw_device" op="!=" var2="komodo"/><condition var1="tw_device" op="!=" var2="comet"/></conditions>
 				<font resource="font_s"/>
 				<placement x="64" y="204"/>
 				<text>%tw_device_model% · Slot %tw_active_slot%</text>
+			</text>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_device" var2="komodo"/></conditions>
+				<font resource="font_s"/>
+				<placement x="64" y="204"/>
+				<text>9 Pro XL · Slot %tw_active_slot%</text>
+			</text>
+			<text color="#CFCFCF">
+				<conditions><condition var1="tw_device" var2="comet"/></conditions>
+				<font resource="font_s"/>
+				<placement x="64" y="204"/>
+				<text>9 Pro Fold · Slot %tw_active_slot%</text>
 			</text>
 
 			<image>
@@ -985,288 +998,288 @@
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<image resource="chip_plain"/>
-				<placement x="425" y="196"/>
+				<placement x="345" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<font resource="font_s"/>
-				<placement x="453" y="204"/>
+				<placement x="373" y="204"/>
 				<text>Unencrypted</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<image resource="chip_decrypted"/>
-				<placement x="425" y="196"/>
+				<placement x="345" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<font resource="font_s"/>
-				<placement x="477" y="204"/>
+				<placement x="397" y="204"/>
 				<text>Decrypted</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<image resource="chip_locked"/>
-				<placement x="425" y="196"/>
+				<placement x="345" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<font resource="font_s"/>
-				<placement x="477" y="204"/>
+				<placement x="397" y="204"/>
 				<text>Locked</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="688" y="196"/>
+				<placement x="608" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="740" y="204"/>
+				<placement x="660" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="688" y="196"/>
+				<placement x="608" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="740" y="204"/>
+				<placement x="660" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="688" y="196"/>
+				<placement x="608" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="716" y="204"/>
+				<placement x="636" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="674" y="196"/>
+				<placement x="594" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="726" y="204"/>
+				<placement x="646" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="674" y="196"/>
+				<placement x="594" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="726" y="204"/>
+				<placement x="646" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="674" y="196"/>
+				<placement x="594" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="702" y="204"/>
+				<placement x="622" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="626" y="196"/>
+				<placement x="546" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="678" y="204"/>
+				<placement x="598" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="626" y="196"/>
+				<placement x="546" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="678" y="204"/>
+				<placement x="598" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="626" y="196"/>
+				<placement x="546" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="komodo"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="654" y="204"/>
+				<placement x="574" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<image resource="chip_plain"/>
-				<placement x="452" y="196"/>
+				<placement x="372" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/></conditions>
 				<font resource="font_s"/>
-				<placement x="480" y="204"/>
+				<placement x="400" y="204"/>
 				<text>Unencrypted</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<image resource="chip_decrypted"/>
-				<placement x="452" y="196"/>
+				<placement x="372" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/></conditions>
 				<font resource="font_s"/>
-				<placement x="504" y="204"/>
+				<placement x="424" y="204"/>
 				<text>Decrypted</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<image resource="chip_locked"/>
-				<placement x="452" y="196"/>
+				<placement x="372" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/></conditions>
 				<font resource="font_s"/>
-				<placement x="504" y="204"/>
+				<placement x="424" y="204"/>
 				<text>Locked</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="715" y="196"/>
+				<placement x="635" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="767" y="204"/>
+				<placement x="687" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="715" y="196"/>
+				<placement x="635" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="767" y="204"/>
+				<placement x="687" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="715" y="196"/>
+				<placement x="635" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="743" y="204"/>
+				<placement x="663" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="701" y="196"/>
+				<placement x="621" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="753" y="204"/>
+				<placement x="673" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="701" y="196"/>
+				<placement x="621" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="753" y="204"/>
+				<placement x="673" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="701" y="196"/>
+				<placement x="621" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="1"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="729" y="204"/>
+				<placement x="649" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<image resource="chip_ksu"/>
-				<placement x="653" y="196"/>
+				<placement x="573" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="KERNELSU"/></conditions>
 				<font resource="font_s"/>
-				<placement x="705" y="204"/>
+				<placement x="625" y="204"/>
 				<text>%tw_root_name% · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<image resource="chip_magisk"/>
-				<placement x="653" y="196"/>
+				<placement x="573" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="MAGISK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="705" y="204"/>
+				<placement x="625" y="204"/>
 				<text>Magisk · %tw_android_label%</text>
 			</text>
 
 			<image>
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<image resource="chip_noroot"/>
-				<placement x="653" y="196"/>
+				<placement x="573" y="196"/>
 			</image>
 			<text color="#CFCFCF">
 				<conditions><condition var1="tw_device" var2="comet"/><condition var1="tw_is_fbe" var2="1"/><condition var1="tw_is_decrypted" var2="0"/><condition var1="tw_root_state" var2="STOCK"/></conditions>
 				<font resource="font_s"/>
-				<placement x="681" y="204"/>
+				<placement x="601" y="204"/>
 				<text>Not rooted · %tw_android_label%</text>
 			</text>
 

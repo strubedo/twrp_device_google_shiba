@@ -63,3 +63,20 @@ def text_width(s):
 
 def slot_chip_width(model):
     return SLOT_CHIP_WIDTH + text_width(model) - text_width(SLOT_CHIP_MODEL)
+
+
+# The widest main-page row: the slot chip at x=36, then (16 gap) the widest
+# data chip (Unencrypted, 247) and (16 gap) the widest root chip (KernelSU,
+# 408) - widths in mkimages.py. Past the screen edge (theme x 1080) it is cut.
+ROW_X = 36
+ROW_TAIL = 16 + 247 + 16 + 408
+SCREEN_W = 1080
+
+
+def chip_model(model):
+    """The model as the slot chip shows it: without "Pixel " on a phone whose
+    widest row would run past the screen edge with it (9 Pro XL, 9 Pro Fold).
+    The splash line and tw_device_model keep the full name."""
+    if model.startswith("Pixel ") and ROW_X + slot_chip_width(model) + ROW_TAIL > SCREEN_W:
+        return model[len("Pixel "):]
+    return model

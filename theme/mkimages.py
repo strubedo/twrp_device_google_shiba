@@ -187,11 +187,13 @@ def splash_line(text):
 
 
 # per phone in twrp_devices.conf (devices.py): the slot chip, sized for
-# "<model> · Slot a", and the splash line "PIXEL 8 · SHIBA" (mktheme shows the
-# one matching tw_device; chip_slot above is the chip for a phone without a row)
+# "<model> · Slot a" (devices.chip_model: "9 Pro Fold · Slot a" where the full
+# name would push the row off the screen), and the splash line "PIXEL 8 ·
+# SHIBA" (mktheme shows the one matching tw_device; chip_slot above is the
+# chip for a phone without a row)
 for _cn, _model in devices.rows():
-    IMAGES[f"chip_slot_{_cn}"] = (devices.slot_chip_width(_model), 64,
-                                  (lambda w=devices.slot_chip_width(_model): rrect(0, 0, w, 64, 32, TRACK)))
+    _w = devices.slot_chip_width(devices.chip_model(_model))
+    IMAGES[f"chip_slot_{_cn}"] = (_w, 64, (lambda w=_w: rrect(0, 0, w, 64, 32, TRACK)))
     IMAGES[f"splash_{_cn}"] = (708, 96, (lambda t=f"{_model} · {_cn}".upper(): splash_line(t)))
 NEW_IMAGES = [n for n in IMAGES if n.startswith(("tile_", "pin_"))]
 

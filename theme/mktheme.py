@@ -211,8 +211,11 @@ MAIN_HEADER = '''<text color="%text_color%">
 # row (tw_device = its codename) gets the Pixel 8 sized chip_slot.
 _SLOT_CHIPS = [   # device conditions, slot chip image, x shift of the rest of the row
     (f'<condition var1="tw_device" var2="{cn}"/>', f"chip_slot_{cn}",
-     devices.slot_chip_width(model) - devices.SLOT_CHIP_WIDTH) for cn, model in DEVICES
+     devices.slot_chip_width(devices.chip_model(model)) - devices.SLOT_CHIP_WIDTH) for cn, model in DEVICES
 ] + [("".join(f'<condition var1="tw_device" op="!=" var2="{cn}"/>' for cn, _ in DEVICES), "chip_slot", 0)]
+for _cn, _model in DEVICES:     # still too wide without "Pixel ": needs a shorter name
+    if devices.ROW_X + devices.slot_chip_width(devices.chip_model(_model)) + devices.ROW_TAIL > devices.SCREEN_W:
+        devices.fail(f"{_cn}: '{devices.chip_model(_model)}' makes the main-page chip row run off the screen")
 for _devc, _img, _ in _SLOT_CHIPS:
     MAIN_HEADER += f'''
 			<image>
@@ -221,10 +224,23 @@ for _devc, _img, _ in _SLOT_CHIPS:
 				<placement x="36" y="196"/>
 			</image>
 '''
-MAIN_HEADER += '''			<text color="#CFCFCF">
+# The chip text is tw_device_model, except on the phones whose chip drops
+# "Pixel " (devices.chip_model): each of those gets its own text.
+_SHORT_MODELS = [(cn, devices.chip_model(m)) for cn, m in DEVICES if devices.chip_model(m) != m]
+_not_short = "".join(f'<condition var1="tw_device" op="!=" var2="{cn}"/>' for cn, _ in _SHORT_MODELS)
+_not_short = f"\n\t\t\t\t<conditions>{_not_short}</conditions>" if _not_short else ""
+MAIN_HEADER += f'''			<text color="#CFCFCF">{_not_short}
 				<font resource="font_s"/>
 				<placement x="64" y="204"/>
 				<text>%tw_device_model% · Slot %tw_active_slot%</text>
+			</text>
+'''
+for _cn, _short in _SHORT_MODELS:
+    MAIN_HEADER += f'''			<text color="#CFCFCF">
+				<conditions><condition var1="tw_device" var2="{_cn}"/></conditions>
+				<font resource="font_s"/>
+				<placement x="64" y="204"/>
+				<text>{_short} · Slot %tw_active_slot%</text>
 			</text>
 '''
 
