@@ -12,15 +12,31 @@
 # again once it is at LOW_C or less - a cool phone keeps full speed. Never
 # below FLOOR_* (TWRP stays usable; the kernel's trips still act above us).
 # The little cores are left alone: they're never the hot spot.
+#
+# Clusters: a cpufreq policy is named after its first CPU, so the highest
+# policy number is the big core and the next one down the mid cluster - zuma
+# (Pixel 8, 4+4+1) policy8 / policy4, zumapro (Pixel 9, 4+3+1) policy7 /
+# policy4. Both SoCs have the two floor OPPs (zumapro energy model).
 HIGH_C=82
 LOW_C=75
 POLL_S=2
-BIG=/sys/devices/system/cpu/cpufreq/policy8
-MID=/sys/devices/system/cpu/cpufreq/policy4
+CPUFREQ=/sys/devices/system/cpu/cpufreq
 FLOOR_BIG=1557000
 FLOOR_MID=1328000
 
 log() { echo "twrp_thermal: $*" > /dev/kmsg; }
+
+big=-1 mid=-1 n=0
+for p in "$CPUFREQ"/policy*; do
+    i=${p##*/policy}
+    case "$i" in ''|*[!0-9]*) continue ;; esac
+    n=$((n + 1))
+    if [ "$i" -gt "$big" ]; then mid=$big; big=$i
+    elif [ "$i" -gt "$mid" ]; then mid=$i; fi
+done
+[ "$n" -ge 3 ] || { log "$n cpufreq policies, expected 3 clusters - not running"; exit 0; }
+BIG=$CPUFREQ/policy$big
+MID=$CPUFREQ/policy$mid
 
 ZONES=""
 for z in /sys/class/thermal/thermal_zone*; do
@@ -42,7 +58,7 @@ next_opp() {
     echo "$out"
 }
 
-log "on: step down at ${HIGH_C} C, up at ${LOW_C} C (big >= $FLOOR_BIG, mid >= $FLOOR_MID kHz)"
+log "on: step down at ${HIGH_C} C, up at ${LOW_C} C (big ${BIG##*/} >= $FLOOR_BIG, mid ${MID##*/} >= $FLOOR_MID kHz)"
 while :; do
     t=0
     for z in $ZONES; do

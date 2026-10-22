@@ -185,41 +185,57 @@ gate "MTP: compiled in + configfs rule + guard"   "/bin/grep -a -q 'Failed to en
 gate "encryption: script, lptool, vbgraft --fstab-set, shims, pages, no DFE-NEO" "test -x $R/system/bin/twrp_encryption.sh && test -x $R/system/bin/lptool && /bin/grep -a -q -- '--fstab-set' $R/system/bin/vbgraft && ls $R/system/etc/twrp_root/encryption-{status,dryrun,disable,postformat,enable}.zip >/dev/null 2>&1 && grep -q 'page name=\"shiba_dfe_step2\"' $R/twres/portrait.xml && ! test -e $R/system/etc/twrp_dfe"
 gate "auto-reflash after OTA -> vendor_boot script" "/bin/grep -a -q 'twrp_install_slot.sh other' $R/system/bin/recovery"
 gate "device version $SHIBA_VERSION in recovery"   "/bin/grep -a -q -F '$SHIBA_VERSION' $R/system/bin/recovery"
-gate "touch fallback: hook + script"              "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && grep -q twrp_devices.conf $R/system/bin/twrp_touch_fallback.sh"
-# every row of the device table has a full touch set (all of the row's
-# modules, like the script's has_mods) for each kernel major.minor we ship sets
-# for - at least 5.15 (A14) and 6.1 (A15+). One set per major.minor is enough:
-# husky's ftm5.ko isn't in every set.
+gate "touch fallback: hook + script"              "/bin/grep -a -q 'twrp_touch_fallback.sh' $R/system/bin/recovery && test -f $R/system/bin/twrp_touch_fallback.sh && grep -q twrp_devices.conf $R/system/bin/twrp_touch_fallback.sh && grep -q -F '\$1 == \"#platform\"' $R/system/bin/twrp_touch_fallback.sh && grep -q -F 'BASE=\"\$BASE/\$platform\"' $R/system/bin/twrp_touch_fallback.sh"
+# every row of the device table is in exactly one "#platform|<p>|<codenames>"
+# line and has at least one touchscreen driver (a module that isn't heatmap /
+# goog_touch_interface, as the script counts them), and a full touch set (all
+# of the row's modules, like the script's has_mods) in its platform's folder
+# for each kernel major.minor that platform has sets for - every platform 6.1
+# (A15+), zuma 5.15 (A14) too. One set per major.minor is enough: husky's
+# ftm5.ko and the Fold's goodix aren't in every set.
 touch_sets_ok() {
-    local T="$R/system/etc/touch_fallback" cn model mods mm d m found mms
-    mms="$(ls "$T" | cut -d. -f1-2 | sort -u)"
-    grep -qx 5.15 <<< "$mms" && grep -qx 6.1 <<< "$mms" || { echo "   no 5.15 or no 6.1 sets"; return 1; }
+    local T="$R/system/etc/touch_fallback" C="$R/system/etc/twrp_devices.conf" cn model mods mm d m found mms p n
     while IFS='|' read -r cn model mods; do
         [ -n "$cn" ] || continue
+        n="$(awk -F'|' -v d="$cn" '$1 == "#platform" { k = split($3, c, " "); for (i = 1; i <= k; i++) if (c[i] == d) print $2 }' "$C")"
+        [ "$(echo "$n" | grep -c .)" -eq 1 ] || { echo "   $cn: in $(echo "$n" | grep -c .) #platform lines (needs exactly 1)"; return 1; }
+        p="$n"
+        test -d "$T/$p" || { echo "   $cn: no touch_fallback/$p/"; return 1; }
+        [ -n "$(for m in $mods; do case "$m" in heatmap.ko|goog_touch_interface.ko) ;; *) echo "$m" ;; esac; done)" ] \
+            || { echo "   $cn: no touchscreen driver in $mods"; return 1; }
+        mms="$(ls "$T/$p" | cut -d. -f1-2 | sort -u)"
+        grep -qx 6.1 <<< "$mms" || { echo "   $p: no 6.1 sets"; return 1; }
+        [ "$p" != zuma ] || grep -qx 5.15 <<< "$mms" || { echo "   zuma: no 5.15 sets"; return 1; }
         for mm in $mms; do
             found=""
-            for d in "$T/$mm".*/; do
+            for d in "$T/$p/$mm".*/; do
                 for m in $mods; do test -f "$d$m" || continue 2; done
                 found="$d"; break
             done
-            [ -n "$found" ] || { echo "   $cn: no $mm set with $mods"; return 1; }
+            [ -n "$found" ] || { echo "   $cn: no $p $mm set with $mods"; return 1; }
         done
-    done < <(grep -v '^#' "$R/system/etc/twrp_devices.conf")
+    done < <(grep -v '^#' "$C")
 }
-gate "touch fallback: full set per device per 5.15 / 6.1" "touch_sets_ok"
-# each set: FROM_BUILD, every .ko built for the set's name (vermagic), and
-# KERNELS (if there) only stock kernel releases of the same major.minor
+gate "touch fallback: platform + full set per device per 5.15 / 6.1" "touch_sets_ok"
+# each set (touch_fallback/<platform>/<set>/, <platform> named in a
+# "#platform" line, nothing else at the top): FROM_BUILD, every .ko built for
+# the set's name (vermagic), and KERNELS (if there) only stock kernel releases
+# of the same major.minor
 touch_set_files_ok() {
-    local T="$R/system/etc/touch_fallback" d n mm f n_sets=0
-    for d in "$T"/*/; do
-        n="$(basename "$d")"; mm="$(echo "$n" | cut -d. -f1-2)"
-        test -s "$d/FROM_BUILD" || { echo "   $n: no FROM_BUILD"; return 1; }
+    local T="$R/system/etc/touch_fallback" d n mm f p n_sets=0
+    for p in "$T"/*; do
+        test -d "$p" && grep -q "^#platform|${p##*/}|" "$R/system/etc/twrp_devices.conf" \
+            || { echo "   touch_fallback/${p##*/}: not a platform of twrp_devices.conf"; return 1; }
+    done
+    for d in "$T"/*/*/; do
+        n="$(basename "$d")"; p="$(basename "$(dirname "$d")")"; mm="$(echo "$n" | cut -d. -f1-2)"
+        test -s "$d/FROM_BUILD" || { echo "   $p/$n: no FROM_BUILD"; return 1; }
         for f in "$d"*.ko; do
-            /bin/grep -a -q -F "vermagic=$n " "$f" || { echo "   $n: ${f##*/} is not built for $n"; return 1; }
+            /bin/grep -a -q -F "vermagic=$n " "$f" || { echo "   $p/$n: ${f##*/} is not built for $n"; return 1; }
         done
         if test -e "$d/KERNELS"; then
             test -s "$d/KERNELS" && ! grep -v -x -E "${mm//./\\.}\.[0-9]+-android[0-9]+-[0-9]+-g[0-9a-f]{12}-ab[0-9]+" "$d/KERNELS" >/dev/null \
-                || { echo "   $n: KERNELS has a line that isn't a $mm kernel release"; return 1; }
+                || { echo "   $p/$n: KERNELS has a line that isn't a $mm kernel release"; return 1; }
         fi
         n_sets=$((n_sets + 1))
     done

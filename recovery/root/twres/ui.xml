@@ -85,6 +85,11 @@
 		<image name="chip_slot_shiba" filename="chip_slot_shiba" retainaspect="1"/>
 		<image name="chip_slot_husky" filename="chip_slot_husky" retainaspect="1"/>
 		<image name="chip_slot_akita" filename="chip_slot_akita" retainaspect="1"/>
+		<image name="chip_slot_tokay" filename="chip_slot_tokay" retainaspect="1"/>
+		<image name="chip_slot_caiman" filename="chip_slot_caiman" retainaspect="1"/>
+		<image name="chip_slot_komodo" filename="chip_slot_komodo" retainaspect="1"/>
+		<image name="chip_slot_comet" filename="chip_slot_comet" retainaspect="1"/>
+		<image name="chip_slot_tegu" filename="chip_slot_tegu" retainaspect="1"/>
 		<image name="fab_selectfolder" filename="fab_selectfolder" retainaspect="1"/>
 		<image name="tab_3" filename="tab_3"/>
 		<image name="tab_4" filename="tab_4"/>

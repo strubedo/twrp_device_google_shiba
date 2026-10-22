@@ -35,8 +35,9 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "vbgraft"))
 
 # Phones this installer has been TESTED on: codename (ro.product.device) -> name.
-# The Pixel 8 Pro (husky) and 8a (akita) are in this TWRP's device table
-# (twrp_devices.conf) - add them here after a tester confirms them.
+# The Pixel 8 Pro (husky), 8a (akita) and the Pixel 9 family (tokay, caiman,
+# komodo, comet, tegu) are in this TWRP's device table (twrp_devices.conf) -
+# add them here after a tester confirms them.
 TESTED_DEVICES = {"shiba": "Pixel 8"}
 PARTITION_SIZE = 64 * 1024 * 1024      # vendor_boot_a/_b on shiba; re-read in fastboot
 MAX_FRAGMENT = 46_000_000              # largest recovery fragment proven to boot (+~1 MB);

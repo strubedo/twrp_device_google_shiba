@@ -1,0 +1,6 @@
+# Entry point on the Pixel 9 Pro (caiman, zumapro): init loads init.recovery.${ro.hardware}.rc,
+# which pulls in the SoC file, same as stock recovery does. Stock that is
+# init.recovery.zumapro.rc; in this recovery ro.board.platform comes from our own
+# prop.default (zuma), so this imports our init.recovery.zuma.rc (Google's
+# zumapro and zuma recovery rc files are identical).
+import /init.recovery.${ro.board.platform}.rc

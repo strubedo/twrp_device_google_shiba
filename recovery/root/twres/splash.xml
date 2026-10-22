@@ -14,6 +14,11 @@
 		<image name="splash_shiba" filename="splash_shiba" retainaspect="1"/>
 		<image name="splash_husky" filename="splash_husky" retainaspect="1"/>
 		<image name="splash_akita" filename="splash_akita" retainaspect="1"/>
+		<image name="splash_tokay" filename="splash_tokay" retainaspect="1"/>
+		<image name="splash_caiman" filename="splash_caiman" retainaspect="1"/>
+		<image name="splash_komodo" filename="splash_komodo" retainaspect="1"/>
+		<image name="splash_comet" filename="splash_comet" retainaspect="1"/>
+		<image name="splash_tegu" filename="splash_tegu" retainaspect="1"/>
 	</resources>
 
 	<variables>
@@ -50,6 +55,31 @@
 			<image>
 				<conditions><condition var1="tw_device" var2="akita"/></conditions>
 				<image resource="splash_akita"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="tokay"/></conditions>
+				<image resource="splash_tokay"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="caiman"/></conditions>
+				<image resource="splash_caiman"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="komodo"/></conditions>
+				<image resource="splash_komodo"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="comet"/></conditions>
+				<image resource="splash_comet"/>
+				<placement x="540" y="1080" placement="4"/>
+			</image>
+			<image>
+				<conditions><condition var1="tw_device" var2="tegu"/></conditions>
+				<image resource="splash_tegu"/>
 				<placement x="540" y="1080" placement="4"/>
 			</image>
 

@@ -25,8 +25,9 @@ ui_print "*********************************************"
 # --- the phone ---------------------------------------------------------------
 # By the bootloader's codename (androidboot.hardware): ro.product.device is
 # the build's own in any recovery - in this TWRP always "shiba", on every phone.
-# Tested devices only: the Pixel 8 Pro (husky) and 8a (akita) are in TWRP's
-# device table (twrp_devices.conf) - add them after a tester confirms them.
+# Tested devices only: the Pixel 8 Pro (husky), 8a (akita) and the Pixel 9
+# family (tokay, caiman, komodo, comet, tegu) are in TWRP's device table
+# (twrp_devices.conf) - add them after a tester confirms them.
 TESTED_DEVICES="shiba"
 dev="$(getprop ro.boot.hardware)"
 case " $TESTED_DEVICES " in

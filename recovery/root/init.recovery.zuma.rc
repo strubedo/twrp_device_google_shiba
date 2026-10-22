@@ -1,6 +1,9 @@
 # Pixel 8 / 8 Pro / 8a (zuma) recovery init. Imported by init.recovery.<codename>.rc
 # (shiba, husky, akita - the rows of system/etc/twrp_devices.conf) as
-# init.recovery.${ro.board.platform}.rc.
+# init.recovery.${ro.board.platform}.rc. The Pixel 9 family (zumapro: tokay,
+# caiman, komodo, comet, tegu) imports it too: our prop.default sets
+# ro.board.platform=zuma on every phone, and Google's init.recovery.zumapro.rc
+# is identical to its zuma one.
 #
 # Note: /system/bin/bootstrap/linker64 (needed by the relinked system
 # servicemanager, a bootstrap binary) ships as a symlink in the ramdisk
