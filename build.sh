@@ -101,13 +101,26 @@ rm -rf out/target/product/shiba/recovery
 BUILD_LOG="$HOME/twrp-build.log"
 step "Building vendorbootimage (full log: $BUILD_LOG)"
 # Live progress on one line ("[ 63% 1712/2716 1m40s remaining]"), updated in
-# place; the full output still goes to the log. m's status comes from
-# PIPESTATUS (the awk display always succeeds); -e is off around the pipeline
-# so a failed build reaches the error report below instead of exiting here.
+# place; the full output still goes to the log. Without a terminal (a
+# background build) it prints a "== progress 60% ..." line per 10 % step
+# instead, so a log watcher sees it. m's status comes from PIPESTATUS (the awk
+# display always succeeds); -e is off around the pipeline so a failed build
+# reaches the error report below instead of exiting here.
+TTY=0; [[ -t 1 ]] && TTY=1
 set +e
-m adbd vendorbootimage vbgraft -j10 2>&1 | tee "$BUILD_LOG" | awk '
+m adbd vendorbootimage vbgraft -j10 2>&1 | tee "$BUILD_LOG" | awk -v tty="$TTY" '
     match($0, /\[ *[0-9]+% [0-9]+\/[0-9]+[^]]*\]/) {
-        printf "\r   %s\033[K", substr($0, RSTART, RLENGTH); fflush(); shown = 1 }
+        p = substr($0, RSTART, RLENGTH)
+        if (tty) { printf "\r   %s\033[K", p; fflush(); shown = 1; next }
+        pct = p; sub(/^\[ */, "", pct); sub(/%.*/, "", pct); pct += 0
+        total = p; sub(/^[^\/]*\//, "", total); sub(/[^0-9].*/, "", total)
+        if (total != run) { run = total; last = -10 }   # a new ninja run (soong bootstrap, then the build)
+        if (total + 0 < 20) next                        # skip tiny runs (1/1, 3/3)
+        if (pct >= last + 10 || (pct == 100 && last < 100)) {
+            step = pct - pct % 10; if (pct == 100) step = 100
+            rest = p; sub(/^\[ *[0-9]+% /, "", rest); sub(/\]$/, "", rest)
+            printf "== progress %d%% (%s)\n", step, rest; fflush(); last = step }
+    }
     END { if (shown) print "" }'
 BUILD_RC=${PIPESTATUS[0]}
 set -e
