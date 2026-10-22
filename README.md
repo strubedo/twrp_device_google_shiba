@@ -48,7 +48,8 @@ not yet tested on a real phone.
   Weaver daemon, using the OS version/patch level saved on the last normal start.
 - **Touchscreen without `vendor_dlkm`**: TWRP takes the touch drivers from the
   slot's own firmware; when that can't be read, it loads a matching set bundled
-  for each Google kernel build (Android 14 to 17). Custom kernels aren't covered
+  for each Google kernel build (Android 14 to 17) - on a stock kernel, the set of
+  the firmware that kernel shipped with. Custom kernels aren't fully covered
   (a module only loads into the kernel it was built for).
 - If decryption is impossible because the booted slot's firmware is **older
   than your data's keys** (the security chip refuses it), TWRP says so on the
@@ -73,12 +74,19 @@ not yet tested on a real phone.
   touches the anti-rollback fuses).
 
 **Root** (Advanced → ROOT: Show status, Install root, Remove root)
-- **Install root** opens one page with every option: APatch, **KernelSU**
-  (official v3.3.0, LKM mode), KernelSU-Next, **Magisk** (30.7), SukiSU, or a
-  **Custom kernel** (a kernel's boot `.img`, flashed to this slot, the other
-  slot or both - each slot gets its own KMI check). Every change is
-  state-checked, backed up, verified after writing, and rolled back on any
-  mismatch. KernelSU refuses unsupported kernels (KMI check).
+- **Install root** opens one page with the root tools: APatch, **KernelSU**
+  (official v3.3.0, LKM mode), KernelSU-Next, **Magisk** (30.7) or SukiSU.
+  Every change is state-checked, backed up, verified after writing, and rolled
+  back on any mismatch. KernelSU refuses unsupported kernels (KMI check).
+
+**Kernel** (Advanced → KERNEL → Install custom kernel)
+- Pick a kernel's boot `.img` or a **kernel `.zip`**, then this slot, the other
+  slot or both - each slot gets its own KMI check. A `vendor_kernel_boot` image
+  with the matching name next to the boot image (`boot-<name>.img` +
+  `vendor_kernel_boot-<name>.img`), or inside the `.zip`, goes onto the same
+  slot - Sultan-based kernels need their own. Both partitions are backed up
+  (`TWRP/boot_backups/`, `TWRP/vendor_kernel_boot_backups/`), verified after
+  writing, and both restored if anything fails. AnyKernel3 zips: use *Install*.
 - **KernelSU app installed for you**: put the official `KernelSU_*.apk` in
   `Download/`; if the app isn't installed yet, Install KernelSU sets it up to
   install itself at the next boot (one-shot module, removes itself).
@@ -238,6 +246,17 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
+
+**v9.55** (2026-10-21) - **Install custom kernels from Advanced, with their
+vendor_kernel_boot.** New Advanced → KERNEL → *Install custom kernel*: a boot
+`.img` (its matching `vendor_kernel_boot-<name>.img` beside it comes along) or a
+kernel `.zip` holding both, onto this slot, the other slot or both - checked,
+backed up, verified, both restored on failure; AnyKernel3 zips are sent to
+*Install*. *Install root* keeps only the root tools. The touch fallback picks a
+stock kernel's own firmware set and skips itself when the touchscreen already
+works. Groundwork for the Pixel 8 Pro and 8a (the splash and slot chip name the
+phone; device table) - **not supported yet**, the installers still accept only
+the Pixel 8. Tested on a Pixel 8 with Android 17 (CP3A.261005.005), both slots.
 
 **v9.53** (2026-10-19) - **Steady temperature, faster start, tidier menus.**
 The status-bar temperature now comes from the board sensor next to the chip
