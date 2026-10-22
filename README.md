@@ -75,7 +75,7 @@ not yet tested on a real phone.
 
 **Root** (Advanced → ROOT: Show status, Install root, Remove root)
 - **Install root** opens one page with the root tools: APatch, **KernelSU**
-  (official v3.3.0, LKM mode), KernelSU-Next, **Magisk** (30.7) or SukiSU.
+  (official v3.3.1, LKM mode - use the matching KernelSU 3.3.1 app), KernelSU-Next, **Magisk** (30.7) or SukiSU.
   Every change is state-checked, backed up, verified after writing, and rolled
   back on any mismatch. KernelSU refuses unsupported kernels (KMI check).
 

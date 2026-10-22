@@ -780,10 +780,11 @@ do_remove() {
             rm -f "$restored"
             "$KSUD" boot-restore -b "$W/current.img" -o "$W" --out-name restored.img >/dev/null \
                 || die "ksud boot-restore failed"
-            # ksud leaves its stock_image.sha1 marker behind; strip it
+            # ksud leaves its stock_image.sha1 marker (and, since 3.3.1, its
+            # ksu_config) behind; strip them - stock init_boot has neither
             local d="$W/strip"; rm -rf "$d"; mkdir -p "$d"
             ( cd "$d" && "$MAGISKBOOT" unpack "$restored" >/dev/null 2>&1 \
-                && "$MAGISKBOOT" cpio ramdisk.cpio "rm stock_image.sha1" >/dev/null 2>&1 \
+                && "$MAGISKBOOT" cpio ramdisk.cpio "rm stock_image.sha1" "rm ksu_config" >/dev/null 2>&1 \
                 && "$MAGISKBOOT" repack "$restored" "$W/restored_clean.img" >/dev/null 2>&1 ) \
                 || die "cleanup repack failed"
             restored="$W/restored_clean.img" ;;

@@ -10,7 +10,7 @@ licenses. Binaries are the unmodified upstream release files unless noted.
 
 | Component | Version | Files | License | Source |
 |---|---|---|---|---|
-| **KernelSU** (`ksud`) | v3.3.0 | `recovery/root/system/bin/ksud` = official release asset `ksud-aarch64-linux-android`, SHA-256 `8614de6cdc2233c71fd0d1c64381ea10fbe6658651bae9b5a8dab4fe08e6344b` | GPL-3.0 | https://github.com/tiann/KernelSU/tree/v3.3.0 |
+| **KernelSU** (`ksud`) | v3.3.1 | `recovery/root/system/bin/ksud` = official release asset `ksud-aarch64-linux-android`, SHA-256 `049491e2b4cc0a6c913d3920cb90b8c94c9e8ca96c0ee92818293304973bfb1b` | GPL-3.0 | https://github.com/tiann/KernelSU/tree/v3.3.1 |
 | **Magisk** | 30.7 | everything in `recovery/root/system/etc/twrp_root/magisk/` except `busybox` (binaries `magisk`, `magiskboot`, `magiskinit`, `init-ld`, `stub.apk`, and Magisk's installer scripts) from the official Magisk APK | GPL-3.0 | https://github.com/topjohnwu/Magisk/tree/v30.7 |
 | **BusyBox** (Magisk's build) | 1.36.1.1 | `recovery/root/system/etc/twrp_root/magisk/busybox` from the same Magisk APK | GPL-2.0 | https://busybox.net (as built by the Magisk project) |
 
