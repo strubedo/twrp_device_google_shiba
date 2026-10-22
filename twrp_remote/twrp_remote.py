@@ -132,6 +132,11 @@ DEVICES = {
     "shiba": ("Pixel 8", REBOOT_STANDARD),
     "husky": ("Pixel 8 Pro", REBOOT_STANDARD),
     "akita": ("Pixel 8a", REBOOT_STANDARD),
+    "tokay": ("Pixel 9", REBOOT_STANDARD),
+    "caiman": ("Pixel 9 Pro", REBOOT_STANDARD),
+    "komodo": ("Pixel 9 Pro XL", REBOOT_STANDARD),
+    "comet": ("Pixel 9 Pro Fold", REBOOT_STANDARD),
+    "tegu": ("Pixel 9a", REBOOT_STANDARD),
     # no fastbootd in this TWRP; ADNL = Amlogic USB burning mode (reboot,update)
     "yoc": ("onn 4K Google TV", [("System", "system"), ("Recovery", "recovery"),
                                  ("Bootloader", "bootloader"), ("ADNL", "update"),
