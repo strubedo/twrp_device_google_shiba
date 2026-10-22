@@ -40,10 +40,23 @@ DEVICES=/system/etc/twrp_devices.conf
 # /proc/modules) and TWRP's second call per boot. PROP is hex, so bit 1 is set
 # when the last digit is 2, 3, 6, 7, a, b, e or f. twrp_remote's virtual
 # touchscreen (TV boxes only) doesn't count.
-ts="$(awk '/^N: Name=/ { n = substr($0, 9) }
-    /^B: PROP=/ && n !~ /twrp_remote/ && /[2367abef]$/ { print n; exit }' /proc/bus/input/devices 2>/dev/null)"
+touchscreen() {
+    awk '/^N: Name=/ { n = substr($0, 9) }
+        /^B: PROP=/ && n !~ /twrp_remote/ && /[2367abef]$/ { print n; exit }' /proc/bus/input/devices 2>/dev/null
+}
+# The driver TWRP just loaded from the slot's vendor_dlkm registers its input
+# device a moment later (Pixel 8, Infinity kernel: module at 2.27 s, goodix_ts0
+# at 3.05 s), so give it up to 2 s before falling back. Costs nothing when
+# touch comes up; a real fallback starts 2 s later.
+waited=0
+ts="$(touchscreen)"
+while [ -z "$ts" ] && [ "$waited" -lt 10 ]; do
+    sleep 0.2
+    waited=$((waited + 1))
+    ts="$(touchscreen)"
+done
 if [ -n "$ts" ]; then
-    log "touch already working ($ts) - nothing to do"
+    log "touch already working ($ts$([ "$waited" -gt 0 ] && echo ", after $((waited * 2))00 ms")) - nothing to do"
     exit 0
 fi
 
