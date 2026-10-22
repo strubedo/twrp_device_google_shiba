@@ -247,6 +247,15 @@ It needs the stock `vendor_boot.img` of your firmware in `~/shiba-stock/factory/
 Newest first. Every version is a git tag in this repository; its commit message
 has the technical details.
 
+**v9.56** (2026-10-22) - **KernelSU 3.3.1, and groundwork for the Pixel 9.**
+*Install root* now installs KernelSU 3.3.1, which matches the current KernelSU
+app (with 3.3.0 the new app showed an "update" warning). *Remove root* also
+removes the `ksu_config` file that 3.3.1 adds to init_boot. Groundwork for the
+Pixel 9, 9 Pro, 9 Pro XL, 9 Pro Fold and 9a (device table, touch fallback sets
+for their own firmware, CPU temperature governor for their CPU layout, splash and
+slot chip) - **not supported yet**, the installers still accept only the Pixel 8.
+Tested on a Pixel 8 with Android 17 (CP3A.261005.005): both slots flashed and verified.
+
 **v9.55** (2026-10-21) - **Install custom kernels from Advanced, with their
 vendor_kernel_boot.** New Advanced → KERNEL → *Install custom kernel*: a boot
 `.img` (its matching `vendor_kernel_boot-<name>.img` beside it comes along) or a
