@@ -31,6 +31,7 @@ $ProgressPreference = 'SilentlyContinue'        # Invoke-WebRequest is far faste
 $Src  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Dest = Join-Path $env:LOCALAPPDATA 'TWRP Remote'
 $Lnk  = Join-Path ([Environment]::GetFolderPath('Programs')) 'TWRP Remote.lnk'
+$DeskLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'TWRP Remote.lnk'
 $UsbDriverUrl = 'https://dl.google.com/android/repository/usb_driver_r13-windows.zip'
 
 function Say($m)  { Write-Host "== $m" }
@@ -42,8 +43,9 @@ function Ask($q)  { if ($Yes) { return $true }; Write-Host ">> $q [Y/n] " -Foreg
 
 if ($Uninstall) {
     Say 'Removing TWRP Remote'
-    if (Test-Path $Dest) { Remove-Item -Recurse -Force $Dest }
-    if (Test-Path $Lnk)  { Remove-Item -Force $Lnk }
+    if (Test-Path $Dest)    { Remove-Item -Recurse -Force $Dest }
+    if (Test-Path $Lnk)     { Remove-Item -Force $Lnk }
+    if (Test-Path $DeskLnk) { Remove-Item -Force $DeskLnk }
     if ([Environment]::GetEnvironmentVariable('ADB','User') -like "$Dest\*") {
         [Environment]::SetEnvironmentVariable('ADB', $null, 'User')
     }
@@ -218,17 +220,19 @@ if ($builds.Count -gt 1) {
     Info "adb build: $($adbs[0].Build)"
 }
 
-# --- Start menu shortcut ---
-Say 'Adding "TWRP Remote" to the Start menu'
+# --- Start menu + desktop shortcuts ---
+Say 'Adding "TWRP Remote" to the Start menu and desktop'
 $sh = New-Object -ComObject WScript.Shell
-$l = $sh.CreateShortcut($Lnk)
-$l.TargetPath = Join-Path $Dest 'TWRP Remote.exe'
-$l.WorkingDirectory = $Dest
-$l.Description = 'View and control TWRP on the Pixel 8 over USB (adb)'
-$l.Save()
+foreach ($target in @($Lnk, $DeskLnk)) {
+    $l = $sh.CreateShortcut($target)
+    $l.TargetPath = Join-Path $Dest 'TWRP Remote.exe'
+    $l.WorkingDirectory = $Dest
+    $l.Description = 'View and control TWRP on the Pixel 8 over USB (adb)'
+    $l.Save()
+}
 
 Say 'Done'
-User 'Start it from the Start menu ("TWRP Remote").'
+User 'Start it from the Start menu or desktop ("TWRP Remote").'
 Info 'Screenshots and logs go to %USERPROFILE%\TWRP Remote.'
 Info 'If adb does not see the phone: Google USB driver - https://developer.android.com/studio/run/win-usb'
 Info 'Remove with: install_windows.bat -Uninstall'

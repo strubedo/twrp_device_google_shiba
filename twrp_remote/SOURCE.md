@@ -6,6 +6,6 @@ The master copy of TWRP Remote lives in the strubedo vendor kit
 packages it, recording the kit commit). This folder is a synced copy of its
 source - the PC app, its installers and the phone-side server - so this
 repository carries it. Synced from kit commit
-b80c27f.
+c1b3193.
 
 License: GPL-3.0-or-later (LICENSE).
