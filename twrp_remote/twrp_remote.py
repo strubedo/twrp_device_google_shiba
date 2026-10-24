@@ -366,11 +366,37 @@ class Remote:
                 return
 
     # -------------------------------------------------------------- phone -> PC
+    def _drop_offline_connections(self):
+        """Disconnects every `adb devices` entry in `offline` state.
+
+        Only `offline` entries, never `device` ones: an offline entry is a dead
+        wireless connection that failed to reconnect (adb keeps it listed
+        anyway, which is what makes an unqualified `adb` command ambiguous
+        even though only one device is actually reachable) - always safe to
+        drop. A second genuinely-live `device` entry might be a different real
+        phone, so that case is left for the person to resolve, not guessed at.
+        """
+        try:
+            r = run([self.adb, "devices"], timeout=5)
+        except Exception:
+            return
+        if r.returncode != 0:
+            return
+        for line in r.stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == "offline":
+                run([self.adb, "disconnect", parts[0]], timeout=5)
+
     def adb_state(self):
         try:
             r = run([self.adb, "get-state"], timeout=5)
             if r.returncode == 0:
                 return r.stdout.strip()
+            if "more than one device" in r.stderr:
+                self._drop_offline_connections()
+                r = run([self.adb, "get-state"], timeout=5)
+                if r.returncode == 0:
+                    return r.stdout.strip()
             return "unauthorized" if "unauthorized" in r.stderr else None
         except Exception:
             return None
