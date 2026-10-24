@@ -142,9 +142,13 @@ DEVICES = {
                                  ("Bootloader", "bootloader"), ("ADNL", "update"),
                                  ("Power off", "poweroff")]),
     # No TWRP for this one (locked bootloader by design) - always seen in Android,
-    # never recovery, so the standard menu is what actually applies, not a guess
-    # at Samsung-specific reboot targets this tool has never verified.
-    "psq": ("Samsung Galaxy S25 Edge", REBOOT_STANDARD),
+    # never recovery. Not REBOOT_STANDARD: Samsung has no AOSP fastboot/bootloader
+    # mode at all (confirmed), so those two targets are dropped rather than shown
+    # and silently do nothing. Download Mode (Samsung's real equivalent) isn't
+    # added either - no `adb reboot <target>` for it has been verified to work
+    # on this device, so it's left out rather than guessed at.
+    "psq": ("Samsung Galaxy S25 Edge", [("System", "system"), ("Recovery", "recovery"),
+                                        ("Power off", "poweroff")]),
 }
 
 
@@ -629,10 +633,17 @@ class Remote:
         # sync, then init's reboot (which also flushes and unmounts). `twrp reboot`
         # runs as a recovery script instead: it shows TWRP's script page and
         # fails to save settings ("Unable to find partition for path '/.twrps'")
+        # Samsung (psq): the protocol-level `adb reboot recovery` doesn't actually
+        # land in recovery on this device (confirmed) - only running `reboot`
+        # itself inside a shell does. Every other device/target keeps the plain
+        # protocol-level form.
+        samsung_recovery = target == "recovery" and self.device and self.device[0].lower() == "psq"
         if target == "poweroff":
             cmds = [[self.adb, "shell", "sync"], [self.adb, "shell", "reboot", "-p"]]
         elif target == "system":
             cmds = [[self.adb, "shell", "sync"], [self.adb, "reboot"]]
+        elif samsung_recovery:
+            cmds = [[self.adb, "shell", "sync"], [self.adb, "shell", "reboot", "recovery"]]
         else:
             cmds = [[self.adb, "shell", "sync"], [self.adb, "reboot", target]]
         def go():
