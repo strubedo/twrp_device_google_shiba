@@ -141,6 +141,10 @@ DEVICES = {
     "yoc": ("onn 4K Google TV", [("System", "system"), ("Recovery", "recovery"),
                                  ("Bootloader", "bootloader"), ("ADNL", "update"),
                                  ("Power off", "poweroff")]),
+    # No TWRP for this one (locked bootloader by design) - always seen in Android,
+    # never recovery, so the standard menu is what actually applies, not a guess
+    # at Samsung-specific reboot targets this tool has never verified.
+    "psq": ("Samsung Galaxy S25 Edge", REBOOT_STANDARD),
 }
 
 
@@ -342,11 +346,16 @@ class Remote:
         if not dev:
             return
         name, menu = DEVICES.get(dev.lower(), (model or dev, REBOOT_STANDARD))
-        if self.device == (dev, name):
+        # The table's name is a friendly label, not a replacement for the real
+        # model string - show both when they say different things (an unknown
+        # device already has model as its whole name, so this only adds the
+        # model back in for devices the table gives a nicer name to).
+        display = f"{name} ({model})" if model and model != name else name
+        if self.device == (dev, display):
             return
-        self.device = (dev, name)
+        self.device = (dev, display)
         def apply():
-            self.root.title(f"TWRP remote \u00b7 {name}")
+            self.root.title(f"TWRP remote \u00b7 {display}")
             self.build_reboot_menu(menu)
         self.root.after(0, apply)
 
