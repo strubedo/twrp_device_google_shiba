@@ -144,10 +144,11 @@ DEVICES = {
     # No TWRP for this one (locked bootloader by design) - always seen in Android,
     # never recovery. Not REBOOT_STANDARD: Samsung has no AOSP fastboot/bootloader
     # mode at all (confirmed), so those two targets are dropped rather than shown
-    # and silently do nothing. Download Mode (Samsung's real equivalent) isn't
-    # added either - no `adb reboot <target>` for it has been verified to work
-    # on this device, so it's left out rather than guessed at.
+    # and silently do nothing. Download Mode uses `adb reboot download`, Samsung's
+    # own documented reboot reason (not an AOSP one) - not yet live-verified on
+    # this exact device, unlike Recovery above which was.
     "psq": ("Samsung Galaxy S25 Edge", [("System", "system"), ("Recovery", "recovery"),
+                                        ("Download Mode", "download"),
                                         ("Power off", "poweroff")]),
 }
 
